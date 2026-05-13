@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet new *)",
+      "Bash(dotnet sln *)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(dotnet add *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(curl -s -X POST http://localhost:5043/api/auth/login -H \"Content-Type: application/json\" -d \"{\\\\\"email\\\\\":\\\\\"admin@neuroplatform.com\\\\\",\\\\\"password\\\\\":\\\\\"AdminPassword123!\\\\\"}\")",
+      "Bash(taskkill /F /IM \"TFE.Api.exe\")",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

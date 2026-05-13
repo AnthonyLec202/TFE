@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>TFE.Api</name>
+    </assembly>
+    <members>
+        <member name="M:TFE.Api.Controllers.UsersController.DeleteUser(System.String)">
+            <summary>
+            Permanently deletes a user account (GDPR Right to Erasure).
+            Anonymises all posts and comments authored by the user, removes all their attachments,
+            and revokes their care-team access across all patients.
+            </summary>
+            <param name="id">The ID of the user to delete.</param>
+        </member>
+        <member name="P:TFE.Api.DTOs.PatientResponse.UserRole">
+            <summary>
+            The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.CascadeDeleteOnPatient">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CascadeDeleteOnPatient.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CascadeDeleteOnPatient.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CascadeDeleteOnPatient.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.CollaborativeWall">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CollaborativeWall.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CollaborativeWall.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.CollaborativeWall.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddUserFullName">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserFullName.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserFullName.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserFullName.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.GdprUserDeletion">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.GdprUserDeletion.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.GdprUserDeletion.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.GdprUserDeletion.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>
