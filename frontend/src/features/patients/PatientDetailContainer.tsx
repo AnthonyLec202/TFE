@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../auth';
 import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, X } from 'lucide-react';
 import { deletePatient, getPatient, updatePatient } from '../../services/patientService';
 import type { PatientResponse, UpdatePatientPayload } from '../../types/patient';
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
+  const { user } = useAuth();
   const [patient, setPatient] = useState<PatientResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -118,8 +120,9 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     );
   }
 
-  const isAdmin = patient.userRole === 'Admin';
-  const canInvite = patient.userRole === 'Admin' || patient.userRole === 'Parent';
+  const isAdmin = user?.roles?.includes('Admin') ?? false;
+  const isParent = patient.userRole === 'Parent';
+  const canInvite = isAdmin || isParent;
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl">

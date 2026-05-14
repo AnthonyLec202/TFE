@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react';
-import { ChevronRight, Loader2, Plus, UserRound, X } from 'lucide-react';
+import { ChevronRight, Loader2, Plus, UserPlus, UserRound, X } from 'lucide-react';
 import { useAuth } from '../auth';
 import { createPatient, getPatients } from '../../services/patientService';
 import type { CreatePatientPayload, PatientResponse } from '../../types/patient';
@@ -16,9 +16,10 @@ function formatDate(iso: string) {
 
 interface Props {
   onSelectPatient: (id: string) => void;
+  onJoinPatient?: () => void;
 }
 
-export function DashboardContainer({ onSelectPatient }: Props) {
+export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   const { user } = useAuth();
 
   const isAdmin = user?.roles.includes('Admin') ?? false;
@@ -75,12 +76,20 @@ export function DashboardContainer({ onSelectPatient }: Props) {
             {patients.length} patient{patients.length !== 1 ? 's' : ''}
           </p>
         </div>
-        {isAdmin && (
-          <Button onClick={openModal}>
-            <Plus className="h-4 w-4" />
-            Créer un patient
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onJoinPatient && (
+            <Button variant="secondary" onClick={onJoinPatient}>
+              <UserPlus className="h-4 w-4" />
+              Rejoindre un patient
+            </Button>
+          )}
+          {isAdmin && (
+            <Button onClick={openModal}>
+              <Plus className="h-4 w-4" />
+              Créer un patient
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Patient list */}

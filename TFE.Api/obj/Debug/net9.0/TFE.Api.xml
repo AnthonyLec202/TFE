@@ -4,6 +4,13 @@
         <name>TFE.Api</name>
     </assembly>
     <members>
+        <member name="M:TFE.Api.Controllers.InvitationsController.Consume(TFE.Api.DTOs.ConsumeInvitationRequest)">
+            <summary>
+            Joins the authenticated user to a patient's care team using an invitation code.
+            The code is consumed immediately and cannot be reused.
+            </summary>
+            <param name="request">The invitation code to consume.</param>
+        </member>
         <member name="M:TFE.Api.Controllers.UsersController.DeleteUser(System.String)">
             <summary>
             Permanently deletes a user account (GDPR Right to Erasure).
@@ -15,6 +22,11 @@
         <member name="P:TFE.Api.DTOs.PatientResponse.UserRole">
             <summary>
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.IInvitationService.JoinPatientAsync(System.String,System.String)">
+            <summary>
+            Adds an already-authenticated user to a patient's care team using an invitation code.
             </summary>
         </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">

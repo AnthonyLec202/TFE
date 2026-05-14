@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IWallService, WallService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IInvitationService, InvitationService>();
 
         return services;
     }
