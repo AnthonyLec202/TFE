@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, ClipboardCopy, X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import { useGenerateInvitation } from '../hooks/useGenerateInvitation';
+import type { InvitationResponse } from '../../../types/patient';
 
 const ROLE_OPTIONS = [
   { value: 'Parent',          label: 'Parent' },
@@ -14,23 +14,23 @@ const ROLE_OPTIONS = [
 
 interface Props {
   isOpen: boolean;
-  patientId: string;
   onClose: () => void;
+  onGenerate: (role: string) => Promise<void>;
+  invitation: InvitationResponse | null;
+  generating: boolean;
+  error: string;
+  copied: boolean;
+  onCopy: () => void;
 }
 
-export function InvitationModal({ isOpen, patientId, onClose }: Props) {
+export function InvitationModal({
+  isOpen, onClose, onGenerate, invitation, generating, error, copied, onCopy,
+}: Props) {
   const [selectedRole, setSelectedRole] = useState('');
-  const { generating, invitation, error, copied, generate, copyToClipboard, reset } = useGenerateInvitation();
-
-  function handleClose() {
-    setSelectedRole('');
-    reset();
-    onClose();
-  }
 
   async function handleGenerate() {
     if (!selectedRole) return;
-    await generate(patientId, selectedRole);
+    await onGenerate(selectedRole);
   }
 
   if (!isOpen) return null;
@@ -38,7 +38,7 @@ export function InvitationModal({ isOpen, patientId, onClose }: Props) {
   return (
     <div
       className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
-      onClick={e => { if (e.target === e.currentTarget && !generating) handleClose(); }}
+      onClick={e => { if (e.target === e.currentTarget && !generating) onClose(); }}
     >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
 
@@ -46,7 +46,7 @@ export function InvitationModal({ isOpen, patientId, onClose }: Props) {
           <h3 className="text-base font-semibold text-slate-900">
             Qui souhaitez-vous inviter ?
           </h3>
-          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 transition-colors" aria-label="Fermer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors" aria-label="Fermer">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -94,13 +94,13 @@ export function InvitationModal({ isOpen, patientId, onClose }: Props) {
             </p>
 
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={copyToClipboard}>
+              <Button variant="secondary" className="flex-1" onClick={onCopy}>
                 {copied
                   ? <><Check className="h-4 w-4 text-emerald-600" /> Copié</>
                   : <><ClipboardCopy className="h-4 w-4" /> Copier le code</>
                 }
               </Button>
-              <Button variant="secondary" className="flex-1" onClick={handleClose}>Fermer</Button>
+              <Button variant="secondary" className="flex-1" onClick={onClose}>Fermer</Button>
             </div>
 
             <p className="text-xs text-slate-400">Ce code ne sera plus affiché après fermeture.</p>

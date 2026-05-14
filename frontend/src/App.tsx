@@ -1,10 +1,11 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
-import { AuthProvider, useAuth } from './hooks/useAuth';
-import { WelcomeView } from './features/auth/WelcomeView';
-import { ForgotPasswordView } from './features/auth/ForgotPasswordView';
-import { ResetPasswordView } from './features/auth/ResetPasswordView';
-import { DashboardView } from './features/patients/DashboardView';
-import { PatientDetailView } from './features/patients/PatientDetailView';
+import { AuthProvider, useAuth } from './features/auth';
+import { WelcomePage } from './pages/auth/WelcomePage';
+import { EnrollmentPage } from './pages/auth/EnrollmentPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { DashboardPage } from './pages/patients/DashboardPage';
+import { PatientDetailPage } from './pages/patients/PatientDetailPage';
 import { MainLayout } from './components/layout/MainLayout';
 
 function ProtectedRoute() {
@@ -17,15 +18,15 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<WelcomeView />} />
-          <Route path="/enroll" element={<Navigate to="/login" replace />} />
-          <Route path="/forgot-password" element={<ForgotPasswordView />} />
-          <Route path="/reset-password" element={<ResetPasswordView />} />
+          <Route path="/login" element={<WelcomePage />} />
+          <Route path="/enroll" element={<EnrollmentPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
-              <Route index element={<DashboardView />} />
-              <Route path="patients/:id" element={<PatientDetailView />} />
+              <Route index element={<DashboardPage />} />
+              <Route path="patients/:id" element={<PatientDetailPage />} />
             </Route>
           </Route>
 

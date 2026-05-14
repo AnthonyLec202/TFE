@@ -1,5 +1,5 @@
 import { Brain, LogOut } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../features/auth';
 import { Button } from '../ui/Button';
 
 const ROLE_LABELS: Record<string, string> = {
