@@ -69,6 +69,10 @@
             "Scalar.AspNetCore": {
               "target": "Package",
               "version": "[2.14.11, )"
+            },
+            "Supabase": {
+              "target": "Package",
+              "version": "[1.1.1, )"
             }
           },
           "imports": [

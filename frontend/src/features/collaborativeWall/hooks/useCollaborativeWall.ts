@@ -17,12 +17,14 @@ export function useCollaborativeWall(patientId: string): UseCollaborativeWallRes
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let ignore = false;
     setLoading(true);
     setError('');
     getWall(patientId)
-      .then(setPosts)
-      .catch(() => setError('Impossible de charger le mur collaboratif.'))
-      .finally(() => setLoading(false));
+      .then(data => { if (!ignore) setPosts(data); })
+      .catch(() => { if (!ignore) setError('Impossible de charger le mur collaboratif.'); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, [patientId]);
 
   function addPost(post: PostResponse) {

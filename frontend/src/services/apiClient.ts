@@ -28,6 +28,25 @@ class ApiClient {
     return response.json();
   }
 
+  // FormData variant: omits Content-Type so the browser sets the multipart boundary automatically.
+  async postForm<T>(path: string, body: FormData): Promise<T> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message ?? 'Request failed');
+    }
+
+    return response.json();
+  }
+
   get<T>(path: string): Promise<T> {
     return this.request('GET', path);
   }

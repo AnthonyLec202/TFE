@@ -81,6 +81,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 "(\"PostId\" IS NOT NULL AND \"CommentId\" IS NULL) OR (\"PostId\" IS NULL AND \"CommentId\" IS NOT NULL)"));
 
         builder.Entity<Attachment>()
+            .Property(a => a.FileName)
+            .HasColumnName("FileName");
+
+        builder.Entity<Attachment>()
+            .Property(a => a.FileType)
+            .HasColumnName("FileType");
+
+        builder.Entity<Attachment>()
             .HasOne(a => a.Post)
             .WithMany(p => p.Attachments)
             .HasForeignKey(a => a.PostId)

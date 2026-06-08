@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createPost } from '../../services/wallService';
+import { createPost, createPostWithAttachments } from '../../services/wallService';
 import type { PostResponse } from '../../types/wall';
 import type { PatientUserRole } from '../../types/patient';
 import { CreatePostForm } from './components/CreatePostForm';
@@ -14,11 +14,13 @@ export function CreatePostContainer({ patientId, userRole, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function handleSubmit(content: string, excludedRoles: string[]) {
+  async function handleSubmit(content: string, excludedRoles: string[], files: File[]) {
     setError('');
     setLoading(true);
     try {
-      const post = await createPost(patientId, { content, excludedRoles });
+      const post = files.length > 0
+        ? await createPostWithAttachments(patientId, content, excludedRoles, files)
+        : await createPost(patientId, { content, excludedRoles });
       onCreated(post);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.');

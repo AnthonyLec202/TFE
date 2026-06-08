@@ -1,3 +1,14 @@
+export interface AttachmentResponse {
+  id: string;
+  filename: string;
+  filetype: string;
+  fileUrl: string;
+  postId: string | null;
+  commentId: string | null;
+  createdAt: string;
+  createdById: string;
+}
+
 export interface CommentResponse {
   id: string;
   postId: string;
@@ -8,6 +19,7 @@ export interface CommentResponse {
   authorRole: string;   // Human-readable French label (e.g. "Psychologue", "Parent")
   createdAt: string;
   updatedAt?: string;
+  attachments: AttachmentResponse[];
 }
 
 export interface PostResponse {
@@ -22,6 +34,7 @@ export interface PostResponse {
   createdAt: string;
   updatedAt?: string;
   comments: CommentResponse[];
+  attachments: AttachmentResponse[];
 }
 
 export interface CreatePostPayload {

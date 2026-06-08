@@ -1,18 +1,18 @@
-import { type ReactNode, useState } from 'react';
-import { ChevronDown, ChevronUp, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
+import { type ReactNode, useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Download, FileText, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
 import type { PostResponse } from '../../../types/wall';
-import type { PatientUserRole } from '../../../types/patient';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import {
-  PURGED_CONTENT, SPECIFIC_ROLES,
-  blacklistToWhitelist, canModify, metaLabel, pillClass, whitelistToBlacklist,
+  SPECIFIC_ROLES,
+  blacklistToWhitelist, metaLabel, pillClass, whitelistToBlacklist,
 } from '../utils/wallUtils';
 
 export interface PostCardProps {
   post: PostResponse;
-  currentUserId: string;
-  userRole: PatientUserRole;
+  canEdit: boolean;
+  isPurged: boolean;
+  isAdmin: boolean;
   // Post action callbacks
   onSavePost: (content: string, excludedRoles: string[]) => Promise<void>;
   onDeletePost: () => Promise<void>;
@@ -25,7 +25,7 @@ export interface PostCardProps {
 }
 
 export function PostCard({
-  post, currentUserId, userRole,
+  post, canEdit, isPurged, isAdmin,
   onSavePost, onDeletePost, saving,
   commentCount, commentItems, onAddComment, submittingComment,
 }: PostCardProps) {
@@ -35,8 +35,13 @@ export function PostCard({
   const [showComments, setShowComments] = useState(false);
   const [commentInput, setCommentInput] = useState('');
 
-  const isPurged = post.content === PURGED_CONTENT;
-  const allowed = canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
+  // Re-sync visibility state when the post is replaced externally (e.g. parent mutation),
+  // but only while the edit form is closed to avoid discarding in-progress edits.
+  useEffect(() => {
+    if (!editing) {
+      setVisibleToRoles(blacklistToWhitelist(post.excludedRoles));
+    }
+  }, [post.excludedRoles, editing]);
 
   function enterEdit() {
     setEditContent(post.content);
@@ -81,7 +86,7 @@ export function PostCard({
         <span className="text-xs text-slate-500">
           {metaLabel(post.authorFirstName, post.authorLastName, post.authorRole, post.createdAt, post.updatedAt)}
         </span>
-        {allowed && !editing && (
+        {canEdit && !editing && (
           <div className="flex items-center gap-1.5">
             <button onClick={enterEdit} className="text-slate-400 hover:text-slate-600 transition-colors">
               <Pencil className="h-3.5 w-3.5" />
@@ -94,7 +99,7 @@ export function PostCard({
       </div>
 
       {/* Visibility badge (Admin view, not editing) */}
-      {userRole === 'Admin' && !editing && (
+      {isAdmin && !editing && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-slate-400">Visible par :</span>
           {post.excludedRoles.length === 0 ? (
@@ -120,7 +125,7 @@ export function PostCard({
             rows={4}
             className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
-          {userRole === 'Admin' && (
+          {isAdmin && (
             <div className="flex flex-col gap-2">
               <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Visible par :</p>
               <div className="flex flex-wrap gap-2">
@@ -149,8 +154,43 @@ export function PostCard({
         <p className="text-sm italic text-slate-400 bg-slate-50 rounded-lg px-3 py-2 select-none">
           {post.content}
         </p>
-      ) : (
+      ) : post.content ? (
         <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+      ) : null}
+
+      {/* Attachments */}
+      {!editing && !isPurged && post.attachments?.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {post.attachments.map(attachment => (
+            attachment.filetype.includes('image') ? (
+              <a
+                key={attachment.id}
+                href={attachment.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={attachment.fileUrl}
+                  alt={attachment.filename}
+                  className="max-h-64 w-full rounded-lg object-cover border border-slate-100"
+                />
+              </a>
+            ) : (
+              <a
+                key={attachment.id}
+                href={attachment.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">{attachment.filename}</span>
+                <Download className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              </a>
+            )
+          ))}
+        </div>
       )}
 
       {/* Comments */}

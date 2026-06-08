@@ -4,14 +4,14 @@
         <name>TFE.Api</name>
     </assembly>
     <members>
-        <member name="M:TFE.Api.Controllers.InvitationsController.Consume(TFE.Api.DTOs.ConsumeInvitationRequest)">
+        <member name="M:TFE.Api.Controllers.Invitations.InvitationsController.Consume(TFE.Api.DTOs.Invitations.ConsumeInvitationRequest)">
             <summary>
             Joins the authenticated user to a patient's care team using an invitation code.
             The code is consumed immediately and cannot be reused.
             </summary>
             <param name="request">The invitation code to consume.</param>
         </member>
-        <member name="M:TFE.Api.Controllers.UsersController.DeleteUser(System.String)">
+        <member name="M:TFE.Api.Controllers.Patients.UsersController.DeleteUser(System.String)">
             <summary>
             Permanently deletes a user account (GDPR Right to Erasure).
             Anonymises all posts and comments authored by the user, removes all their attachments,
@@ -19,12 +19,39 @@
             </summary>
             <param name="id">The ID of the user to delete.</param>
         </member>
-        <member name="P:TFE.Api.DTOs.PatientResponse.UserRole">
+        <member name="T:TFE.Api.DTOs.CollaborativeWall.CreatePostFormRequest">
+            <summary>
+            Multipart/form-data variant of the post creation request.
+            Use with [FromForm] on the controller action.
+            Content is optional: a post may consist of attachments only.
+            The service layer enforces the rule that at least one of Content or Attachments must be present.
+            File validation (size, MIME type) is enforced in the service layer.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Patients.PatientResponse.UserRole">
             <summary>
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
             </summary>
         </member>
-        <member name="M:TFE.Api.Interfaces.IServices.IInvitationService.JoinPatientAsync(System.String,System.String)">
+        <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddSupabaseClient(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Registers the Supabase client singleton using configuration from the "Supabase" section.
+            Call this before <see cref="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddApplicationServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)"/> so the client is available for injection.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the public URL.
+            A unique storage path is generated internally (Guid + original extension).
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.DeleteFileAsync(System.String,System.String)">
+            <summary>
+            Deletes the object identified by <paramref name="fileUrl"/> from <paramref name="bucketName"/>.
+            The storage path is extracted from the URL; no-ops gracefully if the path cannot be parsed.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Invitations.IInvitationService.JoinPatientAsync(System.String,System.String)">
             <summary>
             Adds an already-authenticated user to a patient's care team using an invitation code.
             </summary>
@@ -88,6 +115,30 @@
         </member>
         <member name="M:TFE.Api.Migrations.GdprUserDeletion.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">
+            <summary>
+            Production file storage backed by Supabase Storage.
+            Registered as <see cref="T:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService"/> in DI.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Validators.CollaborativeWall.AttachmentValidator">
+            <summary>
+            Stateless validator for uploaded attachment files.
+            Enforces size, MIME type, and extension rules before any storage or database operation.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Validators.CollaborativeWall.AttachmentValidator.Validate(Microsoft.AspNetCore.Http.IFormFile)">
+            <summary>
+            Validates a single file against size, MIME type, and extension constraints.
+            Throws <see cref="T:System.ComponentModel.DataAnnotations.ValidationException"/> on the first failing constraint.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Validators.CollaborativeWall.AttachmentValidator.ValidateAll(System.Collections.Generic.IEnumerable{Microsoft.AspNetCore.Http.IFormFile})">
+            <summary>
+            Validates all files in the collection. Fails on the first invalid file.
+            A null or empty collection is valid (attachment-free post).
+            </summary>
         </member>
     </members>
 </doc>

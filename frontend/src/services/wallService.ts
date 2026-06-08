@@ -16,6 +16,19 @@ export const getWall = (patientId: string): Promise<PostResponse[]> =>
 export const createPost = (patientId: string, data: CreatePostPayload): Promise<PostResponse> =>
   apiClient.post<PostResponse>(`${base(patientId)}/posts`, data);
 
+export const createPostWithAttachments = (
+  patientId: string,
+  content: string,
+  excludedRoles: string[],
+  files: File[],
+): Promise<PostResponse> => {
+  const form = new FormData();
+  form.append('Content', content);
+  excludedRoles.forEach(role => form.append('ExcludedRoles', role));
+  files.forEach(file => form.append('Attachments', file));
+  return apiClient.postForm<PostResponse>(`${base(patientId)}/posts/multipart`, form);
+};
+
 export const updatePost = (patientId: string, postId: string, data: UpdatePostPayload): Promise<PostResponse> =>
   apiClient.put<PostResponse>(`${base(patientId)}/posts/${postId}`, data);
 

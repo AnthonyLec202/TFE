@@ -3,6 +3,7 @@ import { deleteComment, updateComment } from '../../services/wallService';
 import type { CommentResponse } from '../../types/wall';
 import type { PatientUserRole } from '../../types/patient';
 import { CommentItem } from './components/CommentItem';
+import { canModify, PURGED_CONTENT } from './utils/wallUtils';
 
 interface Props {
   comment: CommentResponse;
@@ -18,6 +19,9 @@ export function CommentItemContainer({
   comment, patientId, postId, currentUserId, userRole, onUpdated, onDeleted,
 }: Props) {
   const [saving, setSaving] = useState(false);
+
+  const isPurged = comment.content === PURGED_CONTENT;
+  const canEdit = canModify(comment.createdAt, comment.createdById, currentUserId, userRole) && !isPurged;
 
   async function handleSave(content: string) {
     setSaving(true);
@@ -41,8 +45,8 @@ export function CommentItemContainer({
   return (
     <CommentItem
       comment={comment}
-      currentUserId={currentUserId}
-      userRole={userRole}
+      isPurged={isPurged}
+      canEdit={canEdit}
       onSave={handleSave}
       onDelete={handleDelete}
       saving={saving}

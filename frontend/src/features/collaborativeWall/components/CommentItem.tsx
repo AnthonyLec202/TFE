@@ -1,25 +1,21 @@
 import { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Download, FileText, Pencil, Trash2 } from 'lucide-react';
 import type { CommentResponse } from '../../../types/wall';
-import type { PatientUserRole } from '../../../types/patient';
 import { Button } from '../../../components/ui/Button';
-import { PURGED_CONTENT, canModify, metaLabel } from '../utils/wallUtils';
+import { metaLabel } from '../utils/wallUtils';
 
 export interface CommentItemProps {
   comment: CommentResponse;
-  currentUserId: string;
-  userRole: PatientUserRole;
+  isPurged: boolean;
+  canEdit: boolean;
   onSave: (content: string) => Promise<void>;
   onDelete: () => Promise<void>;
   saving: boolean;
 }
 
-export function CommentItem({ comment, currentUserId, userRole, onSave, onDelete, saving }: CommentItemProps) {
+export function CommentItem({ comment, isPurged, canEdit, onSave, onDelete, saving }: CommentItemProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
-
-  const isPurged = comment.content === PURGED_CONTENT;
-  const allowed = canModify(comment.createdAt, comment.createdById, currentUserId, userRole);
 
   async function handleSave() {
     if (!editContent.trim()) return;
@@ -37,7 +33,7 @@ export function CommentItem({ comment, currentUserId, userRole, onSave, onDelete
         <span className="text-xs text-slate-500">
           {metaLabel(comment.authorFirstName, comment.authorLastName, comment.authorRole, comment.createdAt, comment.updatedAt)}
         </span>
-        {allowed && !editing && !isPurged && (
+        {canEdit && !editing && (
           <div className="flex items-center gap-1">
             <button onClick={() => setEditing(true)} className="text-slate-300 hover:text-slate-500 transition-colors">
               <Pencil className="h-3 w-3" />
@@ -67,6 +63,41 @@ export function CommentItem({ comment, currentUserId, userRole, onSave, onDelete
         </p>
       ) : (
         <p className="text-sm text-slate-700 whitespace-pre-wrap">{comment.content}</p>
+      )}
+
+      {/* Attachments */}
+      {!editing && !isPurged && comment.attachments?.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-1">
+          {comment.attachments.map(attachment => (
+            attachment.filetype.includes('image') ? (
+              <a
+                key={attachment.id}
+                href={attachment.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={attachment.fileUrl}
+                  alt={attachment.filename}
+                  className="max-h-40 w-full rounded-md object-cover border border-slate-100"
+                />
+              </a>
+            ) : (
+              <a
+                key={attachment.id}
+                href={attachment.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">{attachment.filename}</span>
+                <Download className="h-3 w-3 shrink-0 text-slate-400" />
+              </a>
+            )
+          ))}
+        </div>
       )}
     </div>
   );

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createComment, deletePost, updatePost } from '../../services/wallService';
 import type { CommentResponse, PostResponse } from '../../types/wall';
 import type { PatientUserRole } from '../../types/patient';
 import { PostCard } from './components/PostCard';
 import { CommentItemContainer } from './CommentItemContainer';
+import { canModify, PURGED_CONTENT } from './utils/wallUtils';
 
 interface Props {
   post: PostResponse;
@@ -20,6 +21,16 @@ export function PostCardContainer({
   const [saving, setSaving] = useState(false);
   const [comments, setComments] = useState<CommentResponse[]>(post.comments);
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Re-sync local comments when the post prop is replaced by the parent (e.g. after a sibling mutation
+  // triggers updatePostState and the server returns a new post object with updated comment data).
+  useEffect(() => {
+    setComments(post.comments);
+  }, [post.comments]);
+
+  const isPurged = post.content === PURGED_CONTENT;
+  const canEdit = canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
+  const isAdmin = userRole === 'Admin';
 
   async function handleSavePost(content: string, excludedRoles: string[]) {
     setSaving(true);
@@ -75,8 +86,9 @@ export function PostCardContainer({
   return (
     <PostCard
       post={post}
-      currentUserId={currentUserId}
-      userRole={userRole}
+      canEdit={canEdit}
+      isPurged={isPurged}
+      isAdmin={isAdmin}
       onSavePost={handleSavePost}
       onDeletePost={handleDeletePost}
       saving={saving}

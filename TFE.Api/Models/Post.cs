@@ -5,7 +5,7 @@ public class Post : AuditableEntity
     public Guid PatientId { get; set; }
     public virtual Patient Patient { get; set; } = null!;
 
-    public string Content { get; set; } = string.Empty;
+    public string? Content { get; set; }
 
     // Array of RelationshipType string values (e.g. "Teacher") excluded from seeing this post.
     // Empty array = visible to everyone in the care team.
