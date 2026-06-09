@@ -38,6 +38,18 @@ export const deletePost = (patientId: string, postId: string): Promise<void> =>
 export const createComment = (patientId: string, postId: string, data: CreateCommentPayload): Promise<CommentResponse> =>
   apiClient.post<CommentResponse>(`${base(patientId)}/posts/${postId}/comments`, data);
 
+export const createCommentWithAttachments = (
+  patientId: string,
+  postId: string,
+  content: string,
+  files: File[],
+): Promise<CommentResponse> => {
+  const form = new FormData();
+  form.append('Content', content);
+  files.forEach(file => form.append('Attachments', file));
+  return apiClient.postForm<CommentResponse>(`${base(patientId)}/posts/${postId}/comments/multipart`, form);
+};
+
 export const updateComment = (
   patientId: string, postId: string, commentId: string, data: UpdateCommentPayload
 ): Promise<CommentResponse> =>

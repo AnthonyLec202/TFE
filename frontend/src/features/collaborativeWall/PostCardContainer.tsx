@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { createComment, deletePost, updatePost } from '../../services/wallService';
+import { createComment, createCommentWithAttachments, deletePost, updatePost } from '../../services/wallService';
 import type { CommentResponse, PostResponse } from '../../types/wall';
 import type { PatientUserRole } from '../../types/patient';
 import { PostCard } from './components/PostCard';
@@ -52,10 +52,12 @@ export function PostCardContainer({
     }
   }
 
-  async function handleAddComment(content: string) {
+  async function handleAddComment(content: string, files: File[]) {
     setSubmittingComment(true);
     try {
-      const newComment = await createComment(patientId, post.id, { content });
+      const newComment = files.length > 0
+        ? await createCommentWithAttachments(patientId, post.id, content, files)
+        : await createComment(patientId, post.id, { content });
       setComments(prev => [...prev, newComment]);
     } finally {
       setSubmittingComment(false);

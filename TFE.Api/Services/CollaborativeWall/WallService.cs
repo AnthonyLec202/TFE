@@ -259,6 +259,73 @@ public class WallService : IWallService
         return ToCommentResponse(comment, careTeamMap);
     }
 
+    public async Task<CommentResponse> CreateCommentWithAttachmentsAsync(
+        Guid patientId,
+        Guid postId,
+        string currentUserId,
+        CreateCommentFormRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Content) && !(request.Attachments?.Any() ?? false))
+            throw new ValidationException("A comment must contain either text content or at least one attachment.");
+
+        var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId, cancellationToken)
+                   ?? throw new KeyNotFoundException($"Post {postId} not found.");
+
+        _ = await GetCareTeamEntryAsync(currentUserId, post.PatientId)
+            ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
+
+        AttachmentValidator.ValidateAll(request.Attachments);
+
+        var comment = new Comment
+        {
+            Id = Guid.NewGuid(),
+            PostId = postId,
+            Content = request.Content,
+            CreatedById = currentUserId,
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        _context.Comments.Add(comment);
+
+        var uploadedUrls = new List<string>();
+        try
+        {
+            foreach (var file in request.Attachments ?? [])
+            {
+                var url = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
+                uploadedUrls.Add(url);
+
+                _context.Attachments.Add(new Attachment
+                {
+                    Id = Guid.NewGuid(),
+                    CommentId = comment.Id,
+                    FileUrl = url,
+                    FileName = file.FileName,
+                    FileType = file.ContentType,
+                    CreatedById = currentUserId,
+                    CreatedAt = DateTime.UtcNow,
+                });
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            foreach (var url in uploadedUrls)
+            {
+                try { await _fileStorage.DeleteFileAsync(url, _bucketName); }
+                catch { /* cleanup failure is secondary; original exception is rethrown */ }
+            }
+            throw;
+        }
+
+        await _context.Entry(comment).Collection(c => c.Attachments).LoadAsync(cancellationToken);
+
+        var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
+        return ToCommentResponse(comment, careTeamMap);
+    }
+
     public async Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId)
     {
         var comment = await _context.Comments
@@ -359,7 +426,7 @@ public class WallService : IWallService
         {
             Id = comment.Id,
             PostId = comment.PostId,
-            Content = comment.Content,
+            Content = comment.Content ?? string.Empty,
             CreatedById = comment.CreatedById,
             AuthorFirstName = commentAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.FirstName) ? authorCt!.User!.FirstName : "Utilisateur"),
             AuthorLastName = commentAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.LastName) ? authorCt!.User!.LastName : "Inconnu"),

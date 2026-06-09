@@ -61,9 +61,9 @@ export function CommentItem({ comment, isPurged, canEdit, onSave, onDelete, savi
         <p className="text-sm italic text-slate-400 bg-slate-50 rounded px-2 py-1 select-none">
           {comment.content}
         </p>
-      ) : (
+      ) : comment.content ? (
         <p className="text-sm text-slate-700 whitespace-pre-wrap">{comment.content}</p>
-      )}
+      ) : null}
 
       {/* Attachments */}
       {!editing && !isPurged && comment.attachments?.length > 0 && (

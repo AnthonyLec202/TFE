@@ -40,7 +40,7 @@ export function CreatePostForm({ userRole, onSubmit, loading, error }: CreatePos
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
-    if (!content.trim()) return;
+    if ((!content || !content.trim()) && selectedFiles.length === 0) return;
     try {
       await onSubmit(content.trim(), whitelistToBlacklist(visibleToRoles), selectedFiles);
       setContent('');
@@ -59,7 +59,7 @@ export function CreatePostForm({ userRole, onSubmit, loading, error }: CreatePos
           onChange={e => setContent(e.target.value)}
           placeholder="Partagez une observation, un progrès, un commentaire…"
           rows={3}
-          required
+          required={selectedFiles.length === 0}
           className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
 

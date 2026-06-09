@@ -10,6 +10,7 @@ public interface IWallService
     Task<PostResponse> UpdatePostAsync(Guid postId, UpdatePostRequest request, string currentUserId);
     Task DeletePostAsync(Guid postId, string currentUserId);
     Task<CommentResponse> CreateCommentAsync(Guid postId, CreateCommentRequest request, string currentUserId);
+    Task<CommentResponse> CreateCommentWithAttachmentsAsync(Guid patientId, Guid postId, string currentUserId, CreateCommentFormRequest request, CancellationToken cancellationToken);
     Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId);
     Task DeleteCommentAsync(Guid commentId, string currentUserId);
 }

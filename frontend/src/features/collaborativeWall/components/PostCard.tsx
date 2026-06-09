@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Download, FileText, MessageSquare, Pencil, Send, Trash2 } from 'lucide-react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Download, FileText, MessageSquare, Paperclip, Pencil, Send, Trash2, X } from 'lucide-react';
 import type { PostResponse } from '../../../types/wall';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
@@ -20,7 +20,7 @@ export interface PostCardProps {
   // Comment thread
   commentCount: number;
   commentItems: ReactNode;
-  onAddComment: (content: string) => Promise<void>;
+  onAddComment: (content: string, files: File[]) => Promise<void>;
   submittingComment: boolean;
 }
 
@@ -34,6 +34,21 @@ export function PostCard({
   const [visibleToRoles, setVisibleToRoles] = useState<string[]>(() => blacklistToWhitelist(post.excludedRoles));
   const [showComments, setShowComments] = useState(false);
   const [commentInput, setCommentInput] = useState('');
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_COMMENT_FILE_SIZE = 10 * 1024 * 1024;
+
+  function handleCommentFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const incoming = Array.from(e.target.files ?? []);
+    const valid = incoming.filter(f => f.size <= MAX_COMMENT_FILE_SIZE);
+    setCommentFiles(prev => [...prev, ...valid]);
+    e.target.value = '';
+  }
+
+  function removeCommentFile(index: number) {
+    setCommentFiles(prev => prev.filter((_, i) => i !== index));
+  }
 
   // Re-sync visibility state when the post is replaced externally (e.g. parent mutation),
   // but only while the edit form is closed to avoid discarding in-progress edits.
@@ -66,10 +81,11 @@ export function PostCard({
 
   async function handleAddCommentSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
-    if (!commentInput.trim()) return;
+    if ((!commentInput || !commentInput.trim()) && commentFiles.length === 0) return;
     try {
-      await onAddComment(commentInput.trim());
+      await onAddComment(commentInput.trim(), commentFiles);
       setCommentInput('');
+      setCommentFiles([]);
     } catch {
       // silent — matches original behaviour
     }
@@ -207,17 +223,64 @@ export function PostCard({
         {showComments && (
           <div className="flex flex-col gap-3">
             {commentItems}
-            <form onSubmit={handleAddCommentSubmit} className="flex gap-2 items-end">
-              <textarea
-                value={commentInput}
-                onChange={e => setCommentInput(e.target.value)}
-                placeholder="Ajouter un commentaire…"
-                rows={2}
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <form onSubmit={handleAddCommentSubmit} className="flex flex-col gap-2">
+              <div className="flex gap-2 items-end">
+                <textarea
+                  value={commentInput}
+                  onChange={e => setCommentInput(e.target.value)}
+                  placeholder="Ajouter un commentaire…"
+                  rows={2}
+                  required={commentFiles.length === 0}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => commentFileInputRef.current?.click()}
+                    className="flex items-center justify-center h-8 w-8 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+                    aria-label="Joindre un fichier"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    loading={submittingComment}
+                    disabled={!commentInput.trim() && commentFiles.length === 0}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              {commentFiles.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {commentFiles.map((file, index) => (
+                    <li
+                      key={index}
+                      className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600"
+                    >
+                      <span className="truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCommentFile(index)}
+                        className="shrink-0 text-slate-400 hover:text-red-500 transition-colors"
+                        aria-label={`Retirer ${file.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <input
+                ref={commentFileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.docx"
+                className="hidden"
+                onChange={handleCommentFileChange}
               />
-              <Button type="submit" size="sm" variant="secondary" loading={submittingComment} disabled={!commentInput.trim()}>
-                <Send className="h-3.5 w-3.5" />
-              </Button>
             </form>
           </div>
         )}

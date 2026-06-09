@@ -19,6 +19,14 @@
             </summary>
             <param name="id">The ID of the user to delete.</param>
         </member>
+        <member name="T:TFE.Api.DTOs.CollaborativeWall.CreateCommentFormRequest">
+            <summary>
+            Multipart/form-data variant of the comment creation request.
+            Use with [FromForm] on the controller action.
+            Content is optional: a comment may consist of attachments only.
+            The service layer enforces the rule that at least one of Content or Attachments must be present.
+            </summary>
+        </member>
         <member name="T:TFE.Api.DTOs.CollaborativeWall.CreatePostFormRequest">
             <summary>
             Multipart/form-data variant of the post creation request.
@@ -114,6 +122,30 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.GdprUserDeletion.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AllowNullPostContent">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullPostContent.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullPostContent.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullPostContent.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AllowNullCommentContent">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullCommentContent.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullCommentContent.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AllowNullCommentContent.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

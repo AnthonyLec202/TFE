@@ -84,6 +84,21 @@ public class WallController : ControllerBase
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    [HttpPost("posts/{postId:guid}/comments/multipart")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> CreateCommentWithAttachments(
+        Guid patientId, Guid postId, [FromForm] CreateCommentFormRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _wallService.CreateCommentWithAttachmentsAsync(patientId, postId, CurrentUserId, request, cancellationToken);
+            return Created(string.Empty, response);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (ValidationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     [HttpPost("posts/{postId:guid}/comments")]
     public async Task<IActionResult> CreateComment(Guid patientId, Guid postId, [FromBody] CreateCommentRequest request)
     {
