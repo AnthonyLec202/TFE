@@ -1,7 +1,12 @@
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
+import { usePatientSync } from '../../core/offline/hooks/usePatientSync';
+import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
 
 export function MainLayout() {
+  usePatientSync();
+  useSyncEngine();
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />

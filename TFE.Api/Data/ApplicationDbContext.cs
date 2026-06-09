@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SessionNote> SessionNotes => Set<SessionNote>();
+    public DbSet<Note> Notes => Set<Note>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -106,11 +107,27 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(a => a.CreatedById)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Session: cascade on patient delete — sessions belong to the patient record
+        // Session ↔ Patient: many-to-many with explicit join table
+        // Cascade on both sides so the join row is removed when either party is deleted.
         builder.Entity<Session>()
-            .HasOne(s => s.Patient)
+            .HasMany(s => s.Patients)
             .WithMany(p => p.Sessions)
-            .HasForeignKey(s => s.PatientId)
+            .UsingEntity<Dictionary<string, object>>(
+                "PatientSession",
+                r => r.HasOne<Patient>().WithMany()
+                      .HasForeignKey("PatientsId")
+                      .OnDelete(DeleteBehavior.Cascade),
+                l => l.HasOne<Session>().WithMany()
+                      .HasForeignKey("SessionsId")
+                      .OnDelete(DeleteBehavior.Cascade),
+                j => j.HasKey("SessionsId", "PatientsId")
+            );
+
+        // Session → Note: one-to-one; note is owned by the session
+        builder.Entity<Session>()
+            .HasOne(s => s.Note)
+            .WithOne(n => n.Session)
+            .HasForeignKey<Note>(n => n.SessionId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // SessionNote

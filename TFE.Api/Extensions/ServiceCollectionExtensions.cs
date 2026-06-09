@@ -4,11 +4,13 @@ using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Invitations;
 using TFE.Api.Interfaces.IServices.Patients;
+using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Repositories;
 using TFE.Api.Services.Auth;
 using TFE.Api.Services.CollaborativeWall;
 using TFE.Api.Services.Invitations;
 using TFE.Api.Services.Patients;
+using TFE.Api.Services.Sessions;
 
 namespace TFE.Api.Extensions;
 
@@ -32,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWallService, WallService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IInvitationService, InvitationService>();
+        services.AddScoped<ISessionService, SessionService>();
 
         return services;
     }

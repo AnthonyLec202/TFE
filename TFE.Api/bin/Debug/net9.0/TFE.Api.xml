@@ -148,6 +148,18 @@
         <member name="M:TFE.Api.Migrations.AllowNullCommentContent.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.AddSessionPatientsManyToMany">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionPatientsManyToMany.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionPatientsManyToMany.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionPatientsManyToMany.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">
             <summary>
             Production file storage backed by Supabase Storage.

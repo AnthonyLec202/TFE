@@ -154,6 +154,21 @@ namespace TFE.Api.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("PatientSession", b =>
+                {
+                    b.Property<Guid>("SessionsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PatientsId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SessionsId", "PatientsId");
+
+                    b.HasIndex("PatientsId");
+
+                    b.ToTable("PatientSession");
+                });
+
             modelBuilder.Entity("TFE.Api.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -355,6 +370,30 @@ namespace TFE.Api.Migrations
                     b.ToTable("EnrollmentTokens");
                 });
 
+            modelBuilder.Entity("TFE.Api.Models.Note", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastModifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId")
+                        .IsUnique();
+
+                    b.ToTable("Notes");
+                });
+
             modelBuilder.Entity("TFE.Api.Models.Patient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -420,19 +459,23 @@ namespace TFE.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<string>("Date")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.Property<Guid>("PatientId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("Time")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PatientId");
 
                     b.ToTable("Sessions");
                 });
@@ -525,6 +568,21 @@ namespace TFE.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PatientSession", b =>
+                {
+                    b.HasOne("TFE.Api.Models.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TFE.Api.Models.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TFE.Api.Models.Attachment", b =>
                 {
                     b.HasOne("TFE.Api.Models.Comment", "Comment")
@@ -597,6 +655,17 @@ namespace TFE.Api.Migrations
                     b.Navigation("Patient");
                 });
 
+            modelBuilder.Entity("TFE.Api.Models.Note", b =>
+                {
+                    b.HasOne("TFE.Api.Models.Session", "Session")
+                        .WithOne("Note")
+                        .HasForeignKey("TFE.Api.Models.Note", "SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Session");
+                });
+
             modelBuilder.Entity("TFE.Api.Models.Post", b =>
                 {
                     b.HasOne("TFE.Api.Models.ApplicationUser", "CreatedBy")
@@ -611,17 +680,6 @@ namespace TFE.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("CreatedBy");
-
-                    b.Navigation("Patient");
-                });
-
-            modelBuilder.Entity("TFE.Api.Models.Session", b =>
-                {
-                    b.HasOne("TFE.Api.Models.Patient", "Patient")
-                        .WithMany("Sessions")
-                        .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("Patient");
                 });
@@ -661,8 +719,6 @@ namespace TFE.Api.Migrations
                     b.Navigation("EnrollmentTokens");
 
                     b.Navigation("Posts");
-
-                    b.Navigation("Sessions");
                 });
 
             modelBuilder.Entity("TFE.Api.Models.Post", b =>
@@ -674,6 +730,8 @@ namespace TFE.Api.Migrations
 
             modelBuilder.Entity("TFE.Api.Models.Session", b =>
                 {
+                    b.Navigation("Note");
+
                     b.Navigation("SessionNotes");
                 });
 #pragma warning restore 612, 618

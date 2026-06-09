@@ -47,6 +47,21 @@ class ApiClient {
     return response.json();
   }
 
+  // Variant for endpoints that return 200/204 with no body (avoids response.json() error).
+  async postVoid(path: string, body: unknown): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(error.message ?? 'Request failed');
+    }
+  }
+
   get<T>(path: string): Promise<T> {
     return this.request('GET', path);
   }
