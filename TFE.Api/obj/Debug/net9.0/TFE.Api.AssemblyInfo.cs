@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4e7f91cc75ed4797572b9b33cf6a51fb6cc2503e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e4bb7dd597cdc6cd53405d6fd7bd411859dc0c8e")]
 [assembly: System.Reflection.AssemblyProductAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

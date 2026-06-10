@@ -1,3 +1,3 @@
-export { DashboardContainer } from './DashboardContainer';
 export { PatientDetailContainer } from './PatientDetailContainer';
-export { searchLocalPatients } from './services/localPatientService';
+export { PatientsDashboardContainer } from './PatientsDashboardContainer';
+export { searchLocalPatients, syncPatientsFromServer } from './services/localPatientService';

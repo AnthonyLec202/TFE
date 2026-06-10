@@ -1,4 +1,5 @@
 using Supabase;
+using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
@@ -23,10 +24,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IEnrollmentTokenRepository, EnrollmentTokenRepository>();
         services.AddScoped<ICareTeamRepository, CareTeamRepository>();
+        services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<ICommentRepository, CommentRepository>();
+        services.AddScoped<IAttachmentRepository, AttachmentRepository>();
+        services.AddScoped<ISessionRepository, SessionRepository>();
+        services.AddScoped<INoteRepository, NoteRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // ── Services ──────────────────────────────────────────────────────────
         services.AddScoped<IEmailService, EmailService>();
-        services.AddScoped<IStorageService, DummyStorageService>();
         services.AddScoped<IFileStorageService, SupabaseStorageService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IPatientService, PatientService>();

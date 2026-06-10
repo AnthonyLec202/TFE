@@ -6,7 +6,7 @@ import type { PatientResponse, UpdatePatientPayload } from '../../types/patient'
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { SessionHistoryView } from './SessionHistoryView';
+import { SessionHistoryContainer } from './SessionHistoryContainer';
 import { CollaborativeWallContainer } from '../collaborativeWall';
 import { InvitationContainer } from '../invitations';
 
@@ -195,7 +195,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
             ))}
           </div>
           <div className="pt-6">
-            {activeTab === 'Historique' && <SessionHistoryView patientId={patientId} />}
+            {activeTab === 'Historique' && <SessionHistoryContainer patientId={patientId} />}
             {activeTab === 'Page Privée' && <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} />}
           </div>
         </div>

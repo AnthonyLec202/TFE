@@ -47,6 +47,43 @@
             Call this before <see cref="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddApplicationServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)"/> so the client is available for injection.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ICareTeamRepository.GetByPatientIdWithUsersAsync(System.Guid)">
+            <summary>
+            Returns all CareTeam entries for the given patient, including the linked User,
+            for efficient author-role resolution.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ICommentRepository.GetByIdWithDetailsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Loads a comment together with its parent post and its attachments.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ICommentRepository.LoadAttachmentsAsync(TFE.Api.Models.Comment,System.Threading.CancellationToken)">
+            <summary>
+            Explicitly loads the Attachments navigation property for a tracked comment.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.IPostRepository.GetWallForPatientAsync(System.Guid,System.Boolean,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns all posts visible to the requesting user for the given patient,
+            including their comments (ordered by creation date) and attachments.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.IPostRepository.GetByIdWithDetailsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Loads a post together with its comments (and their attachments) and its own attachments.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.IPostRepository.LoadAttachmentsAsync(TFE.Api.Models.Post,System.Threading.CancellationToken)">
+            <summary>
+            Explicitly loads the Attachments navigation property for a tracked post.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.GetByIdsWithPatientsAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Returns the sessions matching the given ids, including their linked patients.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
             <summary>
             Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the public URL.

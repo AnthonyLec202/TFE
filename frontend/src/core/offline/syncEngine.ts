@@ -1,6 +1,6 @@
 import Dexie from 'dexie';
 import { db, type SyncStatus } from './LocalDatabase';
-import { syncSessionsBatch } from '../../features/sessions/services/sessionApiService';
+import { syncSessionsBatch } from '../../features/sessions';
 
 export async function runSyncCycle(): Promise<void> {
   if (!navigator.onLine) return;

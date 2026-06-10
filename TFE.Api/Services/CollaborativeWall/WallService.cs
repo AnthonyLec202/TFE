@@ -1,8 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using TFE.Api.Data;
 using TFE.Api.DTOs.CollaborativeWall;
+using TFE.Api.Interfaces;
+using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Models;
 using TFE.Api.Validators.CollaborativeWall;
@@ -11,18 +10,30 @@ namespace TFE.Api.Services.CollaborativeWall;
 
 public class WallService : IWallService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPostRepository _postRepository;
+    private readonly ICommentRepository _commentRepository;
+    private readonly IAttachmentRepository _attachmentRepository;
+    private readonly ICareTeamRepository _careTeamRepository;
     private readonly IFileStorageService _fileStorage;
     private readonly ILogger<WallService> _logger;
     private readonly string _bucketName;
 
     public WallService(
-        ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IPostRepository postRepository,
+        ICommentRepository commentRepository,
+        IAttachmentRepository attachmentRepository,
+        ICareTeamRepository careTeamRepository,
         IFileStorageService fileStorage,
         IConfiguration configuration,
         ILogger<WallService> logger)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
+        _postRepository = postRepository;
+        _commentRepository = commentRepository;
+        _attachmentRepository = attachmentRepository;
+        _careTeamRepository = careTeamRepository;
         _fileStorage = fileStorage;
         _logger = logger;
         _bucketName = configuration["Supabase:AttachmentsBucket"]
@@ -32,13 +43,13 @@ public class WallService : IWallService
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Task<CareTeam?> GetCareTeamEntryAsync(string userId, Guid patientId)
-        => _context.CareTeams.FirstOrDefaultAsync(ct => ct.UserId == userId && ct.PatientId == patientId);
+        => _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
 
-    private Task<Dictionary<string, CareTeam>> GetPatientCareTeamMapAsync(Guid patientId)
-        => _context.CareTeams
-            .Include(ct => ct.User)
-            .Where(ct => ct.PatientId == patientId)
-            .ToDictionaryAsync(ct => ct.UserId);
+    private async Task<Dictionary<string, CareTeam>> GetPatientCareTeamMapAsync(Guid patientId)
+    {
+        var careTeams = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
+        return careTeams.ToDictionary(ct => ct.UserId);
+    }
 
     private static string ResolveRole(CareTeam ct) => ct switch
     {
@@ -75,14 +86,7 @@ public class WallService : IWallService
         // Load all CareTeam entries once for efficient author-role resolution
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
 
-        var posts = await _context.Posts
-            .Where(p => p.PatientId == patientId)
-            .Where(p => isAdmin || !p.ExcludedRoles.Any(r => r == userRelationshipRole))
-            .Include(p => p.Comments.OrderBy(c => c.CreatedAt))
-                .ThenInclude(c => c.Attachments)
-            .Include(p => p.Attachments)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToListAsync();
+        var posts = await _postRepository.GetWallForPatientAsync(patientId, isAdmin, userRelationshipRole);
 
         return posts.Select(p => ToPostResponse(p, careTeamMap));
     }
@@ -106,8 +110,8 @@ public class WallService : IWallService
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Posts.Add(post);
-        await _context.SaveChangesAsync();
+        await _postRepository.AddAsync(post);
+        await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
         return ToPostResponse(post, careTeamMap);
     }
@@ -141,7 +145,7 @@ public class WallService : IWallService
             CreatedAt = DateTime.UtcNow,
         };
 
-        _context.Posts.Add(post);
+        await _postRepository.AddAsync(post);
 
         // Upload each file; if any upload or the DB save fails, roll back all
         // successfully uploaded objects to avoid orphaned files in Supabase Storage.
@@ -153,7 +157,7 @@ public class WallService : IWallService
                 var url = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
                 uploadedUrls.Add(url);
 
-                _context.Attachments.Add(new Attachment
+                await _attachmentRepository.AddAsync(new Attachment
                 {
                     Id = Guid.NewGuid(),
                     PostId = post.Id,
@@ -165,7 +169,7 @@ public class WallService : IWallService
                 });
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
         catch
         {
@@ -179,7 +183,7 @@ public class WallService : IWallService
         }
 
         // Explicitly load the Attachments navigation property for the response mapping
-        await _context.Entry(post).Collection(p => p.Attachments).LoadAsync(cancellationToken);
+        await _postRepository.LoadAttachmentsAsync(post, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
         return ToPostResponse(post, careTeamMap);
@@ -187,11 +191,7 @@ public class WallService : IWallService
 
     public async Task<PostResponse> UpdatePostAsync(Guid postId, UpdatePostRequest request, string currentUserId)
     {
-        var post = await _context.Posts
-            .Include(p => p.Comments.OrderBy(c => c.CreatedAt))
-                .ThenInclude(c => c.Attachments)
-            .Include(p => p.Attachments)
-            .FirstOrDefaultAsync(p => p.Id == postId)
+        var post = await _postRepository.GetByIdWithDetailsAsync(postId)
             ?? throw new KeyNotFoundException($"Post {postId} not found.");
 
         await ValidateModificationRightsAsync(post.CreatedById, post.CreatedAt, post.PatientId, currentUserId);
@@ -202,7 +202,7 @@ public class WallService : IWallService
             post.ExcludedRoles = request.ExcludedRoles;
 
         post.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         return ToPostResponse(post, careTeamMap);
@@ -210,11 +210,7 @@ public class WallService : IWallService
 
     public async Task DeletePostAsync(Guid postId, string currentUserId)
     {
-        var post = await _context.Posts
-            .Include(p => p.Attachments)
-            .Include(p => p.Comments)
-                .ThenInclude(c => c.Attachments)
-            .FirstOrDefaultAsync(p => p.Id == postId)
+        var post = await _postRepository.GetByIdWithDetailsAsync(postId)
             ?? throw new KeyNotFoundException($"Post {postId} not found.");
 
         await ValidateModificationRightsAsync(post.CreatedById, post.CreatedAt, post.PatientId, currentUserId);
@@ -223,8 +219,8 @@ public class WallService : IWallService
             .Concat(post.Comments.SelectMany(c => c.Attachments.Select(a => a.FileUrl)))
             .ToList();
 
-        _context.Posts.Remove(post);
-        await _context.SaveChangesAsync();
+        _postRepository.Remove(post);
+        await _unitOfWork.SaveChangesAsync();
 
         foreach (var url in urlsToDelete)
         {
@@ -238,7 +234,7 @@ public class WallService : IWallService
 
     public async Task<CommentResponse> CreateCommentAsync(Guid postId, CreateCommentRequest request, string currentUserId)
     {
-        var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId)
+        var post = await _postRepository.GetByIdAsync(postId)
                    ?? throw new KeyNotFoundException($"Post {postId} not found.");
 
         var ct = await GetCareTeamEntryAsync(currentUserId, post.PatientId)
@@ -253,8 +249,8 @@ public class WallService : IWallService
             CreatedAt = DateTime.UtcNow
         };
 
-        _context.Comments.Add(comment);
-        await _context.SaveChangesAsync();
+        await _commentRepository.AddAsync(comment);
+        await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         return ToCommentResponse(comment, careTeamMap);
     }
@@ -269,7 +265,7 @@ public class WallService : IWallService
         if (string.IsNullOrWhiteSpace(request.Content) && !(request.Attachments?.Any() ?? false))
             throw new ValidationException("A comment must contain either text content or at least one attachment.");
 
-        var post = await _context.Posts.FirstOrDefaultAsync(p => p.Id == postId, cancellationToken)
+        var post = await _postRepository.GetByIdAsync(postId, cancellationToken)
                    ?? throw new KeyNotFoundException($"Post {postId} not found.");
 
         _ = await GetCareTeamEntryAsync(currentUserId, post.PatientId)
@@ -286,7 +282,7 @@ public class WallService : IWallService
             CreatedAt = DateTime.UtcNow,
         };
 
-        _context.Comments.Add(comment);
+        await _commentRepository.AddAsync(comment);
 
         var uploadedUrls = new List<string>();
         try
@@ -296,7 +292,7 @@ public class WallService : IWallService
                 var url = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
                 uploadedUrls.Add(url);
 
-                _context.Attachments.Add(new Attachment
+                await _attachmentRepository.AddAsync(new Attachment
                 {
                     Id = Guid.NewGuid(),
                     CommentId = comment.Id,
@@ -308,7 +304,7 @@ public class WallService : IWallService
                 });
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
         catch
         {
@@ -320,7 +316,7 @@ public class WallService : IWallService
             throw;
         }
 
-        await _context.Entry(comment).Collection(c => c.Attachments).LoadAsync(cancellationToken);
+        await _commentRepository.LoadAttachmentsAsync(comment, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         return ToCommentResponse(comment, careTeamMap);
@@ -328,16 +324,13 @@ public class WallService : IWallService
 
     public async Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId)
     {
-        var comment = await _context.Comments
-            .Include(c => c.Post)
-            .Include(c => c.Attachments)
-            .FirstOrDefaultAsync(c => c.Id == commentId)
+        var comment = await _commentRepository.GetByIdWithDetailsAsync(commentId)
             ?? throw new KeyNotFoundException($"Comment {commentId} not found.");
 
         await ValidateModificationRightsAsync(comment.CreatedById, comment.CreatedAt, comment.Post.PatientId, currentUserId);
         comment.Content = request.Content;
         comment.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(comment.Post.PatientId);
         return ToCommentResponse(comment, careTeamMap);
@@ -345,18 +338,15 @@ public class WallService : IWallService
 
     public async Task DeleteCommentAsync(Guid commentId, string currentUserId)
     {
-        var comment = await _context.Comments
-            .Include(c => c.Post)
-            .Include(c => c.Attachments)
-            .FirstOrDefaultAsync(c => c.Id == commentId)
+        var comment = await _commentRepository.GetByIdWithDetailsAsync(commentId)
             ?? throw new KeyNotFoundException($"Comment {commentId} not found.");
 
         await ValidateModificationRightsAsync(comment.CreatedById, comment.CreatedAt, comment.Post.PatientId, currentUserId);
 
         var urlsToDelete = comment.Attachments.Select(a => a.FileUrl).ToList();
 
-        _context.Comments.Remove(comment);
-        await _context.SaveChangesAsync();
+        _commentRepository.Remove(comment);
+        await _unitOfWork.SaveChangesAsync();
 
         foreach (var url in urlsToDelete)
         {

@@ -7,6 +7,7 @@ public interface IPatientRepository
     Task<Patient> CreateAsync(Patient patient);
     Task<Patient?> GetByIdAsync(Guid id);
     Task<IEnumerable<Patient>> GetByUserIdAsync(string userId);
+    Task<IEnumerable<Patient>> GetByIdsAsync(IEnumerable<Guid> ids);
     Task<Patient> UpdateAsync(Patient patient);
     Task DeleteAsync(Patient patient);
 }

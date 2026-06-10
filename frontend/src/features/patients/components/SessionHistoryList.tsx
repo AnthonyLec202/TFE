@@ -1,19 +1,13 @@
 import { Calendar, Clock, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { Card } from '../../components/ui/Card';
-import { getSessionsForPatient } from '../sessions/services/localSessionService';
+import { Card } from '../../../components/ui/Card';
+import type { LocalSession } from '../../../core/offline/LocalDatabase';
 
-interface Props {
-  patientId: string;
+export interface SessionHistoryListProps {
+  sessions: LocalSession[] | undefined;
 }
 
-export function SessionHistoryView({ patientId }: Props) {
-  const sessions = useLiveQuery(
-    () => getSessionsForPatient(patientId),
-    [patientId],
-  );
-
+export function SessionHistoryList({ sessions }: SessionHistoryListProps) {
   if (sessions === undefined) {
     return (
       <div className="flex items-center justify-center py-16">

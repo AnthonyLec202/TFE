@@ -60,6 +60,11 @@ The backend is structured around a strict separation of concerns utilizing the R
   - The single source of truth for data access.
   - Directly interacts with the database (e.g., via EF Core `DbContext` or direct queries).
   - Must NOT contain business logic; only CRUD operations and complex queries returning `Models`.
+  - Mutating methods (`AddAsync`, `Remove`, `RemoveRange`, etc.) only stage changes on the `DbContext`. They must NOT call `SaveChangesAsync()` themselves — persistence is committed by the Service layer via `IUnitOfWork`.
+- **Unit of Work (`/Repositories/UnitOfWork.cs`, `IUnitOfWork`)**:
+  - Wraps the `ApplicationDbContext` to coordinate transactions and persistence across one or more repositories within a single Service operation.
+  - Exposes `BeginTransactionAsync`, `CommitAsync`, `RollbackAsync`, and `SaveChangesAsync`.
+  - Services that need transactional consistency or persistence inject `IUnitOfWork` — never `ApplicationDbContext` directly.
 - **Models / Entities (`/Models`)**:
   - POCOs (Plain Old CLR Objects) representing database tables/schema.
   - Managed by the ORM. Should not contain application logic.
@@ -70,6 +75,8 @@ The backend is structured around a strict separation of concerns utilizing the R
 1. **Dependency Injection:** Layers must only communicate through injected interfaces (e.g., Controller -> `IService`, Service -> `IRepository`).
 2. **DTO Mapping:** Never return a database `Model` directly from a Controller. Always map it to a `DTO` within the Service layer to prevent over-posting and data leaks.
 3. **Fat Services, Skinny Controllers:** Controllers should ideally be 1-3 lines of code per endpoint.
+4. **No Direct DbContext Access in Services:** Services must NEVER inject `ApplicationDbContext`. All data access goes through `IRepository` interfaces, and all transaction/persistence control goes through `IUnitOfWork`.
+5. **Repository Granularity:** Each aggregate/entity that requires dedicated queries gets its own `IXxxRepository`/`XxxRepository` pair, registered as `Scoped` in `ServiceCollectionExtensions`. Cross-cutting or simple lookups can be added as additional methods on an existing repository for a related entity rather than creating single-method repositories.
 
 ## 4. Instruction for Claude
 When asked to implement a new feature:

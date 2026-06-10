@@ -1,7 +1,7 @@
 import { db } from '../../../core/offline/LocalDatabase';
-import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
+import { getPatients } from '../../../services/patientService';
 
-export async function searchLocalPatients(query: string): Promise<LocalPatientSync[]> {
+export async function searchLocalPatients(query: string) {
   if (!query.trim()) return [];
   const lower = query.toLowerCase();
   return db.patients
@@ -10,6 +10,13 @@ export async function searchLocalPatients(query: string): Promise<LocalPatientSy
     .toArray();
 }
 
-export async function upsertLocalPatient(patient: LocalPatientSync): Promise<void> {
-  await db.patients.put(patient);
+export async function syncPatientsFromServer(): Promise<void> {
+  const patients = await getPatients();
+  const mapped = patients.map(p => ({
+    id: p.id,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    searchableName: `${p.firstName} ${p.lastName}`.toLowerCase(),
+  }));
+  await db.patients.bulkPut(mapped);
 }

@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
-using TFE.Api.Data;
 using TFE.Api.DTOs.Sessions;
+using TFE.Api.Interfaces;
+using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Models;
 
@@ -8,16 +8,26 @@ namespace TFE.Api.Services.Sessions;
 
 public class SessionService : ISessionService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ISessionRepository _sessionRepository;
+    private readonly INoteRepository _noteRepository;
+    private readonly IPatientRepository _patientRepository;
 
-    public SessionService(ApplicationDbContext context)
+    public SessionService(
+        IUnitOfWork unitOfWork,
+        ISessionRepository sessionRepository,
+        INoteRepository noteRepository,
+        IPatientRepository patientRepository)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
+        _sessionRepository = sessionRepository;
+        _noteRepository = noteRepository;
+        _patientRepository = patientRepository;
     }
 
     public async Task SyncBatchAsync(SessionSyncBatchRequest request, CancellationToken cancellationToken)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         // Deduplicate: when the client batches multiple offline saves, the same session or
         // note can appear more than once. Keep only the most recent entry for each key.
@@ -38,11 +48,11 @@ public class SessionService : ISessionService
         // because EF Core's command batching does not guarantee DELETE-before-INSERT order
         // for rows that share a unique-constrained column.
         await DeleteExistingNotesBySessionIdAsync(uniqueNotes, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Phase 2: insert the authoritative note records from the client.
-        InsertNotes(uniqueNotes);
-        await _context.SaveChangesAsync(cancellationToken);
+        await InsertNotesAsync(uniqueNotes, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
     }
@@ -53,18 +63,12 @@ public class SessionService : ISessionService
 
         var ids = requests.Select(r => r.Id).ToList();
 
-        var existing = await _context.Sessions
-            .Include(s => s.Patients)
-            .Where(s => ids.Contains(s.Id))
-            .ToListAsync(ct);
-
+        var existing = await _sessionRepository.GetByIdsWithPatientsAsync(ids, ct);
         var existingMap = existing.ToDictionary(s => s.Id);
 
         // Collect all referenced patient IDs up front to batch the DB lookup
         var allPatientIds = requests.SelectMany(r => r.PatientIds).Distinct().ToList();
-        var patients = await _context.Patients
-            .Where(p => allPatientIds.Contains(p.Id))
-            .ToListAsync(ct);
+        var patients = await _patientRepository.GetByIdsAsync(allPatientIds);
         var patientMap = patients.ToDictionary(p => p.Id);
 
         foreach (var req in requests)
@@ -96,7 +100,7 @@ public class SessionService : ISessionService
                 foreach (var patient in linkedPatients)
                     newSession.Patients.Add(patient);
 
-                _context.Sessions.Add(newSession);
+                await _sessionRepository.AddAsync(newSession, ct);
             }
         }
     }
@@ -107,27 +111,25 @@ public class SessionService : ISessionService
 
         var sessionIds = requests.Select(r => r.SessionId).ToList();
 
-        var existingNotes = await _context.Notes
-            .Where(n => sessionIds.Contains(n.SessionId))
-            .ToListAsync(ct);
+        var existingNotes = await _noteRepository.GetBySessionIdsAsync(sessionIds, ct);
 
         if (existingNotes.Count > 0)
-            _context.Notes.RemoveRange(existingNotes);
+            _noteRepository.RemoveRange(existingNotes);
     }
 
-    private void InsertNotes(List<SyncNoteRequest> requests)
+    private async Task InsertNotesAsync(List<SyncNoteRequest> requests, CancellationToken ct)
     {
         if (requests.Count == 0) return;
 
         foreach (var req in requests)
         {
-            _context.Notes.Add(new Note
+            await _noteRepository.AddAsync(new Note
             {
                 Id = req.Id,
                 SessionId = req.SessionId,
                 Content = req.Content,
                 LastModifiedAt = req.LastModifiedAt,
-            });
+            }, ct);
         }
     }
 }

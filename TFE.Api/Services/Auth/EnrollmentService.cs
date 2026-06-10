@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
-using TFE.Api.Data;
 using TFE.Api.DTOs.Auth;
 using TFE.Api.DTOs.Invitations;
+using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Models;
@@ -11,20 +11,20 @@ namespace TFE.Api.Services.Auth;
 
 public class EnrollmentService : IEnrollmentService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IEnrollmentTokenRepository _tokenRepository;
     private readonly ICareTeamRepository _careTeamRepository;
     private readonly IUserRepository _userRepository;
     private readonly IAuthService _authService;
 
     public EnrollmentService(
-        ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IEnrollmentTokenRepository tokenRepository,
         ICareTeamRepository careTeamRepository,
         IUserRepository userRepository,
         IAuthService authService)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _tokenRepository = tokenRepository;
         _careTeamRepository = careTeamRepository;
         _userRepository = userRepository;
@@ -35,7 +35,7 @@ public class EnrollmentService : IEnrollmentService
     {
         var tokenHash = HashToken(request.SecretCode);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
             // Step 1: find the token by its hash

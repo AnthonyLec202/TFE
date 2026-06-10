@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using TFE.Api.Data;
+using TFE.Api.Interfaces;
+using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Models;
@@ -11,18 +11,31 @@ public class UserService : IUserService
 {
     private const string DeletedContent = "Compte supprimé - Contenu invisible";
 
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPostRepository _postRepository;
+    private readonly ICommentRepository _commentRepository;
+    private readonly IAttachmentRepository _attachmentRepository;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IStorageService _storageService;
+    private readonly IFileStorageService _fileStorage;
+    private readonly string _bucketName;
 
     public UserService(
-        ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
+        IPostRepository postRepository,
+        ICommentRepository commentRepository,
+        IAttachmentRepository attachmentRepository,
         UserManager<ApplicationUser> userManager,
-        IStorageService storageService)
+        IFileStorageService fileStorage,
+        IConfiguration configuration)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
+        _postRepository = postRepository;
+        _commentRepository = commentRepository;
+        _attachmentRepository = attachmentRepository;
         _userManager = userManager;
-        _storageService = storageService;
+        _fileStorage = fileStorage;
+        _bucketName = configuration["Supabase:AttachmentsBucket"]
+            ?? throw new InvalidOperationException("Supabase:AttachmentsBucket is not configured.");
     }
 
     public async Task DeleteUserAsync(string userId)
@@ -30,25 +43,18 @@ public class UserService : IUserService
         var user = await _userManager.FindByIdAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
 
-        await using var tx = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
-            var posts = await _context.Posts
-                .Include(p => p.Attachments)
-                .Where(p => p.CreatedById == userId)
-                .ToListAsync();
-
-            var comments = await _context.Comments
-                .Include(c => c.Attachments)
-                .Where(c => c.CreatedById == userId)
-                .ToListAsync();
+            var posts = await _postRepository.GetByAuthorWithAttachmentsAsync(userId);
+            var comments = await _commentRepository.GetByAuthorWithAttachmentsAsync(userId);
 
             foreach (var post in posts)
             {
                 foreach (var att in post.Attachments)
                 {
-                    await _storageService.DeleteFileAsync(att.FileUrl);
-                    _context.Attachments.Remove(att);
+                    await _fileStorage.DeleteFileAsync(att.FileUrl, _bucketName);
+                    _attachmentRepository.Remove(att);
                 }
                 post.Content = DeletedContent;
             }
@@ -57,13 +63,13 @@ public class UserService : IUserService
             {
                 foreach (var att in comment.Attachments)
                 {
-                    await _storageService.DeleteFileAsync(att.FileUrl);
-                    _context.Attachments.Remove(att);
+                    await _fileStorage.DeleteFileAsync(att.FileUrl, _bucketName);
+                    _attachmentRepository.Remove(att);
                 }
                 comment.Content = DeletedContent;
             }
 
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
 
             var result = await _userManager.DeleteAsync(user);
             if (!result.Succeeded)
@@ -72,11 +78,11 @@ public class UserService : IUserService
                 throw new InvalidOperationException($"Failed to delete user: {errors}");
             }
 
-            await tx.CommitAsync();
+            await transaction.CommitAsync();
         }
         catch
         {
-            await tx.RollbackAsync();
+            await transaction.RollbackAsync();
             throw;
         }
     }

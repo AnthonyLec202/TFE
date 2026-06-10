@@ -1,5 +1,5 @@
-using TFE.Api.Data;
 using TFE.Api.DTOs.Patients;
+using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Models;
@@ -8,23 +8,23 @@ namespace TFE.Api.Services.Patients;
 
 public class PatientService : IPatientService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IPatientRepository _patientRepository;
     private readonly ICareTeamRepository _careTeamRepository;
 
     public PatientService(
-        ApplicationDbContext context,
+        IUnitOfWork unitOfWork,
         IPatientRepository patientRepository,
         ICareTeamRepository careTeamRepository)
     {
-        _context = context;
+        _unitOfWork = unitOfWork;
         _patientRepository = patientRepository;
         _careTeamRepository = careTeamRepository;
     }
 
     public async Task<PatientResponse> CreatePatientAsync(CreatePatientRequest request, string currentUserId)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
             var patient = new Patient

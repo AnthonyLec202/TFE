@@ -45,4 +45,9 @@ public class PatientRepository : IPatientRepository
             .OrderBy(p => p.LastName)
             .ThenBy(p => p.FirstName)
             .ToListAsync();
+
+    public async Task<IEnumerable<Patient>> GetByIdsAsync(IEnumerable<Guid> ids)
+        => await _context.Patients
+            .Where(p => ids.Contains(p.Id))
+            .ToListAsync();
 }
