@@ -1,153 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircle2, Keyboard, Loader2, PenLine, Sparkles, WifiOff } from 'lucide-react';
-import type { LocalNote } from '../../../core/offline/LocalDatabase';
-import { getSessionById, getNoteForSession, saveNoteLocally } from '../services/localSessionService';
-import { runSyncCycle } from '../../../core/offline/syncEngine';
-import { useNetworkStatus } from '../../../core/offline/hooks/useNetworkStatus';
-import { recognizeBatch } from '../services/handwritingApiService';
+import type { LocalSession } from '../../../core/offline/LocalDatabase';
 import { HandwritingCanvas } from './HandwritingCanvas';
 
-type InputMode = 'keyboard' | 'stylus';
+export type InputMode = 'keyboard' | 'stylus';
 
-function parseStrokes(raw: string | undefined): any[] {
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+export interface SessionWorkspaceProps {
+  session: LocalSession;
+  editorText: string;
+  onEditorTextChange: (text: string) => void;
+  isSaving: boolean;
+  inputMode: InputMode;
+  onInputModeChange: (mode: InputMode) => void;
+  currentStrokes: any[];
+  onStrokesUpdate: (strokes: any[]) => void;
+  onConvertToText: () => void;
+  isConverting: boolean;
+  isOnline: boolean;
+  canConvert: boolean;
 }
 
-export function SessionWorkspace() {
-  const { sessionId } = useParams<{ sessionId: string }>();
-  const isOnline = useNetworkStatus();
-
-  const session = useLiveQuery(
-    () => getSessionById(sessionId!),
-    [sessionId],
-  );
-  const note = useLiveQuery(
-    () => getNoteForSession(sessionId!),
-    [sessionId],
-  );
-
-  const [editorText, setEditorText] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [inputMode, setInputMode] = useState<InputMode>('keyboard');
-  const [currentStrokes, setCurrentStrokes] = useState<any[]>([]);
-  const [isConverting, setIsConverting] = useState(false);
-  const autoCreateAttemptedRef = useRef(false);
-
-  // Auto-create the note record when the session is loaded and no note exists yet.
-  // The ref guard prevents React strict-mode's double-invocation from creating duplicates.
-  useEffect(() => {
-    if (!session || note !== undefined || autoCreateAttemptedRef.current) return;
-    autoCreateAttemptedRef.current = true;
-
-    const newNote: LocalNote = {
-      id: crypto.randomUUID(),
-      sessionId: sessionId!,
-      content: '',
-      syncStatus: 'pending_create',
-      lastModifiedAt: new Date().toISOString(),
-    };
-    saveNoteLocally(newNote);
-  }, [session, note, sessionId]);
-
-  // Reset all editor state when navigating to a different session.
-  // Keyed on note identity to avoid overwriting in-progress edits on the same session.
-  useEffect(() => {
-    setEditorText(note?.content ?? '');
-    setCurrentStrokes(parseStrokes(note?.unprocessedStrokes));
-    setIsSaving(false);
-    autoCreateAttemptedRef.current = false;
-  }, [note?.id]);
-
-  // Debounced autosave: persist text content to IndexedDB 1 s after the user stops typing.
-  useEffect(() => {
-    if (!note || editorText === (note.content ?? '')) {
-      setIsSaving(false);
-      return;
-    }
-    setIsSaving(true);
-    const timer = setTimeout(async () => {
-      const updated: LocalNote = {
-        ...note,
-        content: editorText,
-        syncStatus: 'pending_update',
-        lastModifiedAt: new Date().toISOString(),
-      };
-      await saveNoteLocally(updated);
-      setIsSaving(false);
-      runSyncCycle(); // fire-and-forget: attempt immediate sync if online
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [editorText, note]);
-
-  // Append recognised handwriting to the current editor content.
-  function handleTextRecognized(recognizedText: string): void {
-    setEditorText(prev => (prev.length > 0 ? `${prev} ${recognizedText}` : recognizedText));
-  }
-
-  // Persist new strokes to Dexie so they survive a page reload before conversion.
-  function handleStrokesUpdate(newStrokes: any[]): void {
-    setCurrentStrokes(newStrokes);
-    if (!note) return;
-    saveNoteLocally({
-      ...note,
-      unprocessedStrokes: JSON.stringify(newStrokes),
-      syncStatus: 'pending_update',
-      lastModifiedAt: new Date().toISOString(),
-    });
-  }
-
-  async function handleConvertToText(): Promise<void> {
-    if (!isOnline || currentStrokes.length === 0 || isConverting || !note) return;
-    setIsConverting(true);
-    try {
-      const result = await recognizeBatch(JSON.stringify(currentStrokes));
-      handleTextRecognized(result);
-      // Clear strokes both in state and in Dexie atomically.
-      setCurrentStrokes([]);
-      saveNoteLocally({
-        ...note,
-        unprocessedStrokes: '[]',
-        syncStatus: 'pending_update',
-        lastModifiedAt: new Date().toISOString(),
-      });
-    } catch {
-      // Conversion failed silently — strokes remain so the user can retry.
-    } finally {
-      setIsConverting(false);
-    }
-  }
-
-  // ── Loading / not-found states ─────────────────────────────────────────────
-
-  if (session === undefined) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-slate-400">Loading session…</p>
-      </div>
-    );
-  }
-
-  if (session === null || (session === undefined && sessionId)) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-red-400">Session not found.</p>
-      </div>
-    );
-  }
-
-  // ── Derived button state ───────────────────────────────────────────────────
-
-  const canConvert = isOnline && currentStrokes.length > 0 && !isConverting;
+export function SessionWorkspace({
+  session, editorText, onEditorTextChange, isSaving,
+  inputMode, onInputModeChange, currentStrokes, onStrokesUpdate,
+  onConvertToText, isConverting, isOnline, canConvert,
+}: SessionWorkspaceProps) {
   const convertButtonDisabled = !canConvert;
-
-  // ── Workspace ──────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-0 -mx-6 -mt-8">
@@ -168,7 +45,7 @@ export function SessionWorkspace() {
           {inputMode === 'stylus' && (
             <button
               type="button"
-              onClick={handleConvertToText}
+              onClick={onConvertToText}
               disabled={convertButtonDisabled}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                 convertButtonDisabled
@@ -199,7 +76,7 @@ export function SessionWorkspace() {
           <div className="flex items-center rounded-md border border-slate-200 overflow-hidden text-xs">
             <button
               type="button"
-              onClick={() => setInputMode('keyboard')}
+              onClick={() => onInputModeChange('keyboard')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 transition-colors ${
                 inputMode === 'keyboard'
                   ? 'bg-slate-900 text-white'
@@ -211,7 +88,7 @@ export function SessionWorkspace() {
             </button>
             <button
               type="button"
-              onClick={() => setInputMode('stylus')}
+              onClick={() => onInputModeChange('stylus')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 border-l border-slate-200 transition-colors ${
                 inputMode === 'stylus'
                   ? 'bg-slate-900 text-white'
@@ -244,7 +121,7 @@ export function SessionWorkspace() {
       {inputMode === 'keyboard' ? (
         <textarea
           value={editorText}
-          onChange={e => setEditorText(e.target.value)}
+          onChange={e => onEditorTextChange(e.target.value)}
           placeholder="Start typing your session notes here…"
           className="w-full flex-1 min-h-[calc(100vh-12rem)] resize-none bg-white px-8 py-6 text-base text-slate-800 placeholder:text-slate-300 focus:outline-none leading-relaxed"
           spellCheck
@@ -258,7 +135,7 @@ export function SessionWorkspace() {
           )}
           <HandwritingCanvas
             strokes={currentStrokes}
-            onStrokesUpdate={handleStrokesUpdate}
+            onStrokesUpdate={onStrokesUpdate}
           />
         </div>
       )}

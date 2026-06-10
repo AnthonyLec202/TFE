@@ -1,44 +1,28 @@
-import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
-import { createSession } from '../services/localSessionService';
-import type { LocalPatientSync, LocalSession } from '../../../core/offline/LocalDatabase';
+import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
 import { PatientAutocomplete } from './PatientAutocomplete';
 
-interface CreateSessionFormProps {
-  onCreated?: () => void;
+export interface CreateSessionFormProps {
+  title: string;
+  date: string;
+  time: string;
+  selectedPatients: LocalPatientSync[];
+  submitting: boolean;
+  onTitleChange: (title: string) => void;
+  onDateChange: (date: string) => void;
+  onTimeChange: (time: string) => void;
+  onPatientsChange: (patients: LocalPatientSync[]) => void;
+  onSubmit: () => void;
 }
 
-export function CreateSessionForm({ onCreated }: CreateSessionFormProps) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [selectedPatients, setSelectedPatients] = useState<LocalPatientSync[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
+export function CreateSessionForm({
+  title, date, time, selectedPatients, submitting,
+  onTitleChange, onDateChange, onTimeChange, onPatientsChange, onSubmit,
+}: CreateSessionFormProps) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
-    try {
-      const newSession: LocalSession = {
-        id: crypto.randomUUID(),
-        title: title.trim(),
-        date,
-        time,
-        patientIds: selectedPatients.map(p => p.id),
-        syncStatus: 'pending_create',
-        lastModifiedAt: new Date().toISOString(),
-      };
-
-      await createSession(newSession);
-      setTitle('');
-      setDate('');
-      setTime('');
-      setSelectedPatients([]);
-      onCreated?.();
-    } finally {
-      setSubmitting(false);
-    }
+    onSubmit();
   }
 
   return (
@@ -51,7 +35,7 @@ export function CreateSessionForm({ onCreated }: CreateSessionFormProps) {
             type="text"
             required
             value={title}
-            onChange={e => setTitle(e.target.value)}
+            onChange={e => onTitleChange(e.target.value)}
             placeholder="e.g. Weekly assessment"
             className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -64,7 +48,7 @@ export function CreateSessionForm({ onCreated }: CreateSessionFormProps) {
               type="date"
               required
               value={date}
-              onChange={e => setDate(e.target.value)}
+              onChange={e => onDateChange(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -74,7 +58,7 @@ export function CreateSessionForm({ onCreated }: CreateSessionFormProps) {
               type="time"
               required
               value={time}
-              onChange={e => setTime(e.target.value)}
+              onChange={e => onTimeChange(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -82,7 +66,7 @@ export function CreateSessionForm({ onCreated }: CreateSessionFormProps) {
 
         <PatientAutocomplete
           selectedPatients={selectedPatients}
-          onChange={setSelectedPatients}
+          onChange={onPatientsChange}
         />
 
         <div className="flex justify-end pt-1">

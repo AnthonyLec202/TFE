@@ -49,7 +49,7 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
 
   function getCanvasPoint(e: React.PointerEvent<HTMLCanvasElement>): StrokePoint {
     const rect = canvasRef.current!.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top, t: e.timeStamp };
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>): void {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
-import { searchLocalPatients } from '../../patients/services/localPatientService';
+import { searchLocalPatients } from '../../patients';
 
 interface PatientAutocompleteProps {
   selectedPatients: LocalPatientSync[];

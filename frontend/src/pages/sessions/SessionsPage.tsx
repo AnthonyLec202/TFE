@@ -1,5 +1,5 @@
-import { SessionsDashboard } from '../../features/sessions/components/SessionsDashboard';
+import { SessionsDashboardContainer } from '../../features/sessions';
 
 export function SessionsPage() {
-  return <SessionsDashboard />;
+  return <SessionsDashboardContainer />;
 }

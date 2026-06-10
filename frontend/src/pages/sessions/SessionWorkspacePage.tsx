@@ -1,5 +1,5 @@
-import { SessionWorkspace } from '../../features/sessions/components/SessionWorkspace';
+import { SessionWorkspaceContainer } from '../../features/sessions';
 
 export function SessionWorkspacePage() {
-  return <SessionWorkspace />;
+  return <SessionWorkspaceContainer />;
 }
