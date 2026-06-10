@@ -16,3 +16,9 @@ export const resetPassword = (
   newPassword: string
 ): Promise<{ message: string }> =>
   apiClient.post<{ message: string }>('/api/auth/reset-password', { email, token, newPassword });
+
+export const changePassword = (
+  currentPassword: string,
+  newPassword: string
+): Promise<{ message: string }> =>
+  apiClient.post<{ message: string }>('/api/auth/change-password', { currentPassword, newPassword });

@@ -70,6 +70,19 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task ChangePasswordAsync(string userId, ChangePasswordRequest request)
+    {
+        var user = await _userRepository.FindByIdAsync(userId)
+                   ?? throw new KeyNotFoundException("User not found.");
+
+        var result = await _userRepository.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
+            throw new InvalidOperationException($"Password change failed: {errors}");
+        }
+    }
+
     private async Task<string> GenerateJwtTokenAsync(ApplicationUser user)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));

@@ -6,6 +6,7 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { DashboardPage } from './pages/patients/DashboardPage';
 import { PatientDetailPage } from './pages/patients/PatientDetailPage';
+import { ProfilePage } from './pages/profile/ProfilePage';
 import { SessionsPage } from './pages/sessions/SessionsPage';
 import { SessionWorkspacePage } from './pages/sessions/SessionWorkspacePage';
 import { MainLayout } from './components/layout/MainLayout';
@@ -33,6 +34,7 @@ function App() {
             <Route element={<MainLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="patients/:id" element={<PatientDetailPage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
                 <Route path="sessions" element={<SessionsPage />} />
                 <Route path="sessions/:sessionId" element={<SessionWorkspacePage />} />

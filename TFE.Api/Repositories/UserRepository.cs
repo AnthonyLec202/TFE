@@ -16,6 +16,9 @@ public class UserRepository : IUserRepository
     public Task<ApplicationUser?> FindByEmailAsync(string email)
         => _userManager.FindByEmailAsync(email);
 
+    public Task<ApplicationUser?> FindByIdAsync(string userId)
+        => _userManager.FindByIdAsync(userId);
+
     public Task<bool> CheckPasswordAsync(ApplicationUser user, string password)
         => _userManager.CheckPasswordAsync(user, password);
 
@@ -30,4 +33,7 @@ public class UserRepository : IUserRepository
 
     public Task<IdentityResult> ResetPasswordAsync(ApplicationUser user, string token, string newPassword)
         => _userManager.ResetPasswordAsync(user, token, newPassword);
+
+    public Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string currentPassword, string newPassword)
+        => _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
 }

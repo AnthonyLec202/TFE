@@ -17,6 +17,11 @@ export interface ConsumeTokenRequest {
   secretCode: string;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface AuthUser {
   userId: string;
   email: string;
