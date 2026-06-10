@@ -84,6 +84,23 @@
             Returns the sessions matching the given ids, including their linked patients.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.GetByIdWithPatientsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Returns a single session with its linked patients loaded (for update/delete flows), or null if not found.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.UpdateAsync(TFE.Api.Models.Session,System.Threading.CancellationToken)">
+            <summary>
+            Stages an update for an already-tracked session. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.DeleteAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Stages the removal of the session with the given id. Returns false if no such session exists.
+            The associated Note, SessionNotes and PatientSession join rows are removed by the configured
+            ON DELETE CASCADE foreign keys. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
             <summary>
             Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the public URL.

@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import type { LocalNote } from '../../core/offline/LocalDatabase';
-import { getSessionById, getNoteForSession, saveNoteLocally } from './services/localSessionService';
+import type { LocalNote, LocalPatientSync } from '../../core/offline/LocalDatabase';
+import {
+  getSessionById, getNoteForSession, saveNoteLocally, getAllLocalPatients,
+  updateSessionLocally, deleteSessionLocally,
+} from './services/localSessionService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useNetworkStatus } from '../../core/offline/hooks/useNetworkStatus';
 import { recognizeBatch } from './services/handwritingApiService';
 import { SessionWorkspace, type InputMode } from './components/SessionWorkspace';
+import { SessionEditModal } from './components/SessionEditModal';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
 function parseStrokes(raw: string | undefined): any[] {
   if (!raw) return [];
@@ -19,6 +24,7 @@ function parseStrokes(raw: string | undefined): any[] {
 
 export function SessionWorkspaceContainer() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
   const isOnline = useNetworkStatus();
 
   const session = useLiveQuery(
@@ -29,6 +35,13 @@ export function SessionWorkspaceContainer() {
     () => getNoteForSession(sessionId!),
     [sessionId],
   );
+  const patients = useLiveQuery(() => getAllLocalPatients());
+
+  const patientNamesById = useMemo(() => {
+    const map = new Map<string, string>();
+    (patients ?? []).forEach(p => map.set(p.id, `${p.firstName} ${p.lastName}`));
+    return map;
+  }, [patients]);
 
   const [editorText, setEditorText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -36,6 +49,16 @@ export function SessionWorkspaceContainer() {
   const [currentStrokes, setCurrentStrokes] = useState<any[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const autoCreateAttemptedRef = useRef(false);
+
+  // ── Edit / delete state ──────────────────────────────────────────────────
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editPatients, setEditPatients] = useState<LocalPatientSync[]>([]);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Auto-create the note record when the session is loaded and no note exists yet.
   // The ref guard prevents React strict-mode's double-invocation from creating duplicates.
@@ -121,6 +144,47 @@ export function SessionWorkspaceContainer() {
     }
   }
 
+  // ── Edit / delete handlers ─────────────────────────────────────────────────
+
+  function handleEditOpen(): void {
+    if (!session) return;
+    setEditTitle(session.title);
+    setEditDate(session.date);
+    setEditTime(session.time);
+    setEditPatients((patients ?? []).filter(p => session.patientIds.includes(p.id)));
+    setIsEditOpen(true);
+  }
+
+  async function handleEditSubmit(): Promise<void> {
+    if (!session) return;
+    setIsSavingEdit(true);
+    try {
+      await updateSessionLocally(session.id, {
+        title: editTitle.trim(),
+        date: editDate,
+        time: editTime,
+        patientIds: editPatients.map(p => p.id),
+      });
+      runSyncCycle(); // fire-and-forget: push the update to the server if online
+      setIsEditOpen(false);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function handleConfirmDelete(): Promise<void> {
+    if (!session) return;
+    setIsDeleting(true);
+    try {
+      await deleteSessionLocally(session.id);
+      runSyncCycle(); // fire-and-forget: issue the server-side DELETE if online
+      // Workspace state is discarded on unmount; redirect back to the Sessions dashboard.
+      navigate('/sessions');
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   // ── Loading / not-found states ─────────────────────────────────────────────
 
   if (session === undefined) {
@@ -144,19 +208,50 @@ export function SessionWorkspaceContainer() {
   const canConvert = isOnline && currentStrokes.length > 0 && !isConverting;
 
   return (
-    <SessionWorkspace
-      session={session}
-      editorText={editorText}
-      onEditorTextChange={setEditorText}
-      isSaving={isSaving}
-      inputMode={inputMode}
-      onInputModeChange={setInputMode}
-      currentStrokes={currentStrokes}
-      onStrokesUpdate={handleStrokesUpdate}
-      onConvertToText={handleConvertToText}
-      isConverting={isConverting}
-      isOnline={isOnline}
-      canConvert={canConvert}
-    />
+    <>
+      <SessionWorkspace
+        session={session}
+        patientNamesById={patientNamesById}
+        editorText={editorText}
+        onEditorTextChange={setEditorText}
+        isSaving={isSaving}
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
+        currentStrokes={currentStrokes}
+        onStrokesUpdate={handleStrokesUpdate}
+        onConvertToText={handleConvertToText}
+        isConverting={isConverting}
+        isOnline={isOnline}
+        canConvert={canConvert}
+        onEdit={handleEditOpen}
+        onDelete={() => setIsConfirmDeleteOpen(true)}
+      />
+
+      {isEditOpen && (
+        <SessionEditModal
+          title={editTitle}
+          date={editDate}
+          time={editTime}
+          selectedPatients={editPatients}
+          saving={isSavingEdit}
+          onTitleChange={setEditTitle}
+          onDateChange={setEditDate}
+          onTimeChange={setEditTime}
+          onPatientsChange={setEditPatients}
+          onSubmit={handleEditSubmit}
+          onClose={() => setIsEditOpen(false)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={isConfirmDeleteOpen}
+        title="Delete session"
+        message="This session and its notes will be permanently deleted. This action cannot be undone."
+        confirmLabel="Delete"
+        loading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setIsConfirmDeleteOpen(false)}
+      />
+    </>
   );
 }

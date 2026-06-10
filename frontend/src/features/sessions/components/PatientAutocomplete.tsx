@@ -79,7 +79,7 @@ export function PatientAutocomplete({ selectedPatients, onChange }: PatientAutoc
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onFocus={() => { if (suggestions.length > 0) setIsOpen(true); }}
-          placeholder={selectedPatients.length === 0 ? 'Search patients…' : ''}
+          placeholder={selectedPatients.length === 0 ? 'Chercher un patient ...' : ''}
           className="flex-1 min-w-[120px] text-sm text-slate-900 placeholder:text-slate-400 bg-transparent outline-none py-0.5"
         />
       </div>
@@ -102,7 +102,7 @@ export function PatientAutocomplete({ selectedPatients, onChange }: PatientAutoc
 
       {isOpen && suggestions.length === 0 && inputValue.trim() && (
         <div className="absolute top-full mt-1 left-0 right-0 z-10 rounded-lg border border-slate-200 bg-white shadow-md px-3.5 py-2.5">
-          <p className="text-sm text-slate-400">No patients found.</p>
+          <p className="text-sm text-slate-400">Aucun patient trouvé</p>
         </div>
       )}
     </div>

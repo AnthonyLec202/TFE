@@ -9,5 +9,22 @@ public interface ISessionRepository
     /// </summary>
     Task<List<Session>> GetByIdsWithPatientsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns a single session with its linked patients loaded (for update/delete flows), or null if not found.
+    /// </summary>
+    Task<Session?> GetByIdWithPatientsAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task AddAsync(Session session, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stages an update for an already-tracked session. Persistence is committed by the caller via IUnitOfWork.
+    /// </summary>
+    Task UpdateAsync(Session session, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stages the removal of the session with the given id. Returns false if no such session exists.
+    /// The associated Note, SessionNotes and PatientSession join rows are removed by the configured
+    /// ON DELETE CASCADE foreign keys. Persistence is committed by the caller via IUnitOfWork.
+    /// </summary>
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

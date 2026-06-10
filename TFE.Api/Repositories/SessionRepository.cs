@@ -20,9 +20,32 @@ public class SessionRepository : ISessionRepository
             .Where(s => ids.Contains(s.Id))
             .ToListAsync(cancellationToken);
 
+    public Task<Session?> GetByIdWithPatientsAsync(Guid id, CancellationToken cancellationToken = default)
+        => _context.Sessions
+            .Include(s => s.Patients)
+            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+
     public Task AddAsync(Session session, CancellationToken cancellationToken = default)
     {
         _context.Sessions.Add(session);
         return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(Session session, CancellationToken cancellationToken = default)
+    {
+        // Mark only the session entity as modified. The many-to-many patient changes are tracked
+        // independently through the loaded Patients collection, so we avoid DbSet.Update here
+        // (which would also flag the linked Patient rows as modified and rewrite them needlessly).
+        _context.Entry(session).State = EntityState.Modified;
+        return Task.CompletedTask;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var session = await _context.Sessions.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (session is null) return false;
+
+        _context.Sessions.Remove(session);
+        return true;
     }
 }

@@ -1,30 +1,58 @@
-import Dexie from 'dexie';
 import { db, type SyncStatus } from './LocalDatabase';
-import { syncSessionsBatch } from '../../features/sessions';
+import { syncSessionsBatch, updateSession, deleteSession } from '../../features/sessions';
+
+const SYNCED: SyncStatus = 'synced';
 
 export async function runSyncCycle(): Promise<void> {
   if (!navigator.onLine) return;
 
   try {
-    await db.transaction('rw', db.sessions, db.notes, async () => {
-      const pendingSessions = await db.sessions
-        .filter(s => s.syncStatus !== 'synced')
-        .toArray();
-      const pendingNotes = await db.notes
-        .filter(n => n.syncStatus !== 'synced')
-        .toArray();
+    const pendingSessions = await db.sessions.filter(s => s.syncStatus !== 'synced').toArray();
+    const pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
 
-      if (pendingSessions.length === 0 && pendingNotes.length === 0) return;
+    const deletes = pendingSessions.filter(s => s.syncStatus === 'pending_delete');
+    const updates = pendingSessions.filter(s => s.syncStatus === 'pending_update');
+    const creates = pendingSessions.filter(s => s.syncStatus === 'pending_create');
 
+    if (deletes.length === 0 && updates.length === 0 && creates.length === 0 && pendingNotes.length === 0) {
+      return;
+    }
+
+    // 1) Deletions — remove server-side, then purge the local tombstone and its notes.
+    for (const session of deletes) {
+      await deleteSession(session.id);
+      await db.transaction('rw', db.sessions, db.notes, async () => {
+        await db.notes.where('sessionId').equals(session.id).delete();
+        await db.sessions.delete(session.id);
+      });
+    }
+
+    // 2) Updates — push each previously-synced session via PUT, then mark it synced.
+    for (const session of updates) {
+      await updateSession(session.id, {
+        title: session.title,
+        date: session.date,
+        time: session.time,
+        patientIds: session.patientIds,
+      });
+      await db.sessions.update(session.id, { syncStatus: SYNCED });
+    }
+
+    // 3) Creates + notes — the batch endpoint upserts new sessions and reconciles notes atomically.
+    // Skip notes whose session was just deleted so we never re-create an orphaned note.
+    const deletedIds = new Set(deletes.map(s => s.id));
+    const notesToSync = pendingNotes.filter(n => !deletedIds.has(n.sessionId));
+
+    if (creates.length > 0 || notesToSync.length > 0) {
       const payload = {
-        sessions: pendingSessions.map(s => ({
+        sessions: creates.map(s => ({
           id: s.id,
           title: s.title,
           date: s.date,
           time: s.time,
           patientIds: s.patientIds,
         })),
-        notes: pendingNotes.map(n => ({
+        notes: notesToSync.map(n => ({
           id: n.id,
           sessionId: n.sessionId,
           content: n.content,
@@ -32,13 +60,15 @@ export async function runSyncCycle(): Promise<void> {
         })),
       };
 
-      // Dexie.waitFor keeps the IDB transaction alive across the external fetch await.
-      await Dexie.waitFor(syncSessionsBatch(payload));
+      await syncSessionsBatch(payload);
 
-      const synced: SyncStatus = 'synced';
-      await db.sessions.bulkPut(pendingSessions.map(s => ({ ...s, syncStatus: synced })));
-      await db.notes.bulkPut(pendingNotes.map(n => ({ ...n, syncStatus: synced })));
-    });
+      await db.transaction('rw', db.sessions, db.notes, async () => {
+        if (creates.length > 0)
+          await db.sessions.bulkPut(creates.map(s => ({ ...s, syncStatus: SYNCED })));
+        if (notesToSync.length > 0)
+          await db.notes.bulkPut(notesToSync.map(n => ({ ...n, syncStatus: SYNCED })));
+      });
+    }
   } catch (err) {
     console.warn('[SyncEngine] Sync cycle failed — will retry next time.', err);
   }

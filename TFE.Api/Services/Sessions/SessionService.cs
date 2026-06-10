@@ -57,6 +57,64 @@ public class SessionService : ISessionService
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task UpdateAsync(Guid id, UpdateSessionRequest request, CancellationToken cancellationToken)
+    {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var session = await _sessionRepository.GetByIdWithPatientsAsync(id, cancellationToken)
+                ?? throw new KeyNotFoundException($"Session {id} not found.");
+
+            session.Title = request.Title;
+            session.Date = request.Date;
+            session.Time = request.Time;
+
+            // Replace the patient assignment: resolve the requested ids, then rebuild the
+            // many-to-many join from the loaded (tracked) collection.
+            var patientIds = request.PatientIds.Distinct().ToList();
+            var patients = await _patientRepository.GetByIdsAsync(patientIds);
+            var patientMap = patients.ToDictionary(p => p.Id);
+
+            session.Patients.Clear();
+            foreach (var patientId in patientIds)
+                if (patientMap.TryGetValue(patientId, out var patient))
+                    session.Patients.Add(patient);
+
+            await _sessionRepository.UpdateAsync(session, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // FK_Notes_Sessions_SessionId is configured with ON DELETE CASCADE (see ApplicationDbContext),
+            // which also cascades to SessionNotes and the PatientSession join, so removing the session
+            // is sufficient to clean up its dependent rows.
+            var removed = await _sessionRepository.DeleteAsync(id, cancellationToken);
+            if (!removed)
+                throw new KeyNotFoundException($"Session {id} not found.");
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     private async Task UpsertSessionsAsync(List<SyncSessionRequest> requests, CancellationToken ct)
     {
         if (requests.Count == 0) return;

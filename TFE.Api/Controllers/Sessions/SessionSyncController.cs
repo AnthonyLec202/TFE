@@ -25,4 +25,35 @@ public class SessionSyncController : ControllerBase
         await _sessionService.SyncBatchAsync(request, cancellationToken);
         return Ok();
     }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateSession(
+        Guid id,
+        [FromBody] UpdateSessionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _sessionService.UpdateAsync(id, request, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteSession(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _sessionService.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
 }

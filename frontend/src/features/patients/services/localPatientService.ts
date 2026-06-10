@@ -18,5 +18,16 @@ export async function syncPatientsFromServer(): Promise<void> {
     lastName: p.lastName,
     searchableName: `${p.firstName} ${p.lastName}`.toLowerCase(),
   }));
-  await db.patients.bulkPut(mapped);
+
+  const serverIds = new Set(mapped.map(p => p.id));
+
+  // Reconcile the local cache with the authoritative server list. A plain bulkPut is
+  // additive only, so patients deleted server-side would linger here and keep showing
+  // up in the autocomplete. Prune the stale ids before upserting the current set.
+  await db.transaction('rw', db.patients, async () => {
+    const localIds = (await db.patients.toCollection().primaryKeys()) as string[];
+    const staleIds = localIds.filter(id => !serverIds.has(id));
+    if (staleIds.length > 0) await db.patients.bulkDelete(staleIds);
+    await db.patients.bulkPut(mapped);
+  });
 }

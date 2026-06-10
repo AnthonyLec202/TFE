@@ -1,16 +1,65 @@
 import { db } from '../../../core/offline/LocalDatabase';
-import type { LocalNote, LocalSession } from '../../../core/offline/LocalDatabase';
+import type { LocalNote, LocalPatientSync, LocalSession, SyncStatus } from '../../../core/offline/LocalDatabase';
+
+export interface SessionEditableFields {
+  title: string;
+  date: string;
+  time: string;
+  patientIds: string[];
+}
 
 export async function createSession(session: LocalSession): Promise<void> {
   await db.sessions.put(session);
 }
 
 export async function getSessionById(sessionId: string): Promise<LocalSession | undefined> {
-  return db.sessions.get(sessionId);
+  const session = await db.sessions.get(sessionId);
+  // A tombstoned (pending_delete) session is treated as already gone.
+  if (!session || session.syncStatus === 'pending_delete') return undefined;
+  return session;
 }
 
 export async function getAllSessions(): Promise<LocalSession[]> {
-  return db.sessions.orderBy('date').reverse().toArray();
+  const sessions = await db.sessions.orderBy('date').reverse().toArray();
+  // Hide sessions awaiting server-side deletion so they vanish immediately from the dashboard.
+  return sessions.filter(s => s.syncStatus !== 'pending_delete');
+}
+
+export async function updateSessionLocally(id: string, changes: SessionEditableFields): Promise<void> {
+  const existing = await db.sessions.get(id);
+  if (!existing) return;
+
+  // Preserve pending_create so a not-yet-synced session still flows through the create path;
+  // otherwise mark it pending_update for the SyncEngine to push via PUT.
+  const syncStatus: SyncStatus = existing.syncStatus === 'pending_create' ? 'pending_create' : 'pending_update';
+
+  await db.sessions.put({
+    ...existing,
+    ...changes,
+    syncStatus,
+    lastModifiedAt: new Date().toISOString(),
+  });
+}
+
+export async function deleteSessionLocally(id: string): Promise<void> {
+  const existing = await db.sessions.get(id);
+  if (!existing) return;
+
+  if (existing.syncStatus === 'pending_create') {
+    // Never synced to the server — purge it (and its note) outright; nothing to delete remotely.
+    await db.transaction('rw', db.sessions, db.notes, async () => {
+      await db.notes.where('sessionId').equals(id).delete();
+      await db.sessions.delete(id);
+    });
+    return;
+  }
+
+  // Tombstone: keep the row marked for deletion so the SyncEngine issues a server-side DELETE.
+  await db.sessions.put({
+    ...existing,
+    syncStatus: 'pending_delete',
+    lastModifiedAt: new Date().toISOString(),
+  });
 }
 
 export async function getSessionsForPatient(patientId: string): Promise<LocalSession[]> {
@@ -23,4 +72,8 @@ export async function saveNoteLocally(note: LocalNote): Promise<void> {
 
 export async function getNoteForSession(sessionId: string): Promise<LocalNote | undefined> {
   return db.notes.where('sessionId').equals(sessionId).first();
+}
+
+export async function getAllLocalPatients(): Promise<LocalPatientSync[]> {
+  return db.patients.toArray();
 }

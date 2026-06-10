@@ -20,6 +20,21 @@ interface SyncBatchPayload {
   notes: SyncNotePayload[];
 }
 
+export interface UpdateSessionPayload {
+  title: string;
+  date: string;
+  time: string;
+  patientIds: string[];
+}
+
 export function syncSessionsBatch(payload: SyncBatchPayload): Promise<void> {
   return apiClient.postVoid('/api/sessions/sync', payload);
+}
+
+export function updateSession(id: string, payload: UpdateSessionPayload): Promise<void> {
+  return apiClient.put<void>(`/api/sessions/${id}`, payload);
+}
+
+export function deleteSession(id: string): Promise<void> {
+  return apiClient.delete<void>(`/api/sessions/${id}`);
 }

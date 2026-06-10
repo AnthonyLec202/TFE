@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createSession } from './services/localSessionService';
 import type { LocalPatientSync, LocalSession } from '../../core/offline/LocalDatabase';
+import { runSyncCycle } from '../../core/offline/syncEngine';
 import { CreateSessionForm } from './components/CreateSessionForm';
 
 export function CreateSessionContainer() {
@@ -28,6 +29,7 @@ export function CreateSessionContainer() {
       setDate('');
       setTime('');
       setSelectedPatients([]);
+      runSyncCycle(); // fire-and-forget: push the new session to the server immediately if online
     } finally {
       setSubmitting(false);
     }
