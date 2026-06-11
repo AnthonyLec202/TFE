@@ -1,3 +1,4 @@
+import { type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
@@ -21,7 +22,7 @@ export function SessionEditModal({
   title, date, time, selectedPatients, saving,
   onTitleChange, onDateChange, onTimeChange, onPatientsChange, onSubmit, onClose,
 }: SessionEditModalProps) {
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     onSubmit();
   }

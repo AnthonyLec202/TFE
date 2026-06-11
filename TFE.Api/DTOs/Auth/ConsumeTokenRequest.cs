@@ -23,4 +23,8 @@ public class ConsumeTokenRequest
     [Required(ErrorMessage = "Secret code is required.")]
     [StringLength(8, MinimumLength = 8, ErrorMessage = "Secret code must be exactly 8 characters.")]
     public string SecretCode { get; set; } = string.Empty;
+
+    // GDPR: the user must explicitly accept data collection. Must be true to create the account.
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Consent to data collection is required.")]
+    public bool Consent { get; set; }
 }

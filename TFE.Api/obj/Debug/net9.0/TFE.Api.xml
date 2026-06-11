@@ -47,6 +47,13 @@
             Call this before <see cref="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddApplicationServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)"/> so the client is available for injection.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.IAttachmentRepository.GetByPatientIdAsync(System.Guid)">
+            <summary>
+            Returns every attachment belonging to the given patient — both those on the patient's
+            posts and those on comments of those posts. Used to purge physical files before a patient
+            is deleted (the DB cascade only removes the rows, not the stored files).
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.ICareTeamRepository.GetByPatientIdWithUsersAsync(System.Guid)">
             <summary>
             Returns all CareTeam entries for the given patient, including the linked User,
@@ -103,14 +110,20 @@
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
             <summary>
-            Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the public URL.
-            A unique storage path is generated internally (Guid + original extension).
+            Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the relative
+            storage path (e.g. "{guid}.ext"). The path — not a URL — is what callers persist.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.GetSignedUrlAsync(System.String,System.String)">
+            <summary>
+            Generates a short-lived signed URL granting temporary read access to the object at
+            <paramref name="storagePath"/> in <paramref name="bucketName"/>. Generated at request time
+            so the bucket can remain private.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.DeleteFileAsync(System.String,System.String)">
             <summary>
-            Deletes the object identified by <paramref name="fileUrl"/> from <paramref name="bucketName"/>.
-            The storage path is extracted from the URL; no-ops gracefully if the path cannot be parsed.
+            Deletes the object at <paramref name="storagePath"/> from <paramref name="bucketName"/>.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.Invitations.IInvitationService.JoinPatientAsync(System.String,System.String)">
@@ -214,10 +227,35 @@
         <member name="M:TFE.Api.Migrations.AddSessionPatientsManyToMany.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.AddUserConsentTimestamp">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserConsentTimestamp.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserConsentTimestamp.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddUserConsentTimestamp.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.RenameAttachmentFileUrlToStoragePath">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RenameAttachmentFileUrlToStoragePath.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RenameAttachmentFileUrlToStoragePath.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RenameAttachmentFileUrlToStoragePath.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">
             <summary>
-            Production file storage backed by Supabase Storage.
-            Registered as <see cref="T:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService"/> in DI.
+            Production file storage backed by Supabase Storage (private bucket).
+            Persists only the relative storage path; read access is granted through short-lived
+            signed URLs generated on demand. Registered as <see cref="T:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService"/> in DI.
             </summary>
         </member>
         <member name="T:TFE.Api.Validators.CollaborativeWall.AttachmentValidator">

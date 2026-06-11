@@ -15,6 +15,7 @@ export interface ConsumeTokenRequest {
   firstName: string;
   lastName: string;
   secretCode: string;
+  consent: boolean;
 }
 
 export interface ChangePasswordRequest {

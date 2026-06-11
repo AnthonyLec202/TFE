@@ -1,0 +1,3 @@
+
+# ASP.NET Data Protection keys (crypto material — never commit)
+TFE.Api/DataProtection-Keys/

@@ -1,6 +1,7 @@
 using TFE.Api.DTOs.Patients;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
+using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Models;
 
@@ -11,15 +12,25 @@ public class PatientService : IPatientService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPatientRepository _patientRepository;
     private readonly ICareTeamRepository _careTeamRepository;
+    private readonly IAttachmentRepository _attachmentRepository;
+    private readonly IFileStorageService _fileStorage;
+    private readonly string _bucketName;
 
     public PatientService(
         IUnitOfWork unitOfWork,
         IPatientRepository patientRepository,
-        ICareTeamRepository careTeamRepository)
+        ICareTeamRepository careTeamRepository,
+        IAttachmentRepository attachmentRepository,
+        IFileStorageService fileStorage,
+        IConfiguration configuration)
     {
         _unitOfWork = unitOfWork;
         _patientRepository = patientRepository;
         _careTeamRepository = careTeamRepository;
+        _attachmentRepository = attachmentRepository;
+        _fileStorage = fileStorage;
+        _bucketName = configuration["Supabase:AttachmentsBucket"]
+            ?? throw new InvalidOperationException("Supabase:AttachmentsBucket is not configured.");
     }
 
     public async Task<PatientResponse> CreatePatientAsync(CreatePatientRequest request, string currentUserId)
@@ -98,8 +109,26 @@ public class PatientService : IPatientService
         var patient = await _patientRepository.GetByIdAsync(patientId)
                       ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
 
-        // Database-level CASCADE handles CareTeams, EnrollmentTokens, Posts, and Sessions automatically
-        await _patientRepository.DeleteAsync(patient);
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            // Purge the physical files from storage BEFORE the DB cascade removes the attachment
+            // rows — otherwise the files would be orphaned in the bucket forever.
+            var attachments = await _attachmentRepository.GetByPatientIdAsync(patientId);
+            foreach (var attachment in attachments)
+                await _fileStorage.DeleteFileAsync(attachment.StoragePath, _bucketName);
+
+            // Database-level CASCADE handles CareTeams, EnrollmentTokens, Posts, Comments,
+            // Attachments, and Session links automatically.
+            await _patientRepository.DeleteAsync(patient);
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     private async Task EnsureAdminAsync(string userId, Guid patientId)

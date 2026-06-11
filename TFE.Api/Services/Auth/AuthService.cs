@@ -2,11 +2,13 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TFE.Api.DTOs.Auth;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Models;
+using TFE.Api.Options;
 
 namespace TFE.Api.Services.Auth;
 
@@ -15,15 +17,21 @@ public class AuthService : IAuthService
     private readonly IUserRepository _userRepository;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
+    private readonly AppOptions _appOptions;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
         IEmailService emailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IOptions<AppOptions> appOptions,
+        ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
         _emailService = emailService;
         _configuration = configuration;
+        _appOptions = appOptions.Value;
+        _logger = logger;
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request)
@@ -48,11 +56,21 @@ public class AuthService : IAuthService
         var rawToken = await _userRepository.GeneratePasswordResetTokenAsync(user);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
 
-        var resetLink = $"http://localhost:5173/reset-password" +
+        var resetLink = $"{_appOptions.FrontendBaseUrl}/reset-password" +
                         $"?email={Uri.EscapeDataString(user.Email!)}" +
                         $"&token={encodedToken}";
 
-        await _emailService.SendPasswordResetEmailAsync(user.Email!, resetLink);
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(user.Email!, resetLink);
+        }
+        catch (Exception ex)
+        {
+            // Swallow delivery failures: the endpoint must return the same response whether or
+            // not the address exists, so we never propagate an error that could leak existence.
+            // Log the internal user id rather than the email address (PII / data minimization).
+            _logger.LogError(ex, "Password reset email delivery failed for user {UserId}.", user.Id);
+        }
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request)

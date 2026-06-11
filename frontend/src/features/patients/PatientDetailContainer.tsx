@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import { useAuth } from '../auth';
 import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, X } from 'lucide-react';
 import { deletePatient, getPatient, updatePatient } from '../../services/patientService';
@@ -69,7 +69,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     setShowEdit(true);
   }
 
-  async function handleUpdate(e: React.FormEvent) {
+  async function handleUpdate(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setUpdateError('');
     setUpdating(true);

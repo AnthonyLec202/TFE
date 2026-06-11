@@ -5,14 +5,20 @@ namespace TFE.Api.Interfaces.IServices.CollaborativeWall;
 public interface IFileStorageService
 {
     /// <summary>
-    /// Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the public URL.
-    /// A unique storage path is generated internally (Guid + original extension).
+    /// Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the relative
+    /// storage path (e.g. "{guid}.ext"). The path — not a URL — is what callers persist.
     /// </summary>
     Task<string> UploadFileAsync(IFormFile file, string bucketName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Deletes the object identified by <paramref name="fileUrl"/> from <paramref name="bucketName"/>.
-    /// The storage path is extracted from the URL; no-ops gracefully if the path cannot be parsed.
+    /// Generates a short-lived signed URL granting temporary read access to the object at
+    /// <paramref name="storagePath"/> in <paramref name="bucketName"/>. Generated at request time
+    /// so the bucket can remain private.
     /// </summary>
-    Task DeleteFileAsync(string fileUrl, string bucketName);
+    Task<string> GetSignedUrlAsync(string storagePath, string bucketName);
+
+    /// <summary>
+    /// Deletes the object at <paramref name="storagePath"/> from <paramref name="bucketName"/>.
+    /// </summary>
+    Task DeleteFileAsync(string storagePath, string bucketName);
 }

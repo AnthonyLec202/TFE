@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 
@@ -24,7 +24,7 @@ export function ChangePasswordForm({ onSubmit, loading, error, success }: Props)
     }
   }, [success]);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setValidationError('Les mots de passe ne correspondent pas.');

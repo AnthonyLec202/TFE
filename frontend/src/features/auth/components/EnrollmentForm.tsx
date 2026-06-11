@@ -11,13 +11,18 @@ interface Props {
 }
 
 export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props) {
+  // The invitation code was already entered and validated at the previous step; it is kept in
+  // state so it travels with the submission, but it is no longer shown as an editable field.
   const [form, setForm] = useState<ConsumeTokenRequest>({
     email: '',
     password: '',
     firstName: '',
     lastName: '',
     secretCode: initialCode,
+    consent: false,
   });
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   function setField(field: keyof ConsumeTokenRequest) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -26,8 +31,21 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
 
   function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
+
+    if (form.password !== confirmPassword) {
+      setValidationError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    if (!form.consent) {
+      setValidationError('Vous devez accepter la collecte des données pour créer un compte.');
+      return;
+    }
+
+    setValidationError('');
     onSubmit({ ...form, secretCode: form.secretCode.toUpperCase().trim() });
   }
+
+  const displayError = validationError || error;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -74,27 +92,36 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
         minLength={6}
       />
 
-      <div className="pt-1 border-t border-slate-100">
-        <Input
-          label="Code d'invitation"
-          type="text"
-          placeholder="EX : A3F9K2Z1"
-          value={form.secretCode}
-          onChange={setField('secretCode')}
-          required
-          maxLength={8}
-          className="font-mono tracking-widest uppercase"
-        />
-        <p className="mt-1.5 text-xs text-slate-400">
-          Code à 8 caractères fourni par le psychologue
-        </p>
-      </div>
+      <Input
+        label="Confirmer le mot de passe"
+        type="password"
+        placeholder="••••••••"
+        value={confirmPassword}
+        onChange={e => setConfirmPassword(e.target.value)}
+        required
+        autoComplete="new-password"
+        minLength={6}
+      />
 
-      {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+      <label className="flex items-start gap-2.5 text-xs text-slate-500 leading-relaxed cursor-pointer">
+        <input
+          type="checkbox"
+          checked={form.consent}
+          onChange={e => setForm(prev => ({ ...prev, consent: e.target.checked }))}
+          required
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span>
+          J'accepte la collecte et le traitement de mes données personnelles dans le cadre du suivi.
+          Je peux supprimer mon compte à tout moment&nbsp;; mes données seront alors anonymisées.
+        </span>
+      </label>
+
+      {displayError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{displayError}</p>
       )}
 
-      <Button type="submit" loading={loading} className="w-full mt-1">
+      <Button type="submit" loading={loading} disabled={!form.consent} className="w-full mt-1">
         Créer mon compte
       </Button>
     </form>

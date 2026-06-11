@@ -7,7 +7,6 @@ namespace TFE.Api.Data;
 public static class DbInitializer
 {
     private const string AdminEmail = "admin@neuroplatform.com";
-    private const string AdminPassword = "AdminPassword123!";
     private const string AdminRole = "Admin";
 
     public static async Task SeedAsync(IServiceProvider serviceProvider)
@@ -17,6 +16,7 @@ public static class DbInitializer
             var context = serviceProvider.GetRequiredService<ApplicationDbContext>();
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
             Console.WriteLine("[Seed] Running database migrations...");
             await context.Database.MigrateAsync();
@@ -53,6 +53,13 @@ public static class DbInitializer
                 return;
             }
 
+            // The initial admin password must be supplied via configuration (e.g. user-secrets),
+            // never hardcoded. It is only required on first run, when the admin is created.
+            var adminPassword = configuration["Admin:InitialPassword"];
+            if (string.IsNullOrWhiteSpace(adminPassword))
+                throw new InvalidOperationException(
+                    "Admin:InitialPassword is not configured. Set it via user-secrets before first run.");
+
             Console.WriteLine("[Seed] Creating admin user...");
             var admin = new ApplicationUser
             {
@@ -63,7 +70,7 @@ public static class DbInitializer
                 LastName = "NeuroPlatform"
             };
 
-            var result = await userManager.CreateAsync(admin, AdminPassword);
+            var result = await userManager.CreateAsync(admin, adminPassword);
             if (!result.Succeeded)
             {
                 var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));

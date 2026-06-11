@@ -53,7 +53,7 @@ public class UserService : IUserService
             {
                 foreach (var att in post.Attachments)
                 {
-                    await _fileStorage.DeleteFileAsync(att.FileUrl, _bucketName);
+                    await _fileStorage.DeleteFileAsync(att.StoragePath, _bucketName);
                     _attachmentRepository.Remove(att);
                 }
                 post.Content = DeletedContent;
@@ -63,7 +63,7 @@ public class UserService : IUserService
             {
                 foreach (var att in comment.Attachments)
                 {
-                    await _fileStorage.DeleteFileAsync(att.FileUrl, _bucketName);
+                    await _fileStorage.DeleteFileAsync(att.StoragePath, _bucketName);
                     _attachmentRepository.Remove(att);
                 }
                 comment.Content = DeletedContent;

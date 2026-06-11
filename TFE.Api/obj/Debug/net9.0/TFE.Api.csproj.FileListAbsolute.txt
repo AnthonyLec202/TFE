@@ -144,3 +144,6 @@ C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\Supabase.Realtime.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\Supabase.Storage.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\System.Reactive.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\Websocket.Client.dll
+C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\BouncyCastle.Cryptography.dll
+C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\MailKit.dll
+C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\MimeKit.dll

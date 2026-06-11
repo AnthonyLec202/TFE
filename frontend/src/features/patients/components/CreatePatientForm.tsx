@@ -1,3 +1,4 @@
+import { type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
@@ -18,7 +19,7 @@ export function CreatePatientForm({
   firstName, lastName, birthDate, submitting, error,
   onFirstNameChange, onLastNameChange, onBirthDateChange, onSubmit,
 }: CreatePatientFormProps) {
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     onSubmit();
   }

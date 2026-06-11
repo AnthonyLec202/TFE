@@ -88,7 +88,10 @@ public class WallService : IWallService
 
         var posts = await _postRepository.GetWallForPatientAsync(patientId, isAdmin, userRelationshipRole);
 
-        return posts.Select(p => ToPostResponse(p, careTeamMap));
+        var responses = new List<PostResponse>(posts.Count);
+        foreach (var post in posts)
+            responses.Add(await ToPostResponseAsync(post, careTeamMap));
+        return responses;
     }
 
     public async Task<PostResponse> CreatePostAsync(Guid patientId, CreatePostRequest request, string currentUserId)
@@ -113,7 +116,7 @@ public class WallService : IWallService
         await _postRepository.AddAsync(post);
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
-        return ToPostResponse(post, careTeamMap);
+        return await ToPostResponseAsync(post, careTeamMap);
     }
 
     public async Task<PostResponse> CreatePostWithAttachmentsAsync(
@@ -149,19 +152,19 @@ public class WallService : IWallService
 
         // Upload each file; if any upload or the DB save fails, roll back all
         // successfully uploaded objects to avoid orphaned files in Supabase Storage.
-        var uploadedUrls = new List<string>();
+        var uploadedPaths = new List<string>();
         try
         {
             foreach (var file in request.Attachments ?? [])
             {
-                var url = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
-                uploadedUrls.Add(url);
+                var storagePath = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
+                uploadedPaths.Add(storagePath);
 
                 await _attachmentRepository.AddAsync(new Attachment
                 {
                     Id = Guid.NewGuid(),
                     PostId = post.Id,
-                    FileUrl = url,
+                    StoragePath = storagePath,
                     FileName = file.FileName,
                     FileType = file.ContentType,
                     CreatedById = currentUserId,
@@ -174,9 +177,9 @@ public class WallService : IWallService
         catch
         {
             // Best-effort cleanup — log failures but do not suppress the original exception
-            foreach (var url in uploadedUrls)
+            foreach (var path in uploadedPaths)
             {
-                try { await _fileStorage.DeleteFileAsync(url, _bucketName); }
+                try { await _fileStorage.DeleteFileAsync(path, _bucketName); }
                 catch { /* cleanup failure is secondary; original exception is rethrown */ }
             }
             throw;
@@ -186,7 +189,7 @@ public class WallService : IWallService
         await _postRepository.LoadAttachmentsAsync(post, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
-        return ToPostResponse(post, careTeamMap);
+        return await ToPostResponseAsync(post, careTeamMap);
     }
 
     public async Task<PostResponse> UpdatePostAsync(Guid postId, UpdatePostRequest request, string currentUserId)
@@ -205,7 +208,7 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return ToPostResponse(post, careTeamMap);
+        return await ToPostResponseAsync(post, careTeamMap);
     }
 
     public async Task DeletePostAsync(Guid postId, string currentUserId)
@@ -215,19 +218,19 @@ public class WallService : IWallService
 
         await ValidateModificationRightsAsync(post.CreatedById, post.CreatedAt, post.PatientId, currentUserId);
 
-        var urlsToDelete = post.Attachments.Select(a => a.FileUrl)
-            .Concat(post.Comments.SelectMany(c => c.Attachments.Select(a => a.FileUrl)))
+        var pathsToDelete = post.Attachments.Select(a => a.StoragePath)
+            .Concat(post.Comments.SelectMany(c => c.Attachments.Select(a => a.StoragePath)))
             .ToList();
 
         _postRepository.Remove(post);
         await _unitOfWork.SaveChangesAsync();
 
-        foreach (var url in urlsToDelete)
+        foreach (var path in pathsToDelete)
         {
-            try { await _fileStorage.DeleteFileAsync(url, _bucketName); }
+            try { await _fileStorage.DeleteFileAsync(path, _bucketName); }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to delete orphan file from storage: {Url}", url);
+                _logger.LogWarning(ex, "Failed to delete orphan file from storage: {Path}", path);
             }
         }
     }
@@ -252,7 +255,7 @@ public class WallService : IWallService
         await _commentRepository.AddAsync(comment);
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return ToCommentResponse(comment, careTeamMap);
+        return await ToCommentResponseAsync(comment, careTeamMap);
     }
 
     public async Task<CommentResponse> CreateCommentWithAttachmentsAsync(
@@ -284,19 +287,19 @@ public class WallService : IWallService
 
         await _commentRepository.AddAsync(comment);
 
-        var uploadedUrls = new List<string>();
+        var uploadedPaths = new List<string>();
         try
         {
             foreach (var file in request.Attachments ?? [])
             {
-                var url = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
-                uploadedUrls.Add(url);
+                var storagePath = await _fileStorage.UploadFileAsync(file, _bucketName, cancellationToken);
+                uploadedPaths.Add(storagePath);
 
                 await _attachmentRepository.AddAsync(new Attachment
                 {
                     Id = Guid.NewGuid(),
                     CommentId = comment.Id,
-                    FileUrl = url,
+                    StoragePath = storagePath,
                     FileName = file.FileName,
                     FileType = file.ContentType,
                     CreatedById = currentUserId,
@@ -308,9 +311,9 @@ public class WallService : IWallService
         }
         catch
         {
-            foreach (var url in uploadedUrls)
+            foreach (var path in uploadedPaths)
             {
-                try { await _fileStorage.DeleteFileAsync(url, _bucketName); }
+                try { await _fileStorage.DeleteFileAsync(path, _bucketName); }
                 catch { /* cleanup failure is secondary; original exception is rethrown */ }
             }
             throw;
@@ -319,7 +322,7 @@ public class WallService : IWallService
         await _commentRepository.LoadAttachmentsAsync(comment, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return ToCommentResponse(comment, careTeamMap);
+        return await ToCommentResponseAsync(comment, careTeamMap);
     }
 
     public async Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId)
@@ -333,7 +336,7 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(comment.Post.PatientId);
-        return ToCommentResponse(comment, careTeamMap);
+        return await ToCommentResponseAsync(comment, careTeamMap);
     }
 
     public async Task DeleteCommentAsync(Guid commentId, string currentUserId)
@@ -343,17 +346,17 @@ public class WallService : IWallService
 
         await ValidateModificationRightsAsync(comment.CreatedById, comment.CreatedAt, comment.Post.PatientId, currentUserId);
 
-        var urlsToDelete = comment.Attachments.Select(a => a.FileUrl).ToList();
+        var pathsToDelete = comment.Attachments.Select(a => a.StoragePath).ToList();
 
         _commentRepository.Remove(comment);
         await _unitOfWork.SaveChangesAsync();
 
-        foreach (var url in urlsToDelete)
+        foreach (var path in pathsToDelete)
         {
-            try { await _fileStorage.DeleteFileAsync(url, _bucketName); }
+            try { await _fileStorage.DeleteFileAsync(path, _bucketName); }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to delete orphan file from storage: {Url}", url);
+                _logger.LogWarning(ex, "Failed to delete orphan file from storage: {Path}", path);
             }
         }
     }
@@ -381,12 +384,16 @@ public class WallService : IWallService
 
     // ── Mapping ───────────────────────────────────────────────────────────────
 
-    private static PostResponse ToPostResponse(Post post, Dictionary<string, CareTeam> careTeamMap)
+    private async Task<PostResponse> ToPostResponseAsync(Post post, Dictionary<string, CareTeam> careTeamMap)
     {
         var authorCt = post.CreatedById is { Length: > 0 } postAuthorId
             ? careTeamMap.GetValueOrDefault(postAuthorId)
             : null;
         bool postAuthorDeleted = post.CreatedById is null or { Length: 0 };
+
+        var comments = new List<CommentResponse>(post.Comments.Count);
+        foreach (var comment in post.Comments)
+            comments.Add(await ToCommentResponseAsync(comment, careTeamMap));
 
         return new PostResponse
         {
@@ -400,12 +407,12 @@ public class WallService : IWallService
             AuthorRole = postAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
-            Comments = post.Comments.Select(c => ToCommentResponse(c, careTeamMap)).ToList(),
-            Attachments = post.Attachments.Select(ToAttachmentResponse).ToList(),
+            Comments = comments,
+            Attachments = await ToAttachmentResponsesAsync(post.Attachments),
         };
     }
 
-    private static CommentResponse ToCommentResponse(Comment comment, Dictionary<string, CareTeam> careTeamMap)
+    private async Task<CommentResponse> ToCommentResponseAsync(Comment comment, Dictionary<string, CareTeam> careTeamMap)
     {
         var authorCt = comment.CreatedById is { Length: > 0 } commentAuthorId
             ? careTeamMap.GetValueOrDefault(commentAuthorId)
@@ -423,18 +430,27 @@ public class WallService : IWallService
             AuthorRole = commentAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt,
-            Attachments = comment.Attachments.Select(ToAttachmentResponse).ToList(),
+            Attachments = await ToAttachmentResponsesAsync(comment.Attachments),
         };
     }
 
-    private static AttachmentResponse ToAttachmentResponse(Attachment a) => new()
+    private async Task<List<AttachmentResponse>> ToAttachmentResponsesAsync(IEnumerable<Attachment> attachments)
     {
-        Id = a.Id,
-        FileUrl = a.FileUrl,
-        Filename = a.FileName,
-        Filetype = a.FileType,
-        PostId = a.PostId,
-        CommentId = a.CommentId,
-        CreatedAt = a.CreatedAt,
-    };
+        var responses = new List<AttachmentResponse>();
+        foreach (var a in attachments)
+        {
+            responses.Add(new AttachmentResponse
+            {
+                Id = a.Id,
+                // A fresh short-lived signed URL is generated at read time from the stored path.
+                FileUrl = await _fileStorage.GetSignedUrlAsync(a.StoragePath, _bucketName),
+                Filename = a.FileName,
+                Filetype = a.FileType,
+                PostId = a.PostId,
+                CommentId = a.CommentId,
+                CreatedAt = a.CreatedAt,
+            });
+        }
+        return responses;
+    }
 }

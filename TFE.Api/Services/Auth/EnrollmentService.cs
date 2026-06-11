@@ -51,14 +51,15 @@ public class EnrollmentService : IEnrollmentService
             if (enrollmentToken.ExpiresAt < DateTime.UtcNow)
                 throw new InvalidOperationException("This invitation code has expired.");
 
-            // Step 3: create the ApplicationUser via Identity
+            // Step 3: create the ApplicationUser via Identity, recording the GDPR consent timestamp
             var user = new ApplicationUser
             {
                 UserName = request.Email,
                 Email = request.Email,
                 EmailConfirmed = true,
                 FirstName = request.FirstName,
-                LastName = request.LastName
+                LastName = request.LastName,
+                ConsentGivenAt = DateTime.UtcNow
             };
 
             var identityResult = await _userRepository.CreateAsync(user, request.Password);

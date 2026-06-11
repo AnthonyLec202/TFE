@@ -1,3 +1,4 @@
+import { type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
@@ -20,7 +21,7 @@ export function CreateSessionForm({
   title, date, time, selectedPatients, submitting,
   onTitleChange, onDateChange, onTimeChange, onPatientsChange, onSubmit,
 }: CreateSessionFormProps) {
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     onSubmit();
   }

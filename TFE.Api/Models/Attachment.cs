@@ -2,7 +2,9 @@ namespace TFE.Api.Models;
 
 public class Attachment : AuditableEntity
 {
-    public string FileUrl { get; set; } = string.Empty;
+    // Relative storage key inside the bucket (e.g. "{guid}.png"), NOT a public URL.
+    // A short-lived signed URL is generated at runtime from this path.
+    public string StoragePath { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string FileType { get; set; } = string.Empty;
 

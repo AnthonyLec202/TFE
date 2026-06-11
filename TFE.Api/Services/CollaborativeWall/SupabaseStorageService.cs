@@ -4,11 +4,15 @@ using TFE.Api.Interfaces.IServices.CollaborativeWall;
 namespace TFE.Api.Services.CollaborativeWall;
 
 /// <summary>
-/// Production file storage backed by Supabase Storage.
-/// Registered as <see cref="IFileStorageService"/> in DI.
+/// Production file storage backed by Supabase Storage (private bucket).
+/// Persists only the relative storage path; read access is granted through short-lived
+/// signed URLs generated on demand. Registered as <see cref="IFileStorageService"/> in DI.
 /// </summary>
 public class SupabaseStorageService : IFileStorageService
 {
+    // Signed URLs are valid for one hour.
+    private const int SignedUrlExpirySeconds = 3600;
+
     private readonly Supabase.Client _supabase;
     private readonly ILogger<SupabaseStorageService> _logger;
 
@@ -41,28 +45,23 @@ public class SupabaseStorageService : IFileStorageService
                 Upsert = false,
             });
 
-        var publicUrl = _supabase.Storage.From(bucketName).GetPublicUrl(storagePath);
+        _logger.LogInformation("[SupabaseStorage] Uploaded file to path '{Path}'.", storagePath);
 
-        _logger.LogInformation(
-            "[SupabaseStorage] Uploaded '{OriginalName}' → {Url}",
-            file.FileName, publicUrl);
-
-        return publicUrl;
+        // Persist the relative path only; the public/signed URL is derived at read time.
+        return storagePath;
     }
 
-    public async Task DeleteFileAsync(string fileUrl, string bucketName)
+    public async Task<string> GetSignedUrlAsync(string storagePath, string bucketName)
     {
-        var marker = $"/object/public/{bucketName}/";
-        var idx = fileUrl.IndexOf(marker, StringComparison.Ordinal);
-        if (idx < 0)
-        {
-            _logger.LogWarning(
-                "[SupabaseStorage] Could not extract storage path from URL '{Url}' — skipping delete.",
-                fileUrl);
-            return;
-        }
+        return await _supabase.Storage
+            .From(bucketName)
+            .CreateSignedUrl(storagePath, SignedUrlExpirySeconds);
+    }
 
-        var storagePath = fileUrl[(idx + marker.Length)..];
+    public async Task DeleteFileAsync(string storagePath, string bucketName)
+    {
+        if (string.IsNullOrWhiteSpace(storagePath))
+            return;
 
         await _supabase.Storage
             .From(bucketName)
