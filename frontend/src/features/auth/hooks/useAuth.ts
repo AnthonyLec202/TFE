@@ -54,9 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const t = loadStoredToken();
     return t ? parseUser(t) : null;
   });
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // Apply the restored token to the API client before any consumer fires an authenticated
+  // request. isInitialized flips true only after that, so guarded effects (e.g. the dashboard
+  // fetch) wait for the token instead of racing ahead of it on a fresh page load.
   useEffect(() => {
     apiClient.setToken(token);
+    setIsInitialized(true);
   }, [token]);
 
   function storeAuth(newToken: string): void {
@@ -85,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return createElement(
     AuthContext.Provider,
-    { value: { user, token, isAuthenticated: !!token, login, enroll, logout } },
+    { value: { user, token, isAuthenticated: !!token, isInitialized, login, enroll, logout } },
     children
   );
 }

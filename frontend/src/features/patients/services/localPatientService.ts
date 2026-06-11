@@ -1,13 +1,47 @@
-import { db } from '../../../core/offline/LocalDatabase';
+import { db, type LocalPatientSync } from '../../../core/offline/LocalDatabase';
 import { getPatients } from '../../../services/patientService';
 
-export async function searchLocalPatients(query: string) {
+/** A patient match, tagged with whether it is still pending in the offline creation queue. */
+export interface PatientSearchResult extends LocalPatientSync {
+  isOffline: boolean;
+}
+
+const MAX_RESULTS = 10;
+
+/**
+ * Searches both the synced server cache (db.patients) and the offline creation queue
+ * (db.offlinePatientQueue), so a patient created offline is immediately linkable — e.g. when
+ * assigning patients to a new session — before it has been synced to the server.
+ */
+export async function searchLocalPatients(query: string): Promise<PatientSearchResult[]> {
   if (!query.trim()) return [];
   const lower = query.toLowerCase();
-  return db.patients
+
+  const synced = await db.patients
     .filter(p => p.searchableName.includes(lower))
-    .limit(10)
+    .limit(MAX_RESULTS)
     .toArray();
+  const syncedResults: PatientSearchResult[] = synced.map(p => ({ ...p, isOffline: false }));
+
+  // Pending offline patients. Skip any already present in the synced cache (i.e. just synced)
+  // so a patient never appears twice during the brief overlap window.
+  const syncedIds = new Set(synced.map(p => p.id));
+  const queued = await db.offlinePatientQueue.toArray();
+  const queuedResults: PatientSearchResult[] = queued
+    .filter(entry => !syncedIds.has(entry.payload.id))
+    .map(entry => {
+      const { id, firstName, lastName } = entry.payload;
+      return {
+        id,
+        firstName,
+        lastName,
+        searchableName: `${firstName} ${lastName}`.toLowerCase(),
+        isOffline: true,
+      };
+    })
+    .filter(p => p.searchableName.includes(lower));
+
+  return [...syncedResults, ...queuedResults].slice(0, MAX_RESULTS);
 }
 
 export async function syncPatientsFromServer(): Promise<void> {

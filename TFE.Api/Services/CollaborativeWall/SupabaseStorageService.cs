@@ -51,11 +51,28 @@ public class SupabaseStorageService : IFileStorageService
         return storagePath;
     }
 
-    public async Task<string> GetSignedUrlAsync(string storagePath, string bucketName)
+    public async Task<IReadOnlyDictionary<string, string>> GetSignedUrlsAsync(
+        IReadOnlyCollection<string> storagePaths, string bucketName)
     {
-        return await _supabase.Storage
+        var map = new Dictionary<string, string>();
+        if (storagePaths.Count == 0)
+            return map;
+
+        var distinctPaths = storagePaths.Distinct().ToList();
+        var responses = await _supabase.Storage
             .From(bucketName)
-            .CreateSignedUrl(storagePath, SignedUrlExpirySeconds);
+            .CreateSignedUrls(distinctPaths, SignedUrlExpirySeconds);
+
+        if (responses is not null)
+        {
+            foreach (var response in responses)
+            {
+                if (!string.IsNullOrEmpty(response.Path) && !string.IsNullOrEmpty(response.SignedUrl))
+                    map[response.Path!] = response.SignedUrl!;
+            }
+        }
+
+        return map;
     }
 
     public async Task DeleteFileAsync(string storagePath, string bucketName)

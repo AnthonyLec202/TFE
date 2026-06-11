@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { LocalNote, LocalPatientSync } from '../../core/offline/LocalDatabase';
+import type { SessionDetailOrigin } from '../../types/navigation';
 import {
   getSessionById, getNoteForSession, saveNoteLocally, getAllLocalPatients,
   updateSessionLocally, deleteSessionLocally,
@@ -25,7 +26,15 @@ function parseStrokes(raw: string | undefined): any[] {
 export function SessionWorkspaceContainer() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const isOnline = useNetworkStatus();
+
+  // Origin is supplied via router state by whichever view opened this session.
+  // Fall back to the general Sessions dashboard when navigated to directly
+  // (deep link, page reload) or when the state is malformed.
+  const origin = location.state as Partial<SessionDetailOrigin> | null;
+  const backTo = origin?.from ?? '/sessions';
+  const backLabel = origin?.label ?? 'My Sessions';
 
   const session = useLiveQuery(
     () => getSessionById(sessionId!),
@@ -178,8 +187,8 @@ export function SessionWorkspaceContainer() {
     try {
       await deleteSessionLocally(session.id);
       runSyncCycle(); // fire-and-forget: issue the server-side DELETE if online
-      // Workspace state is discarded on unmount; redirect back to the Sessions dashboard.
-      navigate('/sessions');
+      // Workspace state is discarded on unmount; return to wherever the user came from.
+      navigate(backTo);
     } finally {
       setIsDeleting(false);
     }
@@ -211,6 +220,8 @@ export function SessionWorkspaceContainer() {
     <>
       <SessionWorkspace
         session={session}
+        backTo={backTo}
+        backLabel={backLabel}
         patientNamesById={patientNamesById}
         editorText={editorText}
         onEditorTextChange={setEditorText}

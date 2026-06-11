@@ -1,4 +1,5 @@
 using TFE.Api.DTOs.Patients;
+using TFE.Api.Exceptions;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
@@ -35,29 +36,53 @@ public class PatientService : IPatientService
 
     public async Task<PatientResponse> CreatePatientAsync(CreatePatientRequest request, string currentUserId)
     {
+        // Honour the client-provided id so offline-created references stay valid after sync;
+        // fall back to a fresh id only when the client did not supply one.
+        var patientId = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id;
+
+        // Fast-path idempotence: a retried submission can re-send an already-created patient (e.g.
+        // the first POST succeeded but its response was lost). Return the existing record rather
+        // than attempting a doomed insert, so the client queue can clear the payload safely.
+        var existing = await _patientRepository.GetByIdAsync(patientId);
+        if (existing is not null)
+        {
+            var existingCareTeam = await _careTeamRepository.GetForUserAndPatientAsync(currentUserId, patientId);
+            return ToResponse(existing, existingCareTeam);
+        }
+
+        // Built before the transaction so they remain in scope for the idempotent catch below.
+        var patient = new Patient
+        {
+            Id = patientId,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            BirthDate = request.BirthDate,
+            CreatedAt = DateTime.UtcNow
+        };
+        var careTeam = new CareTeam
+        {
+            UserId = currentUserId,
+            PatientId = patientId,
+            Role = RelationshipType.Other,
+            CustomRoleName = "Neuropsychologue"
+        };
+
         await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
-            var patient = new Patient
-            {
-                Id = Guid.NewGuid(),
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                BirthDate = request.BirthDate,
-                CreatedAt = DateTime.UtcNow
-            };
             await _patientRepository.CreateAsync(patient);
-
-            var careTeam = new CareTeam
-            {
-                UserId = currentUserId,
-                PatientId = patient.Id,
-                Role = RelationshipType.Other,
-                CustomRoleName = "Neuropsychologue"
-            };
             await _careTeamRepository.CreateAsync(careTeam);
 
             await transaction.CommitAsync();
+            return ToResponse(patient, careTeam);
+        }
+        catch (DuplicateEntityException)
+        {
+            // TOCTOU race: a concurrent request inserted this patient between our existence check
+            // and our own insert. Treat the duplicate as success (idempotent). The response is
+            // built from the in-memory objects — same id and payload as the persisted row — which
+            // also avoids re-querying a key already tracked by the failed insert (no EF conflict).
+            await transaction.RollbackAsync();
             return ToResponse(patient, careTeam);
         }
         catch

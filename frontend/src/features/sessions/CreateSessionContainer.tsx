@@ -20,6 +20,7 @@ export function CreateSessionContainer() {
         date,
         time,
         patientIds: selectedPatients.map(p => p.id),
+        isCompleted: false,
         syncStatus: 'pending_create',
         lastModifiedAt: new Date().toISOString(),
       };

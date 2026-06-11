@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
-import { searchLocalPatients } from '../../patients';
+import { searchLocalPatients, type PatientSearchResult } from '../../patients';
 
 interface PatientAutocompleteProps {
   selectedPatients: LocalPatientSync[];
@@ -10,7 +10,7 @@ interface PatientAutocompleteProps {
 
 export function PatientAutocomplete({ selectedPatients, onChange }: PatientAutocompleteProps) {
   const [inputValue, setInputValue] = useState('');
-  const [suggestions, setSuggestions] = useState<LocalPatientSync[]>([]);
+  const [suggestions, setSuggestions] = useState<PatientSearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +42,8 @@ export function PatientAutocomplete({ selectedPatients, onChange }: PatientAutoc
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  function selectPatient(patient: LocalPatientSync) {
+  function selectPatient(patient: PatientSearchResult) {
+    // PatientSearchResult is a superset of LocalPatientSync, so it is assignable as-is.
     onChange([...selectedPatients, patient]);
     setInputValue('');
     setSuggestions([]);
@@ -91,9 +92,14 @@ export function PatientAutocomplete({ selectedPatients, onChange }: PatientAutoc
               <button
                 type="button"
                 onClick={() => selectPatient(patient)}
-                className="w-full px-3.5 py-2.5 text-left text-sm text-slate-800 hover:bg-blue-50 transition-colors"
+                className="w-full px-3.5 py-2.5 text-left text-sm text-slate-800 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
               >
-                {patient.firstName} {patient.lastName}
+                <span>{patient.firstName} {patient.lastName}</span>
+                {patient.isOffline && (
+                  <span className="shrink-0 text-[11px] font-medium text-amber-600">
+                    (Hors ligne)
+                  </span>
+                )}
               </button>
             </li>
           ))}

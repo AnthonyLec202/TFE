@@ -15,6 +15,7 @@ export interface UpdatePatientPayload {
 }
 
 export interface CreatePatientPayload {
+  id: string;           // client-generated UUID, so the record is linkable before it syncs
   firstName: string;
   lastName: string;
   birthDate: string;    // ISO date "YYYY-MM-DD"

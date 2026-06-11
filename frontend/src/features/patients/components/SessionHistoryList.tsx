@@ -2,12 +2,15 @@ import { Calendar, Clock, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import type { LocalSession } from '../../../core/offline/LocalDatabase';
+import type { SessionDetailOrigin } from '../../../types/navigation';
 
 export interface SessionHistoryListProps {
   sessions: LocalSession[] | undefined;
+  /** Origin passed to the Session Detail view so its Back button returns here. */
+  backOrigin: SessionDetailOrigin;
 }
 
-export function SessionHistoryList({ sessions }: SessionHistoryListProps) {
+export function SessionHistoryList({ sessions, backOrigin }: SessionHistoryListProps) {
   if (sessions === undefined) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -31,6 +34,7 @@ export function SessionHistoryList({ sessions }: SessionHistoryListProps) {
         <Link
           key={session.id}
           to={`/sessions/${session.id}`}
+          state={backOrigin}
           className="block group"
         >
           <Card className="p-4 flex flex-col gap-2 group-hover:border-blue-200 group-hover:shadow-sm transition-shadow">

@@ -5,6 +5,7 @@ import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
 
 export function MainLayout() {
   usePatientSync();
+  // Drives runSyncCycle, which now drains the offline patient queue before pushing sessions.
   useSyncEngine();
 
   return (

@@ -6,5 +6,6 @@ public class SyncSessionRequest
     public string Title { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;
     public string Time { get; set; } = string.Empty;
+    public bool IsCompleted { get; set; }
     public List<Guid> PatientIds { get; set; } = new();
 }

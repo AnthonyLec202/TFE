@@ -88,10 +88,10 @@ public class WallService : IWallService
 
         var posts = await _postRepository.GetWallForPatientAsync(patientId, isAdmin, userRelationshipRole);
 
-        var responses = new List<PostResponse>(posts.Count);
-        foreach (var post in posts)
-            responses.Add(await ToPostResponseAsync(post, careTeamMap));
-        return responses;
+        // Sign every attachment of the whole wall in a single round-trip, then map synchronously.
+        var signedUrls = await BuildSignedUrlMapAsync(posts);
+
+        return posts.Select(post => ToPostResponse(post, careTeamMap, signedUrls)).ToList();
     }
 
     public async Task<PostResponse> CreatePostAsync(Guid patientId, CreatePostRequest request, string currentUserId)
@@ -116,7 +116,8 @@ public class WallService : IWallService
         await _postRepository.AddAsync(post);
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
-        return await ToPostResponseAsync(post, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync([post]);
+        return ToPostResponse(post, careTeamMap, signedUrls);
     }
 
     public async Task<PostResponse> CreatePostWithAttachmentsAsync(
@@ -189,7 +190,8 @@ public class WallService : IWallService
         await _postRepository.LoadAttachmentsAsync(post, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
-        return await ToPostResponseAsync(post, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync([post]);
+        return ToPostResponse(post, careTeamMap, signedUrls);
     }
 
     public async Task<PostResponse> UpdatePostAsync(Guid postId, UpdatePostRequest request, string currentUserId)
@@ -208,7 +210,8 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return await ToPostResponseAsync(post, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync([post]);
+        return ToPostResponse(post, careTeamMap, signedUrls);
     }
 
     public async Task DeletePostAsync(Guid postId, string currentUserId)
@@ -255,7 +258,8 @@ public class WallService : IWallService
         await _commentRepository.AddAsync(comment);
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return await ToCommentResponseAsync(comment, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync(comment);
+        return ToCommentResponse(comment, careTeamMap, signedUrls);
     }
 
     public async Task<CommentResponse> CreateCommentWithAttachmentsAsync(
@@ -322,7 +326,8 @@ public class WallService : IWallService
         await _commentRepository.LoadAttachmentsAsync(comment, cancellationToken);
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
-        return await ToCommentResponseAsync(comment, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync(comment);
+        return ToCommentResponse(comment, careTeamMap, signedUrls);
     }
 
     public async Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId)
@@ -336,7 +341,8 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
 
         var careTeamMap = await GetPatientCareTeamMapAsync(comment.Post.PatientId);
-        return await ToCommentResponseAsync(comment, careTeamMap);
+        var signedUrls = await BuildSignedUrlMapAsync(comment);
+        return ToCommentResponse(comment, careTeamMap, signedUrls);
     }
 
     public async Task DeleteCommentAsync(Guid commentId, string currentUserId)
@@ -384,16 +390,34 @@ public class WallService : IWallService
 
     // ── Mapping ───────────────────────────────────────────────────────────────
 
-    private async Task<PostResponse> ToPostResponseAsync(Post post, Dictionary<string, CareTeam> careTeamMap)
+    // Signs every attachment across the given posts (and their comments) in one batch request.
+    private Task<IReadOnlyDictionary<string, string>> BuildSignedUrlMapAsync(IReadOnlyCollection<Post> posts)
+    {
+        var paths = posts
+            .SelectMany(p => p.Attachments.Select(a => a.StoragePath)
+                .Concat(p.Comments.SelectMany(c => c.Attachments.Select(a => a.StoragePath))))
+            .Where(path => !string.IsNullOrEmpty(path))
+            .ToList();
+        return _fileStorage.GetSignedUrlsAsync(paths, _bucketName);
+    }
+
+    // Signs a single comment's attachments in one batch request.
+    private Task<IReadOnlyDictionary<string, string>> BuildSignedUrlMapAsync(Comment comment)
+    {
+        var paths = comment.Attachments
+            .Select(a => a.StoragePath)
+            .Where(path => !string.IsNullOrEmpty(path))
+            .ToList();
+        return _fileStorage.GetSignedUrlsAsync(paths, _bucketName);
+    }
+
+    private static PostResponse ToPostResponse(
+        Post post, Dictionary<string, CareTeam> careTeamMap, IReadOnlyDictionary<string, string> signedUrls)
     {
         var authorCt = post.CreatedById is { Length: > 0 } postAuthorId
             ? careTeamMap.GetValueOrDefault(postAuthorId)
             : null;
         bool postAuthorDeleted = post.CreatedById is null or { Length: 0 };
-
-        var comments = new List<CommentResponse>(post.Comments.Count);
-        foreach (var comment in post.Comments)
-            comments.Add(await ToCommentResponseAsync(comment, careTeamMap));
 
         return new PostResponse
         {
@@ -407,12 +431,13 @@ public class WallService : IWallService
             AuthorRole = postAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
-            Comments = comments,
-            Attachments = await ToAttachmentResponsesAsync(post.Attachments),
+            Comments = post.Comments.Select(c => ToCommentResponse(c, careTeamMap, signedUrls)).ToList(),
+            Attachments = post.Attachments.Select(a => ToAttachmentResponse(a, signedUrls)).ToList(),
         };
     }
 
-    private async Task<CommentResponse> ToCommentResponseAsync(Comment comment, Dictionary<string, CareTeam> careTeamMap)
+    private static CommentResponse ToCommentResponse(
+        Comment comment, Dictionary<string, CareTeam> careTeamMap, IReadOnlyDictionary<string, string> signedUrls)
     {
         var authorCt = comment.CreatedById is { Length: > 0 } commentAuthorId
             ? careTeamMap.GetValueOrDefault(commentAuthorId)
@@ -430,27 +455,19 @@ public class WallService : IWallService
             AuthorRole = commentAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt,
-            Attachments = await ToAttachmentResponsesAsync(comment.Attachments),
+            Attachments = comment.Attachments.Select(a => ToAttachmentResponse(a, signedUrls)).ToList(),
         };
     }
 
-    private async Task<List<AttachmentResponse>> ToAttachmentResponsesAsync(IEnumerable<Attachment> attachments)
+    private static AttachmentResponse ToAttachmentResponse(Attachment a, IReadOnlyDictionary<string, string> signedUrls) => new()
     {
-        var responses = new List<AttachmentResponse>();
-        foreach (var a in attachments)
-        {
-            responses.Add(new AttachmentResponse
-            {
-                Id = a.Id,
-                // A fresh short-lived signed URL is generated at read time from the stored path.
-                FileUrl = await _fileStorage.GetSignedUrlAsync(a.StoragePath, _bucketName),
-                Filename = a.FileName,
-                Filetype = a.FileType,
-                PostId = a.PostId,
-                CommentId = a.CommentId,
-                CreatedAt = a.CreatedAt,
-            });
-        }
-        return responses;
-    }
+        Id = a.Id,
+        // Signed URL resolved from the pre-computed batch map (empty if it could not be signed).
+        FileUrl = signedUrls.GetValueOrDefault(a.StoragePath, string.Empty),
+        Filename = a.FileName,
+        Filetype = a.FileType,
+        PostId = a.PostId,
+        CommentId = a.CommentId,
+        CreatedAt = a.CreatedAt,
+    };
 }

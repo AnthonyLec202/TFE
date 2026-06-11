@@ -41,6 +41,13 @@
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
             </summary>
         </member>
+        <member name="T:TFE.Api.Exceptions.DuplicateEntityException">
+            <summary>
+            Thrown by a repository when a write violates a unique / primary-key constraint
+            (SQLSTATE 23505). It lets the service layer treat a duplicate insert idempotently
+            without depending on the underlying database provider's exception types.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddSupabaseClient(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
             <summary>
             Registers the Supabase client singleton using configuration from the "Supabase" section.
@@ -114,11 +121,11 @@
             storage path (e.g. "{guid}.ext"). The path — not a URL — is what callers persist.
             </summary>
         </member>
-        <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.GetSignedUrlAsync(System.String,System.String)">
+        <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.GetSignedUrlsAsync(System.Collections.Generic.IReadOnlyCollection{System.String},System.String)">
             <summary>
-            Generates a short-lived signed URL granting temporary read access to the object at
-            <paramref name="storagePath"/> in <paramref name="bucketName"/>. Generated at request time
-            so the bucket can remain private.
+            Generates short-lived signed URLs granting temporary read access to the given storage paths,
+            in a single round-trip. Returns a map from storage path to its signed URL; paths that could
+            not be signed are omitted. Generated at request time so the bucket can remain private.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.DeleteFileAsync(System.String,System.String)">
@@ -249,6 +256,18 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.RenameAttachmentFileUrlToStoragePath.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddSessionIsCompleted">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionIsCompleted.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionIsCompleted.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionIsCompleted.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

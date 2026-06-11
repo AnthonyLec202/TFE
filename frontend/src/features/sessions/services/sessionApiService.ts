@@ -5,6 +5,7 @@ interface SyncSessionPayload {
   title: string;
   date: string;
   time: string;
+  isCompleted: boolean;
   patientIds: string[];
 }
 
@@ -24,6 +25,7 @@ export interface UpdateSessionPayload {
   title: string;
   date: string;
   time: string;
+  isCompleted: boolean;
   patientIds: string[];
 }
 

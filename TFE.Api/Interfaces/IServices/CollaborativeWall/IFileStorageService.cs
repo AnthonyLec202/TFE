@@ -11,11 +11,11 @@ public interface IFileStorageService
     Task<string> UploadFileAsync(IFormFile file, string bucketName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generates a short-lived signed URL granting temporary read access to the object at
-    /// <paramref name="storagePath"/> in <paramref name="bucketName"/>. Generated at request time
-    /// so the bucket can remain private.
+    /// Generates short-lived signed URLs granting temporary read access to the given storage paths,
+    /// in a single round-trip. Returns a map from storage path to its signed URL; paths that could
+    /// not be signed are omitted. Generated at request time so the bucket can remain private.
     /// </summary>
-    Task<string> GetSignedUrlAsync(string storagePath, string bucketName);
+    Task<IReadOnlyDictionary<string, string>> GetSignedUrlsAsync(IReadOnlyCollection<string> storagePaths, string bucketName);
 
     /// <summary>
     /// Deletes the object at <paramref name="storagePath"/> from <paramref name="bucketName"/>.

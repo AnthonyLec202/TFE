@@ -9,6 +9,7 @@ export interface CreatePatientFormProps {
   birthDate: string;
   submitting: boolean;
   error?: string;
+  info?: string;
   onFirstNameChange: (value: string) => void;
   onLastNameChange: (value: string) => void;
   onBirthDateChange: (value: string) => void;
@@ -16,7 +17,7 @@ export interface CreatePatientFormProps {
 }
 
 export function CreatePatientForm({
-  firstName, lastName, birthDate, submitting, error,
+  firstName, lastName, birthDate, submitting, error, info,
   onFirstNameChange, onLastNameChange, onBirthDateChange, onSubmit,
 }: CreatePatientFormProps) {
   function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
@@ -58,6 +59,12 @@ export function CreatePatientForm({
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
             {error}
+          </p>
+        )}
+
+        {info && (
+          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            {info}
           </p>
         )}
 

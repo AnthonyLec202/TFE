@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { CreatePatientPayload } from '../../types/patient';
 
 export type SyncStatus = 'synced' | 'pending_create' | 'pending_update' | 'pending_delete';
 
@@ -8,6 +9,7 @@ export interface LocalSession {
   time: string;          // e.g. "14:30"
   patientIds: string[];
   title: string;
+  isCompleted: boolean;  // true once archived to the patient's clinical history
   syncStatus: SyncStatus;
   lastModifiedAt: string; // ISO datetime string
 }
@@ -28,10 +30,21 @@ export interface LocalPatientSync {
   searchableName: string; // lowercase "firstname lastname" for fast substring search
 }
 
+/**
+ * A 'Create Patient' submission made while offline, awaiting POST to the server.
+ * Holds the exact request payload so the background sync can replay it unchanged.
+ */
+export interface QueuedPatientCreation {
+  id: string;                    // the client-generated patient id (also the queue primary key)
+  payload: CreatePatientPayload; // the request body to POST once back online
+  queuedAt: string;              // ISO datetime — preserves first-in-first-out ordering
+}
+
 class ClinicalAppDatabase extends Dexie {
   sessions!: Table<LocalSession, string>;
   notes!: Table<LocalNote, string>;
   patients!: Table<LocalPatientSync, string>;
+  offlinePatientQueue!: Table<QueuedPatientCreation, string>;
 
   constructor() {
     super('ClinicalAppDB');
@@ -43,6 +56,12 @@ class ClinicalAppDatabase extends Dexie {
       sessions: 'id, *patientIds, date, syncStatus',
       notes: 'id, sessionId, syncStatus',
       patients: 'id, searchableName',
+    });
+    this.version(3).stores({
+      sessions: 'id, *patientIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
     });
   }
 }

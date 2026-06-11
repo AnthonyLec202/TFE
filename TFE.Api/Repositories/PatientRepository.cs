@@ -1,5 +1,7 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using TFE.Api.Data;
+using TFE.Api.Exceptions;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Models;
 
@@ -17,7 +19,16 @@ public class PatientRepository : IPatientRepository
     public async Task<Patient> CreateAsync(Patient patient)
     {
         _context.Patients.Add(patient);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is DbException { SqlState: "23505" })
+        {
+            // 23505 = unique_violation: a concurrent transaction already committed a row with
+            // this primary key. Surface a domain exception so the service can handle it idempotently.
+            throw new DuplicateEntityException($"Patient {patient.Id} already exists.", ex);
+        }
         return patient;
     }
 

@@ -1,4 +1,5 @@
-import { Calendar, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronRight, RotateCw } from 'lucide-react';
+import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type { PatientResponse } from '../../../types/patient';
 
@@ -7,6 +8,7 @@ export interface PatientsListProps {
   isLoading: boolean;
   error?: string;
   onSelectPatient: (id: string) => void;
+  onRetry?: () => void;
 }
 
 function formatBirthDate(iso: string): string {
@@ -15,16 +17,22 @@ function formatBirthDate(iso: string): string {
   });
 }
 
-export function PatientsList({ patients, isLoading, error, onSelectPatient }: PatientsListProps) {
+export function PatientsList({ patients, isLoading, error, onSelectPatient, onRetry }: PatientsListProps) {
   if (isLoading) {
     return <p className="text-sm text-slate-400">Chargement des patients…</p>;
   }
 
   if (error) {
     return (
-      <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-        {error}
-      </p>
+      <div className="flex flex-col items-start gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <p className="text-sm text-red-600">{error}</p>
+        {onRetry && (
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            <RotateCw className="h-3.5 w-3.5" />
+            Réessayer
+          </Button>
+        )}
+      </div>
     );
   }
 

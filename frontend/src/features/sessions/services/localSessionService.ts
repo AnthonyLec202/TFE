@@ -21,8 +21,9 @@ export async function getSessionById(sessionId: string): Promise<LocalSession | 
 
 export async function getAllSessions(): Promise<LocalSession[]> {
   const sessions = await db.sessions.orderBy('date').reverse().toArray();
-  // Hide sessions awaiting server-side deletion so they vanish immediately from the dashboard.
-  return sessions.filter(s => s.syncStatus !== 'pending_delete');
+  // The general dashboard shows only ACTIVE work: exclude completed sessions (archived to the
+  // patient's history) and any awaiting server-side deletion so they vanish immediately.
+  return sessions.filter(s => !s.isCompleted && s.syncStatus !== 'pending_delete');
 }
 
 export async function updateSessionLocally(id: string, changes: SessionEditableFields): Promise<void> {
@@ -63,7 +64,25 @@ export async function deleteSessionLocally(id: string): Promise<void> {
 }
 
 export async function getSessionsForPatient(patientId: string): Promise<LocalSession[]> {
-  return db.sessions.where('patientIds').equals(patientId).toArray();
+  const sessions = await db.sessions.where('patientIds').equals(patientId).toArray();
+  // A patient's history holds only COMPLETED sessions; exclude tombstoned ones.
+  return sessions.filter(s => s.isCompleted === true && s.syncStatus !== 'pending_delete');
+}
+
+export async function markSessionCompletedLocally(id: string): Promise<void> {
+  const existing = await db.sessions.get(id);
+  if (!existing || existing.isCompleted) return;
+
+  // Preserve pending_create so a not-yet-synced session still flows through the create path;
+  // otherwise mark it pending_update for the SyncEngine to push the completion via PUT.
+  const syncStatus: SyncStatus = existing.syncStatus === 'pending_create' ? 'pending_create' : 'pending_update';
+
+  await db.sessions.put({
+    ...existing,
+    isCompleted: true,
+    syncStatus,
+    lastModifiedAt: new Date().toISOString(),
+  });
 }
 
 export async function saveNoteLocally(note: LocalNote): Promise<void> {

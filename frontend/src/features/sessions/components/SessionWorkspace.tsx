@@ -8,6 +8,10 @@ export type InputMode = 'keyboard' | 'stylus';
 
 export interface SessionWorkspaceProps {
   session: LocalSession;
+  /** Route the Back button returns to. */
+  backTo: string;
+  /** Label shown on the Back button. */
+  backLabel: string;
   patientNamesById: Map<string, string>;
   editorText: string;
   onEditorTextChange: (text: string) => void;
@@ -25,7 +29,7 @@ export interface SessionWorkspaceProps {
 }
 
 export function SessionWorkspace({
-  session, patientNamesById, editorText, onEditorTextChange, isSaving,
+  session, backTo, backLabel, patientNamesById, editorText, onEditorTextChange, isSaving,
   inputMode, onInputModeChange, currentStrokes, onStrokesUpdate,
   onConvertToText, isConverting, isOnline, canConvert, onEdit, onDelete,
 }: SessionWorkspaceProps) {
@@ -37,11 +41,11 @@ export function SessionWorkspace({
       <div className="shrink-0 px-6 pt-8 pb-4 border-b border-slate-200 bg-white flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0">
           <Link
-            to="/sessions"
+            to={backTo}
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 w-fit"
           >
             <ArrowLeft className="h-4 w-4" />
-            My Sessions
+            {backLabel}
           </Link>
           <div className="flex flex-col gap-0.5 min-w-0">
             <h1 className="text-lg font-semibold text-slate-900 truncate">{session.title}</h1>

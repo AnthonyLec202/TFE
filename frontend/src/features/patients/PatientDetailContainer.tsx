@@ -195,7 +195,12 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
             ))}
           </div>
           <div className="pt-6">
-            {activeTab === 'Historique' && <SessionHistoryContainer patientId={patientId} />}
+            {activeTab === 'Historique' && (
+              <SessionHistoryContainer
+                patientId={patientId}
+                patientName={`${patient.firstName} ${patient.lastName}`}
+              />
+            )}
             {activeTab === 'Page Privée' && <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} />}
           </div>
         </div>

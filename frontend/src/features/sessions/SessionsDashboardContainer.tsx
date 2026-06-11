@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getAllSessions, getAllLocalPatients } from './services/localSessionService';
+import { getAllSessions, getAllLocalPatients, markSessionCompletedLocally } from './services/localSessionService';
+import { runSyncCycle } from '../../core/offline/syncEngine';
 import {
   groupSessionsByWeek, groupSessionsByMonth,
   formatWeekRangeLabel, formatMonthLabel,
@@ -29,6 +30,13 @@ export function SessionsDashboardContainer() {
   useEffect(() => {
     localStorage.setItem(TIMEFRAME_STORAGE_KEY, timeframe);
   }, [timeframe]);
+
+  // Archive a session to the patient's history. The live query reactively drops the card
+  // from this dashboard once isCompleted flips to true.
+  async function handleCompleteSession(id: string): Promise<void> {
+    await markSessionCompletedLocally(id);
+    await runSyncCycle(); // push the completion to the server (no-op while offline)
+  }
 
   const patientNamesById = useMemo(() => {
     const map = new Map<string, string>();
@@ -97,6 +105,7 @@ export function SessionsDashboardContainer() {
             groups={groups}
             patientNamesById={patientNamesById}
             isLoading={sessions === undefined}
+            onCompleteSession={handleCompleteSession}
           />
         </div>
       </div>

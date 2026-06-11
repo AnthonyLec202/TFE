@@ -1,5 +1,6 @@
 import { db, type SyncStatus } from './LocalDatabase';
 import { syncSessionsBatch, updateSession, deleteSession } from '../../features/sessions';
+import { syncOfflinePatientQueue } from '../../features/patients';
 
 const SYNCED: SyncStatus = 'synced';
 
@@ -7,6 +8,11 @@ export async function runSyncCycle(): Promise<void> {
   if (!navigator.onLine) return;
 
   try {
+    // Ordering guarantee: fully drain offline-created patients BEFORE pushing any sessions.
+    // A session may reference a patient that was created offline; pushing the patient first
+    // ensures it exists server-side so the session's FK link is preserved on sync.
+    await syncOfflinePatientQueue();
+
     const pendingSessions = await db.sessions.filter(s => s.syncStatus !== 'synced').toArray();
     const pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
 
@@ -33,6 +39,7 @@ export async function runSyncCycle(): Promise<void> {
         title: session.title,
         date: session.date,
         time: session.time,
+        isCompleted: session.isCompleted,
         patientIds: session.patientIds,
       });
       await db.sessions.update(session.id, { syncStatus: SYNCED });
@@ -50,6 +57,7 @@ export async function runSyncCycle(): Promise<void> {
           title: s.title,
           date: s.date,
           time: s.time,
+          isCompleted: s.isCompleted,
           patientIds: s.patientIds,
         })),
         notes: notesToSync.map(n => ({

@@ -9,14 +9,15 @@ class ApiClient {
     this.token = token;
   }
 
-  private async request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: HttpMethod, path: string, body?: unknown, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
     const response = await fetch(`${API_BASE}${path}`, {
       method,
-      headers,
+      headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      cache: init?.cache,
     });
 
     if (!response.ok) {
@@ -62,8 +63,8 @@ class ApiClient {
     }
   }
 
-  get<T>(path: string): Promise<T> {
-    return this.request('GET', path);
+  get<T>(path: string, init?: RequestInit): Promise<T> {
+    return this.request('GET', path, undefined, init);
   }
 
   post<T>(path: string, body: unknown): Promise<T> {
