@@ -1,6 +1,7 @@
 import { db, type QueuedPatientCreation } from '../../../core/offline/LocalDatabase';
 import type { CreatePatientPayload, PatientResponse } from '../../../types/patient';
 import { createPatient } from '../../../services/patientService';
+import { NetworkError } from '../../../services/apiClient';
 
 /** Result of a create attempt: either the server created the patient, or it was queued offline. */
 export type PatientCreationOutcome =
@@ -8,12 +9,12 @@ export type PatientCreationOutcome =
   | { status: 'queued' };
 
 /**
- * A connection failure (backend unreachable / stopped, DNS, truly offline) makes fetch() reject
- * with a TypeError. An HTTP error *response* (e.g. 400 validation) throws a plain Error instead.
+ * A connection failure (backend unreachable / stopped, DNS, offline) surfaces from the API client
+ * as a NetworkError. An HTTP error *response* (e.g. 400 validation) throws a plain Error instead.
  * Only the former should fall back to the offline queue; the latter is a genuine failure to surface.
  */
 function isNetworkError(error: unknown): boolean {
-  return error instanceof TypeError;
+  return error instanceof NetworkError;
 }
 
 /**
@@ -48,21 +49,6 @@ export async function createPatientWithOfflineFallback(
   }
 }
 
-// Subscribers (e.g. the patient dashboard) notified after the queue drains at least one patient,
-// so they can refetch and surface the newly synced records without a component remount.
-type PatientsSyncedListener = () => void;
-const patientsSyncedListeners = new Set<PatientsSyncedListener>();
-
-/** Registers a listener fired after offline patients are successfully synced. Returns an unsubscribe. */
-export function onOfflinePatientsSynced(listener: PatientsSyncedListener): () => void {
-  patientsSyncedListeners.add(listener);
-  return () => { patientsSyncedListeners.delete(listener); };
-}
-
-function notifyOfflinePatientsSynced(): void {
-  patientsSyncedListeners.forEach(listener => listener());
-}
-
 // A single in-flight drain shared by all concurrent callers. Returning this same promise
 // (rather than an early `return`) guarantees that every `await syncOfflinePatientQueue()`
 // resolves only once the queue is actually drained — the session sync relies on this to
@@ -85,18 +71,16 @@ export function syncOfflinePatientQueue(): Promise<void> {
 async function drainPatientQueue(): Promise<void> {
   // Oldest first so patients are created in the order they were queued.
   const queued = await db.offlinePatientQueue.orderBy('queuedAt').toArray();
-  let syncedCount = 0;
   for (const entry of queued) {
     try {
       await createPatient(entry.payload);
       await db.offlinePatientQueue.delete(entry.id);
-      syncedCount++;
     } catch (err) {
       // Keep the entry queued; a later sync will retry it.
       console.warn('[offlinePatientQueue] Failed to sync a queued patient — will retry later.', err);
     }
   }
-
-  // Only notify when something actually synced, so subscribers never refetch needlessly.
-  if (syncedCount > 0) notifyOfflinePatientsSynced();
+  // This handler's sole responsibility is to push. Hydrating db.patients from the server is the job
+  // of the engine's post-sync phase, which runs once after every push handler — so the reactive
+  // consumers (dashboard list, autocomplete, session cards) refresh without a redundant pull here.
 }

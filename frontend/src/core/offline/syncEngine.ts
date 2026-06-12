@@ -1,83 +1,60 @@
-import { db, type SyncStatus } from './LocalDatabase';
-import { syncSessionsBatch, updateSession, deleteSession } from '../../features/sessions';
-import { syncOfflinePatientQueue } from '../../features/patients';
+// Generic, feature-agnostic synchronization orchestrator. It knows nothing about patients,
+// sessions, or any specific feature: features register their own push/pull logic as handlers at
+// startup (see the composition root), and the engine simply runs them in order on each cycle.
 
-const SYNCED: SyncStatus = 'synced';
+export type SyncHandler = () => Promise<void>;
 
-export async function runSyncCycle(): Promise<void> {
-  if (!navigator.onLine) return;
+// Two ordered phases. Push handlers flush local mutations to the server; post-sync handlers then
+// pull the authoritative server state back into the local cache. Keeping them separate lets a cycle
+// push everything first and hydrate exactly once afterwards, instead of each push handler refreshing
+// on its own (which caused redundant GETs).
+const pushHandlers: SyncHandler[] = [];
+const postSyncHandlers: SyncHandler[] = [];
+
+/**
+ * Registers a push handler. Handlers run sequentially in registration order on every cycle, so
+ * register dependency-ordered handlers accordingly (e.g. a parent entity before one that
+ * references it). Intended to be called once per handler at application startup.
+ */
+export function registerSyncHandler(handler: SyncHandler): void {
+  pushHandlers.push(handler);
+}
+
+/**
+ * Registers a post-sync hydration handler. These run once, in registration order, AFTER every push
+ * handler in the cycle has completed — the single place to pull fresh server state into the local
+ * cache. Registering hydration here (rather than inside a push handler) guarantees one pull per
+ * cycle regardless of how many mutations were pushed, and keeps the core engine feature-agnostic
+ * (the concrete pull is wired from the composition root).
+ */
+export function registerPostSyncHandler(handler: SyncHandler): void {
+  postSyncHandlers.push(handler);
+}
+
+/**
+ * Runs every registered push handler sequentially, then every post-sync handler. A handler that
+ * throws aborts the rest of the cycle — so a handler depending on an earlier one never runs against
+ * an inconsistent state, and a failed push skips the pull rather than hydrating from a server we
+ * just failed to reach — and the whole cycle is retried on the next invocation.
+ *
+ * Never throws: a background trigger (e.g. the `online` event) must not produce an unhandled
+ * rejection. Returns `true` when the cycle completed (including the offline no-op) and `false` when
+ * a handler threw, so a caller that cares — e.g. the dashboard surfacing a "Réessayer" prompt on an
+ * empty cache — can react without the engine breaking its resilience contract.
+ */
+export async function runSyncCycle(): Promise<boolean> {
+  if (!navigator.onLine) return true;
 
   try {
-    // Ordering guarantee: fully drain offline-created patients BEFORE pushing any sessions.
-    // A session may reference a patient that was created offline; pushing the patient first
-    // ensures it exists server-side so the session's FK link is preserved on sync.
-    await syncOfflinePatientQueue();
-
-    const pendingSessions = await db.sessions.filter(s => s.syncStatus !== 'synced').toArray();
-    const pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
-
-    const deletes = pendingSessions.filter(s => s.syncStatus === 'pending_delete');
-    const updates = pendingSessions.filter(s => s.syncStatus === 'pending_update');
-    const creates = pendingSessions.filter(s => s.syncStatus === 'pending_create');
-
-    if (deletes.length === 0 && updates.length === 0 && creates.length === 0 && pendingNotes.length === 0) {
-      return;
+    for (const handler of pushHandlers) {
+      await handler();
     }
-
-    // 1) Deletions — remove server-side, then purge the local tombstone and its notes.
-    for (const session of deletes) {
-      await deleteSession(session.id);
-      await db.transaction('rw', db.sessions, db.notes, async () => {
-        await db.notes.where('sessionId').equals(session.id).delete();
-        await db.sessions.delete(session.id);
-      });
+    for (const handler of postSyncHandlers) {
+      await handler();
     }
-
-    // 2) Updates — push each previously-synced session via PUT, then mark it synced.
-    for (const session of updates) {
-      await updateSession(session.id, {
-        title: session.title,
-        date: session.date,
-        time: session.time,
-        isCompleted: session.isCompleted,
-        patientIds: session.patientIds,
-      });
-      await db.sessions.update(session.id, { syncStatus: SYNCED });
-    }
-
-    // 3) Creates + notes — the batch endpoint upserts new sessions and reconciles notes atomically.
-    // Skip notes whose session was just deleted so we never re-create an orphaned note.
-    const deletedIds = new Set(deletes.map(s => s.id));
-    const notesToSync = pendingNotes.filter(n => !deletedIds.has(n.sessionId));
-
-    if (creates.length > 0 || notesToSync.length > 0) {
-      const payload = {
-        sessions: creates.map(s => ({
-          id: s.id,
-          title: s.title,
-          date: s.date,
-          time: s.time,
-          isCompleted: s.isCompleted,
-          patientIds: s.patientIds,
-        })),
-        notes: notesToSync.map(n => ({
-          id: n.id,
-          sessionId: n.sessionId,
-          content: n.content,
-          lastModifiedAt: n.lastModifiedAt,
-        })),
-      };
-
-      await syncSessionsBatch(payload);
-
-      await db.transaction('rw', db.sessions, db.notes, async () => {
-        if (creates.length > 0)
-          await db.sessions.bulkPut(creates.map(s => ({ ...s, syncStatus: SYNCED })));
-        if (notesToSync.length > 0)
-          await db.notes.bulkPut(notesToSync.map(n => ({ ...n, syncStatus: SYNCED })));
-      });
-    }
+    return true;
   } catch (err) {
     console.warn('[SyncEngine] Sync cycle failed — will retry next time.', err);
+    return false;
   }
 }

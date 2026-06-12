@@ -28,6 +28,8 @@ export interface LocalPatientSync {
   firstName: string;
   lastName: string;
   searchableName: string; // lowercase "firstname lastname" for fast substring search
+  birthDate: string;      // ISO date "YYYY-MM-DD"
+  userRole: string;       // requesting user's role for this patient (Admin | Parent | Collaborator)
 }
 
 /**
@@ -58,6 +60,16 @@ class ClinicalAppDatabase extends Dexie {
       patients: 'id, searchableName',
     });
     this.version(3).stores({
+      sessions: 'id, *patientIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+    });
+    // v4 adds birthDate + userRole to LocalPatientSync. These are non-indexed fields, so the store
+    // key declarations are unchanged (Dexie stores arbitrary object properties); the version bump
+    // marks the shape change. Existing cached rows backfill the new fields on the next sync, whose
+    // bulkPut replaces each record with the complete profile.
+    this.version(4).stores({
       sessions: 'id, *patientIds, date, syncStatus',
       notes: 'id, sessionId, syncStatus',
       patients: 'id, searchableName',

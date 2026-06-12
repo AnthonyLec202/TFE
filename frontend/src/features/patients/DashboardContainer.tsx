@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { RotateCw, UserPlus } from 'lucide-react';
 import { useAuth } from '../auth';
-import { getPatients } from '../../services/patientService';
-import type { CreatePatientPayload, PatientResponse } from '../../types/patient';
+import type { CreatePatientPayload } from '../../types/patient';
+import { db } from '../../core/offline/LocalDatabase';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { CreatePatientForm } from './components/CreatePatientForm';
 import { PatientsList } from './components/PatientsList';
-import { createPatientWithOfflineFallback, onOfflinePatientsSynced } from './services/offlinePatientQueueService';
-import { syncPatientsFromServer } from './services/localPatientService';
+import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
+import { upsertLocalPatient } from './services/localPatientService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 
 // The id is generated at submission, so the editable form state omits it.
@@ -24,65 +25,49 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   const { user, isInitialized } = useAuth();
   const isAdmin = user?.roles.includes('Admin') ?? false;
 
-  const [patients, setPatients] = useState<PatientResponse[]>([]);
-  const [loadingList, setLoadingList] = useState(true);
-  const [listError, setListError] = useState('');
+  // The list is now sourced directly from Dexie and updates reactively whenever db.patients changes
+  // — from a background drain, a server pull, or an optimistic create. undefined while resolving.
+  const patients = useLiveQuery(() => db.patients.toArray());
+
+  const [syncing, setSyncing] = useState(true);
+  const [syncError, setSyncError] = useState('');
+  const [syncFailed, setSyncFailed] = useState(false);
 
   const [form, setForm] = useState<PatientFormState>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [offlineNotice, setOfflineNotice] = useState('');
 
-  // Stable across renders (no deps) so the subscription effect below mounts exactly once.
-  const loadPatients = useCallback(() => {
-    setLoadingList(true);
-    setListError('');
-    return getPatients()
-      .then(setPatients)
-      .catch(() => setListError('Impossible de charger la liste des patients.'))
-      .finally(() => setLoadingList(false));
+  // Keeps the local store fresh; it never touches list state (the live query above handles display).
+  // A single runSyncCycle() pushes all pending mutations and then, in its post-sync phase, pulls the
+  // authoritative patient list back into db.patients — one cycle, one GET. MainLayout stays mounted
+  // across navigation, so this remount is the trigger that refreshes the cache on return.
+  const reconnectAndLoad = useCallback(async () => {
+    setSyncing(true);
+    setSyncError('');
+    try {
+      // runSyncCycle never throws; it reports failure via its return value instead.
+      const succeeded = await runSyncCycle();
+      if (!succeeded) {
+        // Backend unreachable: the list keeps showing whatever is cached locally; we only surface
+        // the full-page error (and the Réessayer button) when there is nothing cached — see render
+        // below. When the cache is non-empty, syncFailed drives a non-blocking banner instead.
+        setSyncError('Impossible de charger la liste des patients.');
+        setSyncFailed(true);
+      } else {
+        setSyncFailed(false);
+      }
+    } finally {
+      setSyncing(false);
+    }
   }, []);
 
-  // Reconnection sequence: PUSH, then refresh local caches, then PULL.
-  //  1) runSyncCycle — global orchestrator: pushes pending patients first, then pending sessions,
-  //     reconciling the local store against the (now-awake) backend.
-  //  2) syncPatientsFromServer — refresh the Dexie patient cache (db.patients). The session cards
-  //     on /sessions resolve patient names from this cache via useLiveQuery, so without this they
-  //     keep showing "1 patient" for a just-synced offline patient until a full F5. Repopulating
-  //     the cache lets those reactive cards bind the real name automatically.
-  //  3) loadPatients — refresh the patient-list React state shown on this dashboard.
-  // All awaited so the UI never reflects a half-reconciled state.
-  const reconnectAndLoad = useCallback(async () => {
-    setLoadingList(true);
-    setListError('');
-    try {
-      await runSyncCycle();
-      await syncPatientsFromServer();
-      await loadPatients();
-    } catch {
-      // Backend unreachable during any step (e.g. syncPatientsFromServer rejects before
-      // loadPatients runs): surface the error UI so the Réessayer button renders.
-      setListError('Impossible de charger la liste des patients.');
-    } finally {
-      // Always clear the spinner, otherwise a thrown step leaves it stuck indefinitely.
-      setLoadingList(false);
-    }
-  }, [loadPatients]);
-
-  // Wait for auth to be initialized (token restored AND applied to the API client) before the
-  // first fetch, otherwise the GET races ahead of the token on a fresh page load and 401s.
-  // MainLayout stays mounted across navigation, so this remount is the only trigger when returning
-  // to the dashboard — flush the offline queue here before pulling, otherwise the list would show
-  // stale server data and miss patients created offline while the backend was down.
+  // Wait for auth to be initialized (token restored AND applied to the API client) before syncing,
+  // otherwise the request races ahead of the token on a fresh page load and 401s.
   useEffect(() => {
     if (!isInitialized) return;
     reconnectAndLoad();
   }, [isInitialized, reconnectAndLoad]);
-
-  // When the offline queue drains elsewhere, refetch so newly synced patients appear without a
-  // remount. The listener only fires after a successful drain (a finite event), and refetching
-  // issues a GET that never triggers another drain — so there is no render/sync loop.
-  useEffect(() => onOfflinePatientsSynced(loadPatients), [loadPatients]);
 
   async function handleCreate() {
     setCreateError('');
@@ -97,7 +82,8 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
       // offline rather than lost. A genuine API error (validation, etc.) is rethrown below.
       const outcome = await createPatientWithOfflineFallback(payload);
       if (outcome.status === 'created') {
-        setPatients(prev => [...prev, outcome.patient].sort((a, b) => a.lastName.localeCompare(b.lastName)));
+        // Mirror into the local cache so the reactive list shows the new patient immediately.
+        await upsertLocalPatient(outcome.patient);
       } else {
         setOfflineNotice('Patient enregistré hors ligne. Il sera synchronisé au retour de la connexion.');
       }
@@ -109,6 +95,9 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
     }
   }
 
+  const count = patients?.length ?? 0;
+  const isEmpty = patients !== undefined && count === 0;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -116,7 +105,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
           {isAdmin ? 'Mes patients' : 'Patients suivis'}
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          {patients.length} patient{patients.length !== 1 ? 's' : ''}
+          {count} patient{count !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -149,11 +138,20 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
           ) : null}
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 flex flex-col gap-3">
+          {syncFailed && !isEmpty && (
+            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-sm text-amber-700">Impossible de synchroniser avec le serveur.</p>
+              <Button variant="secondary" size="sm" onClick={reconnectAndLoad}>
+                <RotateCw className="h-3.5 w-3.5" />
+                Réessayer
+              </Button>
+            </div>
+          )}
           <PatientsList
-            patients={patients}
-            isLoading={loadingList}
-            error={listError}
+            patients={patients ?? []}
+            isLoading={patients === undefined || (syncing && isEmpty)}
+            error={!syncing && isEmpty ? syncError : ''}
             onSelectPatient={onSelectPatient}
             onRetry={reconnectAndLoad}
           />

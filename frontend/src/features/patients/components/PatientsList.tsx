@@ -1,10 +1,10 @@
 import { Calendar, ChevronRight, RotateCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
-import type { PatientResponse } from '../../../types/patient';
+import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
 
 export interface PatientsListProps {
-  patients: PatientResponse[];
+  patients: LocalPatientSync[];
   isLoading: boolean;
   error?: string;
   onSelectPatient: (id: string) => void;

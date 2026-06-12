@@ -1,4 +1,5 @@
 import { db, type LocalPatientSync } from '../../../core/offline/LocalDatabase';
+import type { PatientResponse } from '../../../types/patient';
 import { getPatients } from '../../../services/patientService';
 
 /** A patient match, tagged with whether it is still pending in the offline creation queue. */
@@ -7,6 +8,26 @@ export interface PatientSearchResult extends LocalPatientSync {
 }
 
 const MAX_RESULTS = 10;
+
+/** Projects a server PatientResponse into the local cache shape (single source of the mapping). */
+function toLocalPatient(p: PatientResponse): LocalPatientSync {
+  return {
+    id: p.id,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    searchableName: `${p.firstName} ${p.lastName}`.toLowerCase(),
+    birthDate: p.birthDate,
+    userRole: p.userRole,
+  };
+}
+
+/**
+ * Writes a single patient into the local cache (e.g. right after an online create) so the reactive
+ * dashboard list reflects it immediately, without waiting for a full re-sync.
+ */
+export async function upsertLocalPatient(patient: PatientResponse): Promise<void> {
+  await db.patients.put(toLocalPatient(patient));
+}
 
 /**
  * Searches both the synced server cache (db.patients) and the offline creation queue
@@ -30,12 +51,14 @@ export async function searchLocalPatients(query: string): Promise<PatientSearchR
   const queuedResults: PatientSearchResult[] = queued
     .filter(entry => !syncedIds.has(entry.payload.id))
     .map(entry => {
-      const { id, firstName, lastName } = entry.payload;
+      const { id, firstName, lastName, birthDate } = entry.payload;
       return {
         id,
         firstName,
         lastName,
         searchableName: `${firstName} ${lastName}`.toLowerCase(),
+        birthDate,
+        userRole: 'Admin', // an offline-created patient's creator is always its admin
         isOffline: true,
       };
     })
@@ -53,14 +76,25 @@ export async function removeLocalPatient(id: string): Promise<void> {
   await db.patients.delete(id);
 }
 
-export async function syncPatientsFromServer(): Promise<void> {
+// Coalesces concurrent callers onto one in-flight pull, so a single reconcile never fires
+// redundant GETs (e.g. StrictMode double-invoke, or two triggers racing on reconnect).
+let inFlightServerSync: Promise<PatientResponse[]> | null = null;
+
+/**
+ * Pulls the authoritative patient list from the server, reconciles the local Dexie cache
+ * (db.patients) against it, and RETURNS the list — so a single GET can both hydrate the cache and
+ * feed the dashboard's React state, instead of two separate fetches.
+ */
+export function syncPatientsFromServer(): Promise<PatientResponse[]> {
+  if (inFlightServerSync) return inFlightServerSync;
+  inFlightServerSync = pullAndReconcilePatients().finally(() => { inFlightServerSync = null; });
+  return inFlightServerSync;
+}
+
+async function pullAndReconcilePatients(): Promise<PatientResponse[]> {
   const patients = await getPatients();
-  const mapped = patients.map(p => ({
-    id: p.id,
-    firstName: p.firstName,
-    lastName: p.lastName,
-    searchableName: `${p.firstName} ${p.lastName}`.toLowerCase(),
-  }));
+  // Persist the complete profile (not just id/name) so the local store mirrors the server record.
+  const mapped: LocalPatientSync[] = patients.map(toLocalPatient);
 
   const serverIds = new Set(mapped.map(p => p.id));
 
@@ -73,4 +107,6 @@ export async function syncPatientsFromServer(): Promise<void> {
     if (staleIds.length > 0) await db.patients.bulkDelete(staleIds);
     await db.patients.bulkPut(mapped);
   });
+
+  return patients;
 }

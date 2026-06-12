@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
-import { usePatientSync } from '../../core/offline/hooks/usePatientSync';
+import { usePatientSync } from '../../features/patients';
 import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
 
 export function MainLayout() {
