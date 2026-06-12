@@ -7,7 +7,9 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { CreatePatientForm } from './components/CreatePatientForm';
 import { PatientsList } from './components/PatientsList';
-import { createPatientWithOfflineFallback, onOfflinePatientsSynced, syncOfflinePatientQueue } from './services/offlinePatientQueueService';
+import { createPatientWithOfflineFallback, onOfflinePatientsSynced } from './services/offlinePatientQueueService';
+import { syncPatientsFromServer } from './services/localPatientService';
+import { runSyncCycle } from '../../core/offline/syncEngine';
 
 // The id is generated at submission, so the editable form state omits it.
 type PatientFormState = Omit<CreatePatientPayload, 'id'>;
@@ -41,26 +43,46 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
       .finally(() => setLoadingList(false));
   }, []);
 
+  // Reconnection sequence: PUSH, then refresh local caches, then PULL.
+  //  1) runSyncCycle — global orchestrator: pushes pending patients first, then pending sessions,
+  //     reconciling the local store against the (now-awake) backend.
+  //  2) syncPatientsFromServer — refresh the Dexie patient cache (db.patients). The session cards
+  //     on /sessions resolve patient names from this cache via useLiveQuery, so without this they
+  //     keep showing "1 patient" for a just-synced offline patient until a full F5. Repopulating
+  //     the cache lets those reactive cards bind the real name automatically.
+  //  3) loadPatients — refresh the patient-list React state shown on this dashboard.
+  // All awaited so the UI never reflects a half-reconciled state.
+  const reconnectAndLoad = useCallback(async () => {
+    setLoadingList(true);
+    setListError('');
+    try {
+      await runSyncCycle();
+      await syncPatientsFromServer();
+      await loadPatients();
+    } catch {
+      // Backend unreachable during any step (e.g. syncPatientsFromServer rejects before
+      // loadPatients runs): surface the error UI so the Réessayer button renders.
+      setListError('Impossible de charger la liste des patients.');
+    } finally {
+      // Always clear the spinner, otherwise a thrown step leaves it stuck indefinitely.
+      setLoadingList(false);
+    }
+  }, [loadPatients]);
+
   // Wait for auth to be initialized (token restored AND applied to the API client) before the
   // first fetch, otherwise the GET races ahead of the token on a fresh page load and 401s.
+  // MainLayout stays mounted across navigation, so this remount is the only trigger when returning
+  // to the dashboard — flush the offline queue here before pulling, otherwise the list would show
+  // stale server data and miss patients created offline while the backend was down.
   useEffect(() => {
     if (!isInitialized) return;
-    loadPatients();
-  }, [isInitialized, loadPatients]);
+    reconnectAndLoad();
+  }, [isInitialized, reconnectAndLoad]);
 
-  // When the offline queue drains, refetch so newly synced patients appear without a remount.
-  // The listener only fires after a successful drain (a finite event), and refetching issues a
-  // GET that never triggers another drain — so there is no render/sync loop.
+  // When the offline queue drains elsewhere, refetch so newly synced patients appear without a
+  // remount. The listener only fires after a successful drain (a finite event), and refetching
+  // issues a GET that never triggers another drain — so there is no render/sync loop.
   useEffect(() => onOfflinePatientsSynced(loadPatients), [loadPatients]);
-
-  // Manual reconnection trigger. The browser never lost its network interface during a backend
-  // outage, so window 'online' never fired and the queue stayed stuck. Retry must therefore
-  // PUSH first — drain any pending offline patients to the now-awake backend — then PULL the
-  // fresh list. The drain is awaited so the reload reflects the just-synced records.
-  const handleRetry = useCallback(async () => {
-    await syncOfflinePatientQueue();
-    await loadPatients();
-  }, [loadPatients]);
 
   async function handleCreate() {
     setCreateError('');
@@ -133,7 +155,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
             isLoading={loadingList}
             error={listError}
             onSelectPatient={onSelectPatient}
-            onRetry={handleRetry}
+            onRetry={reconnectAndLoad}
           />
         </div>
       </div>

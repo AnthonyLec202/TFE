@@ -44,6 +44,15 @@ export async function searchLocalPatients(query: string): Promise<PatientSearchR
   return [...syncedResults, ...queuedResults].slice(0, MAX_RESULTS);
 }
 
+/**
+ * Removes a patient from the local search cache. Call this right after a successful server-side
+ * delete so the patient disappears from the autocomplete immediately, instead of lingering until
+ * the next full syncPatientsFromServer (e.g. a page refresh).
+ */
+export async function removeLocalPatient(id: string): Promise<void> {
+  await db.patients.delete(id);
+}
+
 export async function syncPatientsFromServer(): Promise<void> {
   const patients = await getPatients();
   const mapped = patients.map(p => ({

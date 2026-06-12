@@ -2,6 +2,7 @@ import { useEffect, useState, type SubmitEvent } from 'react';
 import { useAuth } from '../auth';
 import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, X } from 'lucide-react';
 import { deletePatient, getPatient, updatePatient } from '../../services/patientService';
+import { removeLocalPatient } from './services/localPatientService';
 import type { PatientResponse, UpdatePatientPayload } from '../../types/patient';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -89,6 +90,9 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     setDeleting(true);
     try {
       await deletePatient(patientId);
+      // Prune the local search cache so the patient vanishes from the autocomplete immediately,
+      // not only after the next full server sync (F5).
+      await removeLocalPatient(patientId);
       onNavigateBack();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Une erreur est survenue.');
