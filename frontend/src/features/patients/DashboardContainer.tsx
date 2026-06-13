@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { RotateCw, UserPlus } from 'lucide-react';
 import { useAuth } from '../auth';
@@ -7,7 +7,7 @@ import { db } from '../../core/offline/LocalDatabase';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { CreatePatientForm } from './components/CreatePatientForm';
-import { PatientsList } from './components/PatientsList';
+import { PatientsList, type PatientListItem } from './components/PatientsList';
 import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
 import { upsertLocalPatient } from './services/localPatientService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
@@ -25,9 +25,32 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   const { user, isInitialized } = useAuth();
   const isAdmin = user?.roles.includes('Admin') ?? false;
 
-  // The list is now sourced directly from Dexie and updates reactively whenever db.patients changes
-  // — from a background drain, a server pull, or an optimistic create. undefined while resolving.
-  const patients = useLiveQuery(() => db.patients.toArray());
+  // Sourced directly from Dexie and updated reactively. The synced server cache is the primary
+  // source; patients still pending in the offline creation queue are merged in below so they show
+  // immediately with a "pending" badge — the same UX offline-created sessions already have.
+  const syncedPatients = useLiveQuery(() => db.patients.toArray());
+  const queuedPatients = useLiveQuery(() => db.offlinePatientQueue.toArray());
+
+  const patients = useMemo<PatientListItem[] | undefined>(() => {
+    // Stay in the loading state until the primary (synced) source has resolved.
+    if (syncedPatients === undefined) return undefined;
+
+    const syncedIds = new Set(syncedPatients.map(p => p.id));
+    const pending: PatientListItem[] = (queuedPatients ?? [])
+      // Drop any queue entry whose patient already appears synced (brief post-sync overlap).
+      .filter(entry => !syncedIds.has(entry.payload.id))
+      .map(entry => ({
+        id: entry.payload.id,
+        firstName: entry.payload.firstName,
+        lastName: entry.payload.lastName,
+        searchableName: `${entry.payload.firstName} ${entry.payload.lastName}`.toLowerCase(),
+        birthDate: entry.payload.birthDate,
+        userRole: 'Admin', // an offline-created patient's creator is always its admin
+        syncStatus: 'pending_create',
+      }));
+
+    return [...syncedPatients, ...pending];
+  }, [syncedPatients, queuedPatients]);
 
   const [syncing, setSyncing] = useState(true);
   const [syncError, setSyncError] = useState('');

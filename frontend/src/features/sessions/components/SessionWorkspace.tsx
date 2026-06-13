@@ -1,7 +1,7 @@
 import { ArrowLeft, CheckCircle2, Keyboard, Loader2, Pencil, PenLine, Sparkles, Trash2, WifiOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { LocalSession } from '../../../core/offline/LocalDatabase';
-import { formatSessionDate, formatPatientNames } from '../utils/sessionFormatters';
+import type { LocalPatientSync, LocalSession } from '../../../core/offline/LocalDatabase';
+import { formatSessionDate } from '../utils/sessionFormatters';
 import { HandwritingCanvas } from './HandwritingCanvas';
 
 export type InputMode = 'keyboard' | 'stylus';
@@ -12,7 +12,8 @@ export interface SessionWorkspaceProps {
   backTo: string;
   /** Label shown on the Back button. */
   backLabel: string;
-  patientNamesById: Map<string, string>;
+  /** Lookup of every locally-known patient by id, used to render clickable patient links. */
+  patientsById: Map<string, LocalPatientSync>;
   editorText: string;
   onEditorTextChange: (text: string) => void;
   isSaving: boolean;
@@ -29,7 +30,7 @@ export interface SessionWorkspaceProps {
 }
 
 export function SessionWorkspace({
-  session, backTo, backLabel, patientNamesById, editorText, onEditorTextChange, isSaving,
+  session, backTo, backLabel, patientsById, editorText, onEditorTextChange, isSaving,
   inputMode, onInputModeChange, currentStrokes, onStrokesUpdate,
   onConvertToText, isConverting, isOnline, canConvert, onEdit, onDelete,
 }: SessionWorkspaceProps) {
@@ -52,7 +53,25 @@ export function SessionWorkspace({
             <p className="text-xs text-slate-400">
               {formatSessionDate(session.date)} · {session.time}
               {session.patientIds.length > 0 && (
-                <> · {formatPatientNames(session.patientIds, patientNamesById)}</>
+                <>
+                  {' · '}
+                  {session.patientIds.map((patientId, index) => {
+                    const patient = patientsById.get(patientId);
+                    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown';
+                    return (
+                      <span key={patientId}>
+                        {index > 0 && ', '}
+                        {/* Quick access to the patient's file from the session header. */}
+                        <Link
+                          to={`/patients/${patientId}`}
+                          className="text-blue-600 font-medium hover:text-blue-700 hover:underline"
+                        >
+                          {patientName}
+                        </Link>
+                      </span>
+                    );
+                  })}
+                </>
               )}
             </p>
           </div>

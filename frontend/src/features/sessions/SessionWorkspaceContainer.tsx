@@ -46,9 +46,9 @@ export function SessionWorkspaceContainer() {
   );
   const patients = useLiveQuery(() => getAllLocalPatients());
 
-  const patientNamesById = useMemo(() => {
-    const map = new Map<string, string>();
-    (patients ?? []).forEach(p => map.set(p.id, `${p.firstName} ${p.lastName}`));
+  const patientsById = useMemo(() => {
+    const map = new Map<string, LocalPatientSync>();
+    (patients ?? []).forEach(p => map.set(p.id, p));
     return map;
   }, [patients]);
 
@@ -222,7 +222,7 @@ export function SessionWorkspaceContainer() {
         session={session}
         backTo={backTo}
         backLabel={backLabel}
-        patientNamesById={patientNamesById}
+        patientsById={patientsById}
         editorText={editorText}
         onEditorTextChange={setEditorText}
         isSaving={isSaving}

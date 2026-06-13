@@ -95,6 +95,26 @@ export async function getNoteForSession(sessionId: string): Promise<LocalNote | 
   return db.notes.where('sessionId').equals(sessionId).first();
 }
 
+// All patients known locally: the synced server cache PLUS any still pending in the offline creation
+// queue, so a session referencing an offline-created patient can still resolve its name. Pending
+// entries are de-duplicated against the synced set for the brief overlap right after a sync.
 export async function getAllLocalPatients(): Promise<LocalPatientSync[]> {
-  return db.patients.toArray();
+  const [synced, queued] = await Promise.all([
+    db.patients.toArray(),
+    db.offlinePatientQueue.toArray(),
+  ]);
+
+  const syncedIds = new Set(synced.map(p => p.id));
+  const pending: LocalPatientSync[] = queued
+    .filter(entry => !syncedIds.has(entry.payload.id))
+    .map(entry => ({
+      id: entry.payload.id,
+      firstName: entry.payload.firstName,
+      lastName: entry.payload.lastName,
+      searchableName: `${entry.payload.firstName} ${entry.payload.lastName}`.toLowerCase(),
+      birthDate: entry.payload.birthDate,
+      userRole: 'Admin', // an offline-created patient's creator is always its admin
+    }));
+
+  return [...synced, ...pending];
 }

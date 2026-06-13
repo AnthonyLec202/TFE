@@ -3,13 +3,14 @@ import { Calendar, CheckCircle2, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { SessionStatus } from '../../../core/offline/LocalDatabase';
-import type { LocalSession, LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
+import type { LocalPatientSync, LocalSession, LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
 import type { SessionDetailOrigin } from '../../../types/navigation';
 import { formatSessionDate } from '../utils/sessionFormatters';
 
 export interface SessionCardProps {
   session: LocalSession;
-  patientNamesById: Map<string, string>;
+  /** Lookup of every locally-known patient by id, used to label each attendance chip. */
+  patientsById: Map<string, LocalPatientSync>;
   /** Closes the session with the per-patient attendances, archiving it to the patients' history. */
   onCompleteSession: (sessionId: string, attendances: LocalSessionAttendance[]) => void;
 }
@@ -53,7 +54,7 @@ function statusLabel(status: SessionStatus | undefined): string {
   }
 }
 
-export function SessionCard({ session, patientNamesById, onCompleteSession }: SessionCardProps) {
+export function SessionCard({ session, patientsById, onCompleteSession }: SessionCardProps) {
   // Deduplicate participants so each patient maps to exactly one chip, one dictionary entry, and one
   // React key — guarding against any cross-chip "applies to all" behaviour from duplicate ids.
   const participantIds = useMemo(() => Array.from(new Set(session.patientIds)), [session.patientIds]);
@@ -115,6 +116,8 @@ export function SessionCard({ session, patientNamesById, onCompleteSession }: Se
         <div className="flex flex-wrap gap-2">
           {participantIds.map(patientId => {
             const status = attendanceByPatient[patientId];
+            const patient = patientsById.get(patientId);
+            const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown';
             return (
               <button
                 key={patientId}
@@ -127,7 +130,7 @@ export function SessionCard({ session, patientNamesById, onCompleteSession }: Se
                 }}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${chipClasses(status)}`}
               >
-                <span>{patientNamesById.get(patientId) ?? 'Unknown'}</span>
+                <span>{patientName}</span>
                 <span className="opacity-70">· {statusLabel(status)}</span>
               </button>
             );

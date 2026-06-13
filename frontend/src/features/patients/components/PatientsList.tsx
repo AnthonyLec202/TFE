@@ -1,10 +1,16 @@
-import { Calendar, ChevronRight, RotateCw } from 'lucide-react';
+import { Calendar, ChevronRight, CloudOff, RotateCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
-import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
+import type { LocalPatientSync, SyncStatus } from '../../../core/offline/LocalDatabase';
+
+/** A patient row, optionally carrying the offline sync status of a not-yet-synced local record. */
+export interface PatientListItem extends LocalPatientSync {
+  // Present while the patient is pending offline sync; absent for synced, server-backed patients.
+  syncStatus?: SyncStatus;
+}
 
 export interface PatientsListProps {
-  patients: LocalPatientSync[];
+  patients: PatientListItem[];
   isLoading: boolean;
   error?: string;
   onSelectPatient: (id: string) => void;
@@ -15,6 +21,11 @@ function formatBirthDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-BE', {
     day: '2-digit', month: 'long', year: 'numeric',
   });
+}
+
+// Mirrors the SessionCard "pending" indicator: a patient created/updated offline is awaiting sync.
+function isPendingSync(status: SyncStatus | undefined): boolean {
+  return status === 'pending_create' || status === 'pending_update';
 }
 
 export function PatientsList({ patients, isLoading, error, onSelectPatient, onRetry }: PatientsListProps) {
@@ -54,9 +65,17 @@ export function PatientsList({ patients, isLoading, error, onSelectPatient, onRe
         >
           <Card className="p-4 flex flex-col gap-2 group-hover:border-blue-200 group-hover:shadow-sm transition-shadow">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-800 leading-snug group-hover:text-blue-700 transition-colors">
-                {patient.lastName.toUpperCase()}, {patient.firstName}
-              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="text-sm font-semibold text-slate-800 leading-snug truncate group-hover:text-blue-700 transition-colors">
+                  {patient.lastName.toUpperCase()}, {patient.firstName}
+                </h3>
+                {isPendingSync(patient.syncStatus) && (
+                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
+                    <CloudOff className="h-3 w-3" />
+                    pending
+                  </span>
+                )}
+              </div>
               <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-500 shrink-0 transition-colors" />
             </div>
 

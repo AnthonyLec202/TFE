@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getAllSessions, getAllLocalPatients, closeSessionLocally } from './services/localSessionService';
-import type { LocalSessionAttendance } from '../../core/offline/LocalDatabase';
+import type { LocalPatientSync, LocalSessionAttendance } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import {
   groupSessionsByWeek, groupSessionsByMonth,
@@ -39,9 +39,9 @@ export function SessionsDashboardContainer() {
     await runSyncCycle(); // push the closure to the server (no-op while offline)
   }
 
-  const patientNamesById = useMemo(() => {
-    const map = new Map<string, string>();
-    (patients ?? []).forEach(p => map.set(p.id, `${p.firstName} ${p.lastName}`));
+  const patientsById = useMemo(() => {
+    const map = new Map<string, LocalPatientSync>();
+    (patients ?? []).forEach(p => map.set(p.id, p));
     return map;
   }, [patients]);
 
@@ -57,7 +57,10 @@ export function SessionsDashboardContainer() {
       : all.filter(session => {
         const titleMatch = session.title.toLowerCase().includes(query);
         const patientMatch = session.patientIds
-          .map(id => patientNamesById.get(id) ?? '')
+          .map(id => {
+            const patient = patientsById.get(id);
+            return patient ? `${patient.firstName} ${patient.lastName}` : '';
+          })
           .join(' ')
           .toLowerCase()
           .includes(query);
@@ -68,7 +71,7 @@ export function SessionsDashboardContainer() {
     if (timeframe === 'week') return byText.filter(session => isInWeekOf(session, now));
     if (timeframe === 'month') return byText.filter(session => isInMonthOf(session, now));
     return byText;
-  }, [sessions, searchTerm, timeframe, patientNamesById]);
+  }, [sessions, searchTerm, timeframe, patientsById]);
 
   // 3) Grouping — by week for the weekly view, by calendar month otherwise.
   const groups: SessionGroup[] = useMemo(() => {
@@ -104,7 +107,7 @@ export function SessionsDashboardContainer() {
           />
           <SessionsDashboard
             groups={groups}
-            patientNamesById={patientNamesById}
+            patientsById={patientsById}
             isLoading={sessions === undefined}
             onCompleteSession={handleCompleteSession}
           />

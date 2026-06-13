@@ -1,5 +1,5 @@
 import { Card } from '../../../components/ui/Card';
-import type { LocalSession, LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
+import type { LocalPatientSync, LocalSession, LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
 import { SessionCard } from './SessionCard';
 
 export interface SessionGroup {
@@ -10,13 +10,13 @@ export interface SessionGroup {
 
 export interface SessionsDashboardProps {
   groups: SessionGroup[];
-  patientNamesById: Map<string, string>;
+  patientsById: Map<string, LocalPatientSync>;
   isLoading: boolean;
   /** Closes the session with the per-patient attendances, archiving it to the patients' history. */
   onCompleteSession: (id: string, attendances: LocalSessionAttendance[]) => void;
 }
 
-export function SessionsDashboard({ groups, patientNamesById, isLoading, onCompleteSession }: SessionsDashboardProps) {
+export function SessionsDashboard({ groups, patientsById, isLoading, onCompleteSession }: SessionsDashboardProps) {
   if (isLoading) {
     return <p className="text-sm text-slate-400">Loading sessions…</p>;
   }
@@ -41,7 +41,7 @@ export function SessionsDashboard({ groups, patientNamesById, isLoading, onCompl
             <SessionCard
               key={session.id}
               session={session}
-              patientNamesById={patientNamesById}
+              patientsById={patientsById}
               onCompleteSession={onCompleteSession}
             />
           ))}

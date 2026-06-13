@@ -11,23 +11,3 @@ export function formatSessionDate(isoDate: string): string {
   const [year, month, day] = parts;
   return `${day}/${month}/${year}`;
 }
-
-/**
- * Resolves a session's patient IDs to their full "FirstName LastName" labels.
- * Falls back to a "N patient(s)" count string when no names can be resolved
- * (e.g. the local patient cache has not been synced yet).
- */
-export function formatPatientNames(
-  patientIds: string[],
-  namesById: Map<string, string>,
-): string {
-  const names = patientIds
-    .map(id => namesById.get(id))
-    .filter((name): name is string => Boolean(name));
-
-  if (names.length === 0) {
-    return `${patientIds.length} patient${patientIds.length !== 1 ? 's' : ''}`;
-  }
-
-  return names.join(', ');
-}
