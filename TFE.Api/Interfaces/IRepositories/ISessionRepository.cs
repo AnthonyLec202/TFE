@@ -17,6 +17,19 @@ public interface ISessionRepository
     Task AddAsync(Session session, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Purges all attendance rows for the given sessions via an immediate set-based DELETE
+    /// (ExecuteDeleteAsync), bypassing the change tracker. This avoids the DbUpdateConcurrencyException
+    /// that arose from deleting tracked navigation-collection entities during sync batch processing.
+    /// The DELETE participates in the caller's ambient transaction.
+    /// </summary>
+    Task DeleteAttendancesBySessionIdsAsync(IEnumerable<Guid> sessionIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stages the insertion of new attendance rows. Persistence is committed by the caller via IUnitOfWork.
+    /// </summary>
+    Task AddAttendancesAsync(IEnumerable<SessionAttendance> attendances, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Stages an update for an already-tracked session. Persistence is committed by the caller via IUnitOfWork.
     /// </summary>
     Task UpdateAsync(Session session, CancellationToken cancellationToken = default);

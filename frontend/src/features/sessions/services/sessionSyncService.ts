@@ -1,4 +1,5 @@
 import { db, type SyncStatus } from '../../../core/offline/LocalDatabase';
+import { AuthError, HttpError } from '../../../services/apiClient';
 import { syncSessionsBatch, updateSession, deleteSession } from './sessionApiService';
 
 const SYNCED: SyncStatus = 'synced';
@@ -22,25 +23,44 @@ export async function syncSessions(): Promise<void> {
     return;
   }
 
-  // 1) Deletions — remove server-side, then purge the local tombstone and its notes.
+  // 1) Deletions — remove server-side, then purge the local tombstone and its notes. A 404 means the
+  // server already lacks the session, so the deletion goal is met: treat it as success and purge
+  // locally. Any other failure leaves the tombstone for the next cycle to retry. An AuthError is
+  // re-thrown so the engine can escalate to logout rather than swallowing an expired token.
   for (const session of deletes) {
-    await deleteSession(session.id);
+    try {
+      await deleteSession(session.id);
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      if (!(err instanceof HttpError && err.status === 404)) {
+        console.warn('[sessionSync] Failed to delete a session — will retry later.', session.id, err);
+        continue;
+      }
+      console.info('[sessionSync] Session already absent server-side (404) — treating delete as success.', session.id);
+    }
     await db.transaction('rw', db.sessions, db.notes, async () => {
       await db.notes.where('sessionId').equals(session.id).delete();
       await db.sessions.delete(session.id);
     });
   }
 
-  // 2) Updates — push each previously-synced session via PUT, then mark it synced.
+  // 2) Updates — push each previously-synced session via PUT, then mark it synced. A failure leaves
+  // the row pending_update for the next cycle; an AuthError is re-thrown for the engine to escalate.
   for (const session of updates) {
-    await updateSession(session.id, {
-      title: session.title,
-      date: session.date,
-      time: session.time,
-      status: session.status,
-      patientIds: session.patientIds,
-    });
-    await db.sessions.update(session.id, { syncStatus: SYNCED });
+    try {
+      await updateSession(session.id, {
+        title: session.title,
+        date: session.date,
+        time: session.time,
+        isClosed: session.isClosed,
+        patientIds: session.patientIds,
+        attendances: session.attendances,
+      });
+      await db.sessions.update(session.id, { syncStatus: SYNCED });
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      console.warn('[sessionSync] Failed to update a session — will retry later.', session.id, err);
+    }
   }
 
   // 3) Creates + notes — the batch endpoint upserts new sessions and reconciles notes atomically.
@@ -55,8 +75,9 @@ export async function syncSessions(): Promise<void> {
         title: s.title,
         date: s.date,
         time: s.time,
-        status: s.status,
+        isClosed: s.isClosed,
         patientIds: s.patientIds,
+        attendances: s.attendances,
       })),
       notes: notesToSync.map(n => ({
         id: n.id,
@@ -66,13 +87,20 @@ export async function syncSessions(): Promise<void> {
       })),
     };
 
-    await syncSessionsBatch(payload);
+    // Isolated like the loops above: a failed batch leaves the rows pending for the next cycle, and
+    // an AuthError is re-thrown so the engine can escalate to logout.
+    try {
+      await syncSessionsBatch(payload);
 
-    await db.transaction('rw', db.sessions, db.notes, async () => {
-      if (creates.length > 0)
-        await db.sessions.bulkPut(creates.map(s => ({ ...s, syncStatus: SYNCED })));
-      if (notesToSync.length > 0)
-        await db.notes.bulkPut(notesToSync.map(n => ({ ...n, syncStatus: SYNCED })));
-    });
+      await db.transaction('rw', db.sessions, db.notes, async () => {
+        if (creates.length > 0)
+          await db.sessions.bulkPut(creates.map(s => ({ ...s, syncStatus: SYNCED })));
+        if (notesToSync.length > 0)
+          await db.notes.bulkPut(notesToSync.map(n => ({ ...n, syncStatus: SYNCED })));
+      });
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      console.warn('[sessionSync] Failed to push the create/notes batch — will retry later.', err);
+    }
   }
 }

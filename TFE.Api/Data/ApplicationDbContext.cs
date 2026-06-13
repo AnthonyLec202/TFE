@@ -15,6 +15,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<SessionAttendance> SessionAttendances => Set<SessionAttendance>();
     public DbSet<SessionNote> SessionNotes => Set<SessionNote>();
     public DbSet<Note> Notes => Set<Note>();
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -123,6 +124,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                       .OnDelete(DeleteBehavior.Cascade),
                 j => j.HasKey("SessionsId", "PatientsId")
             );
+
+        // Session → SessionAttendance: one-to-many; attendance rows are owned by the session and
+        // removed with it.
+        builder.Entity<Session>()
+            .HasMany(s => s.Attendances)
+            .WithOne(a => a.Session)
+            .HasForeignKey(a => a.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Session → Note: one-to-one; note is owned by the session
         builder.Entity<Session>()

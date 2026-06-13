@@ -1,5 +1,5 @@
 import { Card } from '../../../components/ui/Card';
-import type { LocalSession, SessionStatus } from '../../../core/offline/LocalDatabase';
+import type { LocalSession, LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
 import { SessionCard } from './SessionCard';
 
 export interface SessionGroup {
@@ -12,8 +12,8 @@ export interface SessionsDashboardProps {
   groups: SessionGroup[];
   patientNamesById: Map<string, string>;
   isLoading: boolean;
-  /** Persists the selected attendance status, archiving the session to the patient's history. */
-  onCompleteSession: (id: string, status: SessionStatus) => void;
+  /** Closes the session with the per-patient attendances, archiving it to the patients' history. */
+  onCompleteSession: (id: string, attendances: LocalSessionAttendance[]) => void;
 }
 
 export function SessionsDashboard({ groups, patientNamesById, isLoading, onCompleteSession }: SessionsDashboardProps) {

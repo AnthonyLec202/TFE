@@ -16,6 +16,31 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * Thrown for any non-ok HTTP *response*. Carries the numeric `status` so callers can branch on it
+ * without re-parsing the response — e.g. the session sync treating a 404 on DELETE as success.
+ */
+export class HttpError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
+/**
+ * Thrown specifically for HTTP 401 Unauthorized (expired/invalid JWT). A subclass of HttpError so
+ * generic `instanceof HttpError` checks still match, while callers that care about authentication
+ * can detect it precisely (`instanceof AuthError`) and trigger a logout instead of a generic error.
+ */
+export class AuthError extends HttpError {
+  constructor(message: string) {
+    super(401, message);
+    this.name = 'AuthError';
+  }
+}
+
 class ApiClient {
   private token: string | null = null;
 
@@ -33,6 +58,15 @@ class ApiClient {
     }
   }
 
+  // Single place where a non-ok HTTP response is classified into a typed error, so every request
+  // method surfaces 401 as AuthError and all other statuses as HttpError carrying the status code.
+  private async raiseForStatus(response: Response): Promise<never> {
+    const body = await response.json().catch(() => ({ message: 'Request failed' }));
+    const message = body.message ?? 'Request failed';
+    if (response.status === 401) throw new AuthError(message);
+    throw new HttpError(response.status, message);
+  }
+
   private async request<T>(method: HttpMethod, path: string, body?: unknown, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
@@ -44,10 +78,7 @@ class ApiClient {
       cache: init?.cache,
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message ?? 'Request failed');
-    }
+    if (!response.ok) await this.raiseForStatus(response);
 
     if (response.status === 204) return undefined as T;
     return response.json();
@@ -64,10 +95,7 @@ class ApiClient {
       body,
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message ?? 'Request failed');
-    }
+    if (!response.ok) await this.raiseForStatus(response);
 
     return response.json();
   }
@@ -81,10 +109,7 @@ class ApiClient {
       headers,
       body: JSON.stringify(body),
     });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message ?? 'Request failed');
-    }
+    if (!response.ok) await this.raiseForStatus(response);
   }
 
   get<T>(path: string, init?: RequestInit): Promise<T> {

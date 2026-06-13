@@ -1,9 +1,21 @@
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
+import { useAuth } from '../../features/auth';
 import { usePatientSync } from '../../features/patients';
 import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
+import { registerAuthFailureHandler } from '../../core/offline/syncEngine';
 
 export function MainLayout() {
+  const { logout } = useAuth();
+
+  // Escalate an expired/invalid token observed during a background sync to a real logout: clearing
+  // the token flips isAuthenticated, so ProtectedRoute redirects to /login. Wired here (rather than
+  // in the engine) so the feature-agnostic core never imports the auth feature.
+  useEffect(() => {
+    registerAuthFailureHandler(logout);
+  }, [logout]);
+
   usePatientSync();
   // Drives runSyncCycle, which now drains the offline patient queue before pushing sessions.
   useSyncEngine();

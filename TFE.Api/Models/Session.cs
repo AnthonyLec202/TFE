@@ -8,11 +8,12 @@ public class Session
     public string Time { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
 
-    // Attendance status: Scheduled sessions appear on the general dashboard; any other
-    // status archives the session to the associated patient's clinical history.
-    public SessionStatus Status { get; set; } = SessionStatus.Scheduled;
+    // Open sessions appear on the general dashboard; once closed the session is archived to the
+    // participating patients' clinical history. Per-patient attendance lives in Attendances.
+    public bool IsClosed { get; set; }
 
     public virtual ICollection<Patient> Patients { get; set; } = new List<Patient>();
+    public virtual ICollection<SessionAttendance> Attendances { get; set; } = new List<SessionAttendance>();
     public virtual ICollection<SessionNote> SessionNotes { get; set; } = new HashSet<SessionNote>();
     public Note? Note { get; set; }
 }

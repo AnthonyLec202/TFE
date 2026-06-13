@@ -103,6 +103,19 @@
             Returns a single session with its linked patients loaded (for update/delete flows), or null if not found.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.DeleteAttendancesBySessionIdsAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Purges all attendance rows for the given sessions via an immediate set-based DELETE
+            (ExecuteDeleteAsync), bypassing the change tracker. This avoids the DbUpdateConcurrencyException
+            that arose from deleting tracked navigation-collection entities during sync batch processing.
+            The DELETE participates in the caller's ambient transaction.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.AddAttendancesAsync(System.Collections.Generic.IEnumerable{TFE.Api.Models.SessionAttendance},System.Threading.CancellationToken)">
+            <summary>
+            Stages the insertion of new attendance rows. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.UpdateAsync(TFE.Api.Models.Session,System.Threading.CancellationToken)">
             <summary>
             Stages an update for an already-tracked session. Persistence is committed by the caller via IUnitOfWork.
@@ -304,6 +317,18 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.AddSessionStatus.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.RefactorSessionAttendance">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RefactorSessionAttendance.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RefactorSessionAttendance.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.RefactorSessionAttendance.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

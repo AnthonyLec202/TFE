@@ -1,13 +1,14 @@
 import { apiClient } from '../../../services/apiClient';
-import type { SessionStatus } from '../../../core/offline/LocalDatabase';
+import type { LocalSessionAttendance } from '../../../core/offline/LocalDatabase';
 
 interface SyncSessionPayload {
   id: string;
   title: string;
   date: string;
   time: string;
-  status: SessionStatus;
+  isClosed: boolean;
   patientIds: string[];
+  attendances: LocalSessionAttendance[];
 }
 
 interface SyncNotePayload {
@@ -26,8 +27,9 @@ export interface UpdateSessionPayload {
   title: string;
   date: string;
   time: string;
-  status: SessionStatus;
+  isClosed: boolean;
   patientIds: string[];
+  attendances: LocalSessionAttendance[];
 }
 
 export function syncSessionsBatch(payload: SyncBatchPayload): Promise<void> {

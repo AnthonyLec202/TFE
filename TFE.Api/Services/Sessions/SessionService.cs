@@ -68,7 +68,7 @@ public class SessionService : ISessionService
             session.Title = request.Title;
             session.Date = request.Date;
             session.Time = request.Time;
-            session.Status = request.Status;
+            session.IsClosed = request.IsClosed;
 
             // Replace the patient assignment: resolve the requested ids, then rebuild the
             // many-to-many join from the loaded (tracked) collection.
@@ -82,6 +82,12 @@ public class SessionService : ISessionService
                     session.Patients.Add(patient);
 
             await _sessionRepository.UpdateAsync(session, cancellationToken);
+
+            // Replace attendances at the database level: purge the existing rows immediately, then
+            // stage the fresh set. Never mutate the tracked navigation collection for deletion.
+            await _sessionRepository.DeleteAttendancesBySessionIdsAsync(new[] { id }, cancellationToken);
+            await _sessionRepository.AddAttendancesAsync(BuildAttendances(id, request.Attendances), cancellationToken);
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
@@ -130,6 +136,13 @@ public class SessionService : ISessionService
         var patients = await _patientRepository.GetByIdsAsync(allPatientIds);
         var patientMap = patients.ToDictionary(p => p.Id);
 
+        // Purge attendances for every incoming session in one immediate set-based DELETE before
+        // rebuilding them. This bypasses the change tracker, avoiding the DbUpdateConcurrencyException
+        // that deleting tracked navigation entities caused during batch sync.
+        await _sessionRepository.DeleteAttendancesBySessionIdsAsync(ids, ct);
+
+        var newAttendances = new List<SessionAttendance>();
+
         foreach (var req in requests)
         {
             var linkedPatients = req.PatientIds
@@ -142,7 +155,7 @@ public class SessionService : ISessionService
                 session.Title = req.Title;
                 session.Date = req.Date;
                 session.Time = req.Time;
-                session.Status = req.Status;
+                session.IsClosed = req.IsClosed;
 
                 session.Patients.Clear();
                 foreach (var patient in linkedPatients)
@@ -156,15 +169,31 @@ public class SessionService : ISessionService
                     Title = req.Title,
                     Date = req.Date,
                     Time = req.Time,
-                    Status = req.Status,
+                    IsClosed = req.IsClosed,
                 };
                 foreach (var patient in linkedPatients)
                     newSession.Patients.Add(patient);
 
                 await _sessionRepository.AddAsync(newSession, ct);
             }
+
+            newAttendances.AddRange(BuildAttendances(req.Id, req.Attendances));
         }
+
+        await _sessionRepository.AddAttendancesAsync(newAttendances, ct);
     }
+
+    // Maps the request attendances to fresh SessionAttendance entities bound to the given session id.
+    private static List<SessionAttendance> BuildAttendances(Guid sessionId, IEnumerable<SessionAttendanceRequest> attendances)
+        => attendances
+            .Select(attendance => new SessionAttendance
+            {
+                Id = Guid.NewGuid(),
+                SessionId = sessionId,
+                PatientId = attendance.PatientId,
+                Status = attendance.Status,
+            })
+            .ToList();
 
     private async Task DeleteExistingNotesBySessionIdAsync(List<SyncNoteRequest> requests, CancellationToken ct)
     {

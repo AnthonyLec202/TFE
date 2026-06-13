@@ -12,13 +12,20 @@ export enum SessionStatus {
   NoShow = 3,
 }
 
+// One participating patient's attendance outcome within a session (mirrors the backend junction).
+export interface LocalSessionAttendance {
+  patientId: string;
+  status: SessionStatus;
+}
+
 export interface LocalSession {
   id: string;
   date: string;          // ISO date string, e.g. "2026-06-09"
   time: string;          // e.g. "14:30"
   patientIds: string[];
   title: string;
-  status: SessionStatus; // Scheduled sessions are active; any other status archives to history
+  isClosed: boolean;     // open sessions are active; closed sessions archive to patients' history
+  attendances: LocalSessionAttendance[]; // per-patient outcome, populated when the session is closed
   syncStatus: SyncStatus;
   lastModifiedAt: string; // ISO datetime string
 }
@@ -95,6 +102,28 @@ class ClinicalAppDatabase extends Dexie {
       await tx.table('sessions').toCollection().modify((session: any) => {
         session.status = session.isCompleted ? SessionStatus.Completed : SessionStatus.Scheduled;
         delete session.isCompleted;
+      });
+    });
+    // v6 moves attendance from the session level (single status) to a per-patient model:
+    // status is dropped in favour of isClosed + an attendances array. Existing rows are migrated in
+    // place — a non-Scheduled status becomes a single-entry attendance for the primary patient and
+    // closes the session; Scheduled sessions stay open with no attendances.
+    this.version(6).stores({
+      sessions: 'id, *patientIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+    }).upgrade(async tx => {
+      await tx.table('sessions').toCollection().modify((session: any) => {
+        const previousStatus: SessionStatus = session.status ?? SessionStatus.Scheduled;
+        const isClosed = previousStatus !== SessionStatus.Scheduled;
+        const primaryPatientId: string | undefined = Array.isArray(session.patientIds) ? session.patientIds[0] : undefined;
+
+        session.isClosed = isClosed;
+        session.attendances = isClosed && primaryPatientId
+          ? [{ patientId: primaryPatientId, status: previousStatus }]
+          : [];
+        delete session.status;
       });
     });
   }

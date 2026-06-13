@@ -18,14 +18,27 @@ export function SessionHistoryContainer({ patientId, patientName }: Props) {
   );
 
   const statistics = useMemo<SessionStatisticsData>(() => {
-    const completedCount = sessions?.filter(s => s.status === SessionStatus.Completed).length ?? 0;
-    const noShowCount = sessions?.filter(s => s.status === SessionStatus.NoShow).length ?? 0;
-    const cancelledCount = sessions?.filter(s => s.status === SessionStatus.PatientCancelled).length ?? 0;
+    let completedCount = 0;
+    let noShowCount = 0;
+    let cancelledCount = 0;
+
+    // Tally only THIS patient's outcomes. A group session holds one attendance per participant, so
+    // we strictly filter on attendance.patientId === patientId to prevent other patients' statuses
+    // from leaking into this patient's statistics.
+    for (const session of sessions ?? []) {
+      for (const attendance of session.attendances) {
+        if (attendance.patientId !== patientId) continue;
+        if (attendance.status === SessionStatus.Completed) completedCount++;
+        else if (attendance.status === SessionStatus.NoShow) noShowCount++;
+        else if (attendance.status === SessionStatus.PatientCancelled) cancelledCount++;
+      }
+    }
+
     const totalCount = completedCount + noShowCount + cancelledCount;
     const attendanceRate = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
 
     return { completedCount, noShowCount, cancelledCount, attendanceRate };
-  }, [sessions]);
+  }, [sessions, patientId]);
 
   // Returning from a session opened here lands back on this patient's record.
   const backOrigin: SessionDetailOrigin = {

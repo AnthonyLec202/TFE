@@ -31,6 +31,14 @@ public class SessionRepository : ISessionRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteAttendancesBySessionIdsAsync(IEnumerable<Guid> sessionIds, CancellationToken cancellationToken = default)
+        => _context.SessionAttendances
+            .Where(sa => sessionIds.Contains(sa.SessionId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+    public Task AddAttendancesAsync(IEnumerable<SessionAttendance> attendances, CancellationToken cancellationToken = default)
+        => _context.SessionAttendances.AddRangeAsync(attendances, cancellationToken);
+
     public Task UpdateAsync(Session session, CancellationToken cancellationToken = default)
     {
         // Mark only the session entity as modified. The many-to-many patient changes are tracked

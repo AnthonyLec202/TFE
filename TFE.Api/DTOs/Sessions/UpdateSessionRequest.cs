@@ -14,9 +14,11 @@ public class UpdateSessionRequest
     [Required]
     public string Time { get; set; } = string.Empty;
 
-    // Attendance status. Carried on the update path so marking a session's attendance
+    // Closed flag plus per-patient attendance. Carried on the update path so closing a session
     // persists server-side through the offline sync cycle.
-    public SessionStatus Status { get; set; }
+    public bool IsClosed { get; set; }
 
     public List<Guid> PatientIds { get; set; } = new();
+
+    public List<SessionAttendanceRequest> Attendances { get; set; } = new();
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getAllSessions, getAllLocalPatients, setSessionStatusLocally } from './services/localSessionService';
-import type { SessionStatus } from '../../core/offline/LocalDatabase';
+import { getAllSessions, getAllLocalPatients, closeSessionLocally } from './services/localSessionService';
+import type { LocalSessionAttendance } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import {
   groupSessionsByWeek, groupSessionsByMonth,
@@ -32,11 +32,11 @@ export function SessionsDashboardContainer() {
     localStorage.setItem(TIMEFRAME_STORAGE_KEY, timeframe);
   }, [timeframe]);
 
-  // Archive a session to the patient's history with the selected attendance status. The live
-  // query reactively drops the card from this dashboard once status moves off Scheduled.
-  async function handleCompleteSession(id: string, status: SessionStatus): Promise<void> {
-    await setSessionStatusLocally(id, status);
-    await runSyncCycle(); // push the completion to the server (no-op while offline)
+  // Close a session with its per-patient attendances, archiving it to the patients' history. The
+  // live query reactively drops the card from this dashboard once the session is closed.
+  async function handleCompleteSession(id: string, attendances: LocalSessionAttendance[]): Promise<void> {
+    await closeSessionLocally(id, attendances);
+    await runSyncCycle(); // push the closure to the server (no-op while offline)
   }
 
   const patientNamesById = useMemo(() => {
