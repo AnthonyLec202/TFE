@@ -1,6 +1,7 @@
 import { Brain } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
+import { NotificationBellContainer } from '../../features/notifications';
 import { UserMenu } from './UserMenu';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -37,6 +38,7 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-3">
+        {user && <NotificationBellContainer />}
         {user && <UserMenu />}
       </div>
     </header>

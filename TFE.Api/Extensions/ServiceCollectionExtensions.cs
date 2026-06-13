@@ -4,12 +4,14 @@ using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Invitations;
+using TFE.Api.Interfaces.IServices.Notifications;
 using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Repositories;
 using TFE.Api.Services.Auth;
 using TFE.Api.Services.CollaborativeWall;
 using TFE.Api.Services.Invitations;
+using TFE.Api.Services.Notifications;
 using TFE.Api.Services.Patients;
 using TFE.Api.Services.Sessions;
 
@@ -29,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAttachmentRepository, AttachmentRepository>();
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<INoteRepository, NoteRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // ── Services ──────────────────────────────────────────────────────────
@@ -41,6 +44,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<INotificationService, NotificationService>();
 
         return services;
     }

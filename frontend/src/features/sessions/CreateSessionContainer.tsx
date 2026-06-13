@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createSession } from './services/localSessionService';
+import { SessionStatus } from '../../core/offline/LocalDatabase';
 import type { LocalPatientSync, LocalSession } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { CreateSessionForm } from './components/CreateSessionForm';
@@ -20,7 +21,7 @@ export function CreateSessionContainer() {
         date,
         time,
         patientIds: selectedPatients.map(p => p.id),
-        isCompleted: false,
+        status: SessionStatus.Scheduled,
         syncStatus: 'pending_create',
         lastModifiedAt: new Date().toISOString(),
       };

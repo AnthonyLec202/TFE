@@ -37,7 +37,7 @@ export async function syncSessions(): Promise<void> {
       title: session.title,
       date: session.date,
       time: session.time,
-      isCompleted: session.isCompleted,
+      status: session.status,
       patientIds: session.patientIds,
     });
     await db.sessions.update(session.id, { syncStatus: SYNCED });
@@ -55,7 +55,7 @@ export async function syncSessions(): Promise<void> {
         title: s.title,
         date: s.date,
         time: s.time,
-        isCompleted: s.isCompleted,
+        status: s.status,
         patientIds: s.patientIds,
       })),
       notes: notesToSync.map(n => ({

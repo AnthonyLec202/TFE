@@ -3,13 +3,22 @@ import type { CreatePatientPayload } from '../../types/patient';
 
 export type SyncStatus = 'synced' | 'pending_create' | 'pending_update' | 'pending_delete';
 
+// Mirrors TFE.Api.Models.SessionStatus. Numeric values must stay in sync with the backend enum,
+// which (de)serializes as an integer.
+export enum SessionStatus {
+  Scheduled = 0,
+  Completed = 1,
+  PatientCancelled = 2,
+  NoShow = 3,
+}
+
 export interface LocalSession {
   id: string;
   date: string;          // ISO date string, e.g. "2026-06-09"
   time: string;          // e.g. "14:30"
   patientIds: string[];
   title: string;
-  isCompleted: boolean;  // true once archived to the patient's clinical history
+  status: SessionStatus; // Scheduled sessions are active; any other status archives to history
   syncStatus: SyncStatus;
   lastModifiedAt: string; // ISO datetime string
 }
@@ -74,6 +83,19 @@ class ClinicalAppDatabase extends Dexie {
       notes: 'id, sessionId, syncStatus',
       patients: 'id, searchableName',
       offlinePatientQueue: 'id, queuedAt',
+    });
+    // v5 replaces LocalSession.isCompleted (boolean) with status (SessionStatus). Existing rows
+    // are migrated in place: completed sessions become Completed, others Scheduled.
+    this.version(5).stores({
+      sessions: 'id, *patientIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+    }).upgrade(async tx => {
+      await tx.table('sessions').toCollection().modify((session: any) => {
+        session.status = session.isCompleted ? SessionStatus.Completed : SessionStatus.Scheduled;
+        delete session.isCompleted;
+      });
     });
   }
 }

@@ -27,8 +27,10 @@ export function useCollaborativeWall(patientId: string): UseCollaborativeWallRes
     return () => { ignore = true; };
   }, [patientId]);
 
+  // Guards against duplicates: the author's own REST response and the SignalR broadcast for the
+  // same post can both call this for the same id.
   function addPost(post: PostResponse) {
-    setPosts(prev => [post, ...prev]);
+    setPosts(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
   }
 
   function updatePostState(updated: PostResponse) {

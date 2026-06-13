@@ -1,11 +1,12 @@
 import { apiClient } from '../../../services/apiClient';
+import type { SessionStatus } from '../../../core/offline/LocalDatabase';
 
 interface SyncSessionPayload {
   id: string;
   title: string;
   date: string;
   time: string;
-  isCompleted: boolean;
+  status: SessionStatus;
   patientIds: string[];
 }
 
@@ -25,7 +26,7 @@ export interface UpdateSessionPayload {
   title: string;
   date: string;
   time: string;
-  isCompleted: boolean;
+  status: SessionStatus;
   patientIds: string[];
 }
 

@@ -1,6 +1,7 @@
 import { useAuth } from '../auth';
 import type { PatientUserRole } from '../../types/patient';
 import { useCollaborativeWall } from './hooks/useCollaborativeWall';
+import { useCollaborativeWallSocket } from './hooks/useCollaborativeWallSocket';
 import { CreatePostContainer } from './CreatePostContainer';
 import { PostCardContainer } from './PostCardContainer';
 
@@ -15,6 +16,9 @@ export function CollaborativeWallContainer({ patientId, userRole }: Props) {
 
   const { posts, loading, error, addPost, updatePostState, deletePostState } =
     useCollaborativeWall(patientId);
+
+  // Real-time: appends posts created by other connected users without a page reload.
+  useCollaborativeWallSocket(patientId, addPost);
 
   if (loading) return <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>;
   if (error) return <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</p>;

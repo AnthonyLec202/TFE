@@ -23,7 +23,7 @@ export function SessionHistoryList({ sessions, backOrigin }: SessionHistoryListP
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16">
         <FileText className="h-8 w-8 text-slate-300" />
-        <p className="text-sm text-slate-400">No sessions recorded for this patient yet.</p>
+        <p className="text-sm text-slate-400">Aucune séance pour ce patient.</p>
       </div>
     );
   }

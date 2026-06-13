@@ -68,7 +68,7 @@ public class SessionService : ISessionService
             session.Title = request.Title;
             session.Date = request.Date;
             session.Time = request.Time;
-            session.IsCompleted = request.IsCompleted;
+            session.Status = request.Status;
 
             // Replace the patient assignment: resolve the requested ids, then rebuild the
             // many-to-many join from the loaded (tracked) collection.
@@ -142,7 +142,7 @@ public class SessionService : ISessionService
                 session.Title = req.Title;
                 session.Date = req.Date;
                 session.Time = req.Time;
-                session.IsCompleted = req.IsCompleted;
+                session.Status = req.Status;
 
                 session.Patients.Clear();
                 foreach (var patient in linkedPatients)
@@ -156,7 +156,7 @@ public class SessionService : ISessionService
                     Title = req.Title,
                     Date = req.Date,
                     Time = req.Time,
-                    IsCompleted = req.IsCompleted,
+                    Status = req.Status,
                 };
                 foreach (var patient in linkedPatients)
                     newSession.Patients.Add(patient);

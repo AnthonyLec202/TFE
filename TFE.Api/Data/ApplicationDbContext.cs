@@ -17,6 +17,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SessionNote> SessionNotes => Set<SessionNote>();
     public DbSet<Note> Notes => Set<Note>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -142,5 +143,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(sn => sn.CreatedById)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Notification: deleting the recipient or the referenced patient deletes their notifications
+        builder.Entity<Notification>()
+            .HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Notification>()
+            .HasOne(n => n.Patient)
+            .WithMany()
+            .HasForeignKey(n => n.PatientId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

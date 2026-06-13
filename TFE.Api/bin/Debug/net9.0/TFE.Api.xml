@@ -138,6 +138,18 @@
             Adds an already-authenticated user to a patient's care team using an invitation code.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Notifications.INotificationService.NotifyNewPostAsync(System.Guid,System.String,TFE.Api.DTOs.CollaborativeWall.PostResponse)">
+            <summary>
+            Persists and broadcasts a notification to every member of the patient's care team
+            other than the author of the new post.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Notifications.INotificationService.NotifyNewCommentAsync(System.Guid)">
+            <summary>
+            Persists and broadcasts a notification to every member of the patient's care team
+            other than the author of the new comment.
+            </summary>
+        </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">
             <inheritdoc />
         </member>
@@ -268,6 +280,30 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.AddSessionIsCompleted.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddNotifications">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotifications.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotifications.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotifications.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddSessionStatus">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionStatus.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionStatus.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionStatus.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

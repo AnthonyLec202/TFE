@@ -2,8 +2,11 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using TFE.Api.DTOs.CollaborativeWall;
+using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
+using TFE.Api.Interfaces.IServices.Notifications;
 
 namespace TFE.Api.Controllers.CollaborativeWall;
 
@@ -13,10 +16,17 @@ namespace TFE.Api.Controllers.CollaborativeWall;
 public class WallController : ControllerBase
 {
     private readonly IWallService _wallService;
+    private readonly INotificationService _notificationService;
+    private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _wallHubContext;
 
-    public WallController(IWallService wallService)
+    public WallController(
+        IWallService wallService,
+        INotificationService notificationService,
+        IHubContext<CollaborativeWallHub, ICollaborativeWallClient> wallHubContext)
     {
         _wallService = wallService;
+        _notificationService = notificationService;
+        _wallHubContext = wallHubContext;
     }
 
     private string CurrentUserId =>
@@ -43,6 +53,8 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreatePostWithAttachmentsAsync(patientId, CurrentUserId, request, cancellationToken);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
+            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -55,6 +67,8 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreatePostAsync(patientId, request, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
+            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -92,6 +106,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentWithAttachmentsAsync(patientId, postId, CurrentUserId, request, cancellationToken);
+            await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -105,6 +120,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentAsync(postId, request, CurrentUserId);
+            await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

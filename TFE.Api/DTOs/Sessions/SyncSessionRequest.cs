@@ -1,3 +1,5 @@
+using TFE.Api.Models;
+
 namespace TFE.Api.DTOs.Sessions;
 
 public class SyncSessionRequest
@@ -6,6 +8,6 @@ public class SyncSessionRequest
     public string Title { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;
     public string Time { get; set; } = string.Empty;
-    public bool IsCompleted { get; set; }
+    public SessionStatus Status { get; set; }
     public List<Guid> PatientIds { get; set; } = new();
 }

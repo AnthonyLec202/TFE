@@ -6,9 +6,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.SignalR;
 using Scalar.AspNetCore;
 using TFE.Api.Data;
 using TFE.Api.Extensions;
+using TFE.Api.Hubs;
+using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Models;
 using TFE.Api.Options;
 
@@ -60,13 +63,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer              = jwtIssuer,
             ValidAudience            = jwtAudience,
-            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew                = TimeSpan.FromMinutes(5)
+        };
+
+        // SignalR's browser client can't set the Authorization header on the WebSocket
+        // handshake, so it sends the JWT as a query string parameter instead. Only honor
+        // that fallback for hub endpoints — regular API requests keep using the header.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
 
 // ── Rate limiting ───────────────────────────────────────────────────────────
 // Protects the email-dispatch endpoint (and the Brevo free-tier quota) from abuse:
@@ -129,5 +151,6 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<CollaborativeWallHub>("/hubs/collaborative-wall");
 
 app.Run();
