@@ -32,7 +32,9 @@ export function PostCard({
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [visibleToRoles, setVisibleToRoles] = useState<string[]>(() => blacklistToWhitelist(post.excludedRoles));
-  const [showComments, setShowComments] = useState(false);
+  // Auto-expand the comment thread on mount when the post already has comments, so existing
+  // discussion is visible without an extra click. Collapsed by default when there are none.
+  const [showComments, setShowComments] = useState(() => commentCount > 0);
   const [commentInput, setCommentInput] = useState('');
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const commentFileInputRef = useRef<HTMLInputElement>(null);

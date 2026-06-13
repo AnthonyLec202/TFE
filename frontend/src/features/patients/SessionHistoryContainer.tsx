@@ -49,7 +49,7 @@ export function SessionHistoryContainer({ patientId, patientName }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <SessionStatistics statistics={statistics} />
-      <SessionHistoryList sessions={sessions} backOrigin={backOrigin} />
+      <SessionHistoryList sessions={sessions} patientId={patientId} backOrigin={backOrigin} />
     </div>
   );
 }

@@ -83,6 +83,31 @@ public class PatientsController : ControllerBase
         catch (KeyNotFoundException) { return NotFound(); }
     }
 
+    [HttpGet("{id:guid}/team")]
+    public async Task<IActionResult> GetCareTeam(Guid id)
+    {
+        try
+        {
+            var members = await _patientService.GetCareTeamAsync(id, CurrentUserId);
+            return Ok(members);
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+    }
+
+    [HttpDelete("{patientId:guid}/team/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RemoveCareTeamMember(Guid patientId, string userId)
+    {
+        try
+        {
+            await _patientService.RemoveCareTeamMemberAsync(patientId, userId, CurrentUserId);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
     [HttpPost("{id:guid}/invitations")]
     public async Task<IActionResult> GenerateInvitation(Guid id, [FromBody] GenerateInvitationRequest request)
     {

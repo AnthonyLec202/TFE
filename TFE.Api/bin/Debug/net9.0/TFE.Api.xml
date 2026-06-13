@@ -36,6 +36,22 @@
             File validation (size, MIME type) is enforced in the service layer.
             </summary>
         </member>
+        <member name="T:TFE.Api.DTOs.Patients.CareTeamMemberResponse">
+            <summary>
+            A single care-team member attached to a patient, shaped for the "Voir membres" list.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Patients.CareTeamMemberResponse.Role">
+            <summary>
+            Coarse role relative to the patient ("Admin", "Parent", "Collaborator"), resolved with the
+            same rules as <see cref="P:TFE.Api.DTOs.Patients.PatientResponse.UserRole"/>.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Patients.CareTeamMemberResponse.Relationship">
+            <summary>
+            Human-readable relationship label (e.g. "Neuropsychologue", "Enseignant"), for display only.
+            </summary>
+        </member>
         <member name="P:TFE.Api.DTOs.Patients.PatientResponse.UserRole">
             <summary>
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
@@ -59,6 +75,11 @@
             Returns every attachment belonging to the given patient — both those on the patient's
             posts and those on comments of those posts. Used to purge physical files before a patient
             is deleted (the DB cascade only removes the rows, not the stored files).
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ICareTeamRepository.Remove(TFE.Api.Models.CareTeam)">
+            <summary>
+            Stages the removal of a care-team membership. Persistence is committed by the caller via IUnitOfWork.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.ICareTeamRepository.GetByPatientIdWithUsersAsync(System.Guid)">
@@ -161,6 +182,17 @@
             <summary>
             Persists and broadcasts a notification to every member of the patient's care team
             other than the author of the new comment.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Patients.IPatientService.GetCareTeamAsync(System.Guid,System.String)">
+            <summary>
+            Returns the patient's care-team members. The requesting user must belong to the care team.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Patients.IPatientService.RemoveCareTeamMemberAsync(System.Guid,System.String,System.String)">
+            <summary>
+            Removes a member from the patient's care team. Restricted to the patient's administrator;
+            the administrator membership itself cannot be removed.
             </summary>
         </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">

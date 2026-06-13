@@ -25,3 +25,11 @@ export interface InvitationResponse {
   plainSecretCode: string;
   expiresAt: string;    // ISO datetime
 }
+
+export interface CareTeamMemberResponse {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  role: PatientUserRole;   // 'Admin' | 'Parent' | 'Collaborator'
+  relationship: string;    // display-only label (e.g. "Neuropsychologue", "Teacher")
+}

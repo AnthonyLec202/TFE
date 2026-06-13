@@ -9,6 +9,11 @@ public interface ICareTeamRepository
     Task<CareTeam?> GetForUserAndPatientAsync(string userId, Guid patientId);
 
     /// <summary>
+    /// Stages the removal of a care-team membership. Persistence is committed by the caller via IUnitOfWork.
+    /// </summary>
+    void Remove(CareTeam careTeam);
+
+    /// <summary>
     /// Returns all CareTeam entries for the given patient, including the linked User,
     /// for efficient author-role resolution.
     /// </summary>

@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { CreatePatientPayload, InvitationResponse, PatientResponse, UpdatePatientPayload } from '../types/patient';
+import type { CareTeamMemberResponse, CreatePatientPayload, InvitationResponse, PatientResponse, UpdatePatientPayload } from '../types/patient';
 
 // 'no-store' bypasses the browser HTTP cache so a refetch (e.g. right after the offline queue
 // drains) always hits the database and reflects newly created patients, never a stale list.
@@ -20,3 +20,9 @@ export const updatePatient = (id: string, data: UpdatePatientPayload): Promise<P
 
 export const deletePatient = (id: string): Promise<void> =>
   apiClient.delete<void>(`/api/patients/${id}`);
+
+export const getCareTeam = (patientId: string): Promise<CareTeamMemberResponse[]> =>
+  apiClient.get<CareTeamMemberResponse[]>(`/api/patients/${patientId}/team`);
+
+export const removeCareTeamMember = (patientId: string, userId: string): Promise<void> =>
+  apiClient.delete<void>(`/api/patients/${patientId}/team/${userId}`);

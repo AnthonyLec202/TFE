@@ -156,6 +156,31 @@ public class PatientService : IPatientService
         }
     }
 
+    public async Task<IEnumerable<CareTeamMemberResponse>> GetCareTeamAsync(Guid patientId, string currentUserId)
+    {
+        if (!await _careTeamRepository.IsUserInCareTeamAsync(currentUserId, patientId))
+            throw new UnauthorizedAccessException("Access to this patient's care team is denied.");
+
+        var members = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
+        return members.Select(ToMemberResponse);
+    }
+
+    public async Task RemoveCareTeamMemberAsync(Guid patientId, string targetUserId, string currentUserId)
+    {
+        await EnsureAdminAsync(currentUserId, patientId);
+
+        var membership = await _careTeamRepository.GetForUserAndPatientAsync(targetUserId, patientId)
+            ?? throw new KeyNotFoundException($"Care-team member {targetUserId} not found for patient {patientId}.");
+
+        // The patient's administrator (the neuropsychologist) anchors the record and must not be
+        // removed — doing so would orphan the patient.
+        if (ResolveUserRole(membership) == "Admin")
+            throw new InvalidOperationException("The patient's administrator cannot be removed from the care team.");
+
+        _careTeamRepository.Remove(membership);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     private async Task EnsureAdminAsync(string userId, Guid patientId)
     {
         var ct = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
@@ -179,4 +204,18 @@ public class PatientService : IPatientService
         not null                               => "Collaborator",
         _                                      => "Collaborator"
     };
+
+    private static CareTeamMemberResponse ToMemberResponse(CareTeam ct) => new()
+    {
+        UserId = ct.UserId,
+        FirstName = ct.User?.FirstName ?? string.Empty,
+        LastName = ct.User?.LastName ?? string.Empty,
+        Role = ResolveUserRole(ct),
+        Relationship = ResolveRelationshipLabel(ct),
+    };
+
+    // Display-only relationship label: an explicit custom name takes precedence, otherwise the
+    // RelationshipType enum name.
+    private static string ResolveRelationshipLabel(CareTeam ct) =>
+        !string.IsNullOrWhiteSpace(ct.CustomRoleName) ? ct.CustomRoleName! : ct.Role.ToString();
 }

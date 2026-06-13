@@ -1,6 +1,6 @@
 import { useEffect, useState, type SubmitEvent } from 'react';
 import { useAuth } from '../auth';
-import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { deletePatient, getPatient, updatePatient } from '../../services/patientService';
 import { removeLocalPatient } from './services/localPatientService';
 import type { PatientResponse, UpdatePatientPayload } from '../../types/patient';
@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { SessionHistoryContainer } from './SessionHistoryContainer';
+import { CareTeamContainer } from './CareTeamContainer';
 import { CollaborativeWallContainer } from '../collaborativeWall';
 import { InvitationContainer } from '../invitations';
 
@@ -55,6 +56,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   const [deleteError, setDeleteError] = useState('');
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
 
   useEffect(() => {
     getPatient(patientId)
@@ -158,6 +160,10 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
 
         {/* Header actions */}
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button variant="secondary" size="sm" onClick={() => setShowTeamModal(true)}>
+            <Users className="h-3.5 w-3.5" />
+            Voir membres
+          </Button>
           {canInvite && (
             <Button variant="secondary" size="sm" onClick={() => setShowInviteModal(true)}>
               <UserPlus className="h-3.5 w-3.5" />
@@ -325,6 +331,14 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         isOpen={showInviteModal}
         patientId={patient.id}
         onClose={() => setShowInviteModal(false)}
+      />
+
+      {/* ── Care team modal ──────────────────────────────────────────────── */}
+      <CareTeamContainer
+        patientId={patient.id}
+        isAdmin={isAdmin}
+        isOpen={showTeamModal}
+        onClose={() => setShowTeamModal(false)}
       />
 
     </div>

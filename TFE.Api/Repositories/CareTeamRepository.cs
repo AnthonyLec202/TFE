@@ -27,6 +27,9 @@ public class CareTeamRepository : ICareTeamRepository
     public Task<CareTeam?> GetForUserAndPatientAsync(string userId, Guid patientId)
         => _context.CareTeams.FirstOrDefaultAsync(ct => ct.UserId == userId && ct.PatientId == patientId);
 
+    public void Remove(CareTeam careTeam)
+        => _context.CareTeams.Remove(careTeam);
+
     public Task<List<CareTeam>> GetByPatientIdWithUsersAsync(Guid patientId)
         => _context.CareTeams
             .Include(ct => ct.User)
