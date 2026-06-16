@@ -22,6 +22,7 @@ export function CommentItemContainer({
 
   const isPurged = comment.content === PURGED_CONTENT;
   const canEdit = canModify(comment.createdAt, comment.createdById, currentUserId, userRole) && !isPurged;
+  const canDelete = userRole === 'Admin' || canEdit;
 
   async function handleSave(content: string) {
     setSaving(true);
@@ -47,6 +48,7 @@ export function CommentItemContainer({
       comment={comment}
       isPurged={isPurged}
       canEdit={canEdit}
+      canDelete={canDelete}
       onSave={handleSave}
       onDelete={handleDelete}
       saving={saving}

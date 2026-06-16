@@ -2,19 +2,27 @@ import { useEffect, useRef } from 'react';
 import { HubConnectionBuilder, type HubConnection } from '@microsoft/signalr';
 import { useAuth } from '../../auth';
 import { API_BASE } from '../../../services/apiClient';
-import type { PostResponse } from '../../../types/wall';
+import type { CommentResponse, PostResponse } from '../../../types/wall';
 
-// Purely online real-time transport for the collaborative wall: pushes newly created posts to
-// other clients viewing the same patient's wall. Holds no offline/Dexie state — if the connection
-// cannot be established or drops, the feature simply falls back to its normal REST-loaded state
-// (no retry queue, no local persistence).
-export function useCollaborativeWallSocket(patientId: string, onPostReceived: (post: PostResponse) => void): void {
+interface CollaborativeWallSocketCallbacks {
+  onPostReceived: (post: PostResponse) => void;
+  onPostUpdated: (post: PostResponse) => void;
+  onPostDeleted: (postId: string) => void;
+  onCommentReceived: (comment: CommentResponse) => void;
+  onCommentUpdated: (comment: CommentResponse) => void;
+  onCommentDeleted: (postId: string, commentId: string) => void;
+}
+
+export function useCollaborativeWallSocket(
+  patientId: string,
+  callbacks: CollaborativeWallSocketCallbacks,
+): void {
   const { token } = useAuth();
 
-  // Keeps the latest callback available to the SignalR handler without re-creating the
-  // connection whenever the caller passes a new function instance.
-  const onPostReceivedRef = useRef(onPostReceived);
-  onPostReceivedRef.current = onPostReceived;
+  // Ref-stabilised callbacks prevent the connection from being torn down and rebuilt
+  // whenever the parent renders a new function instance.
+  const callbacksRef = useRef(callbacks);
+  callbacksRef.current = callbacks;
 
   useEffect(() => {
     if (!token) return;
@@ -26,17 +34,32 @@ export function useCollaborativeWallSocket(patientId: string, onPostReceived: (p
       .withAutomaticReconnect()
       .build();
 
-    connection.on('ReceiveNewPost', (post: PostResponse) => {
-      onPostReceivedRef.current(post);
-    });
+    let cancelled = false;
+
+    connection.on('ReceiveNewPost',       (post: PostResponse)       => callbacksRef.current.onPostReceived(post));
+    connection.on('ReceiveUpdatedPost',   (post: PostResponse)       => callbacksRef.current.onPostUpdated(post));
+    connection.on('ReceiveDeletedPost',   (postId: string)           => callbacksRef.current.onPostDeleted(postId));
+    connection.on('ReceiveNewComment',    (comment: CommentResponse) => callbacksRef.current.onCommentReceived(comment));
+    connection.on('ReceiveUpdatedComment',(comment: CommentResponse) => callbacksRef.current.onCommentUpdated(comment));
+    connection.on('ReceiveDeletedComment',(postId: string, commentId: string) => callbacksRef.current.onCommentDeleted(postId, commentId));
 
     connection
       .start()
       .then(() => connection.invoke('JoinWallGroup', patientId))
-      .catch(err => console.warn('[CollaborativeWallSocket] Connection failed — real-time updates unavailable.', err));
+      .catch(err => {
+        if (!cancelled) {
+          console.warn('[CollaborativeWallSocket] Connection failed — real-time updates unavailable.', err);
+        }
+      });
 
     return () => {
+      cancelled = true;
       connection.off('ReceiveNewPost');
+      connection.off('ReceiveUpdatedPost');
+      connection.off('ReceiveDeletedPost');
+      connection.off('ReceiveNewComment');
+      connection.off('ReceiveUpdatedComment');
+      connection.off('ReceiveDeletedComment');
       void connection.stop();
     };
   }, [patientId, token]);

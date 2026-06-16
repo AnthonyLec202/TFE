@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getWall } from '../../../services/wallService';
-import type { PostResponse } from '../../../types/wall';
+import type { CommentResponse, PostResponse } from '../../../types/wall';
 
 export interface UseCollaborativeWallResult {
   posts: PostResponse[];
@@ -9,6 +9,9 @@ export interface UseCollaborativeWallResult {
   addPost: (post: PostResponse) => void;
   updatePostState: (updated: PostResponse) => void;
   deletePostState: (postId: string) => void;
+  addCommentToPost: (comment: CommentResponse) => void;
+  updateCommentInPost: (comment: CommentResponse) => void;
+  deleteCommentFromPost: (postId: string, commentId: string) => void;
 }
 
 export function useCollaborativeWall(patientId: string): UseCollaborativeWallResult {
@@ -41,5 +44,31 @@ export function useCollaborativeWall(patientId: string): UseCollaborativeWallRes
     setPosts(prev => prev.filter(p => p.id !== postId));
   }
 
-  return { posts, loading, error, addPost, updatePostState, deletePostState };
+  function addCommentToPost(comment: CommentResponse) {
+    setPosts(prev => prev.map(p => {
+      if (p.id !== comment.postId) return p;
+      if (p.comments.some(c => c.id === comment.id)) return p;
+      return { ...p, comments: [...p.comments, comment] };
+    }));
+  }
+
+  function updateCommentInPost(comment: CommentResponse) {
+    setPosts(prev => prev.map(p => {
+      if (p.id !== comment.postId) return p;
+      return { ...p, comments: p.comments.map(c => c.id === comment.id ? comment : c) };
+    }));
+  }
+
+  function deleteCommentFromPost(postId: string, commentId: string) {
+    setPosts(prev => prev.map(p => {
+      if (p.id !== postId) return p;
+      return { ...p, comments: p.comments.filter(c => c.id !== commentId) };
+    }));
+  }
+
+  return {
+    posts, loading, error,
+    addPost, updatePostState, deletePostState,
+    addCommentToPost, updateCommentInPost, deleteCommentFromPost,
+  };
 }

@@ -13,10 +13,11 @@ interface Props {
   userRole: PatientUserRole;
   onUpdated: (p: PostResponse) => void;
   onDeleted: (postId: string) => void;
+  onCommentAdded: (comment: CommentResponse) => void;
 }
 
 export function PostCardContainer({
-  post, patientId, currentUserId, userRole, onUpdated, onDeleted,
+  post, patientId, currentUserId, userRole, onUpdated, onDeleted, onCommentAdded,
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [comments, setComments] = useState<CommentResponse[]>(post.comments);
@@ -29,8 +30,10 @@ export function PostCardContainer({
   }, [post.comments]);
 
   const isPurged = post.content === PURGED_CONTENT;
-  const canEdit = canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
   const isAdmin = userRole === 'Admin';
+  const canEdit = canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
+  // Admins can delete purged posts (author account deleted) — the backend enforces the same rule.
+  const canDelete = isAdmin || canEdit;
 
   async function handleSavePost(content: string, excludedRoles: string[]) {
     setSaving(true);
@@ -58,7 +61,9 @@ export function PostCardContainer({
       const newComment = files.length > 0
         ? await createCommentWithAttachments(patientId, post.id, content, files)
         : await createComment(patientId, post.id, { content });
-      setComments(prev => [...prev, newComment]);
+      // Route through the parent's addCommentToPost (same path as SignalR receivers) so the
+      // dedup guard in that function blocks the subsequent SignalR broadcast for the sender.
+      onCommentAdded(newComment);
     } finally {
       setSubmittingComment(false);
     }
@@ -89,6 +94,7 @@ export function PostCardContainer({
     <PostCard
       post={post}
       canEdit={canEdit}
+      canDelete={canDelete}
       isPurged={isPurged}
       isAdmin={isAdmin}
       onSavePost={handleSavePost}

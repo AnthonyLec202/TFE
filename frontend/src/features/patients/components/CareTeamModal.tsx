@@ -7,7 +7,7 @@ export interface CareTeamModalProps {
   members: CareTeamMemberResponse[];
   loading: boolean;
   error: string;
-  /** Whether the current user may remove members (renders a Remove button per removable member). */
+  /** Whether the current user holds the Admin role (renders a Remove button per non-Admin member). */
   isAdmin: boolean;
   /** Id of the member whose removal is in flight, used to show a per-row spinner. */
   removingUserId: string | null;

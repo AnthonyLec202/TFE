@@ -68,6 +68,8 @@ public class NotificationService : INotificationService
             ? $"Une nouvelle publication a été ajoutée au mur de {patientName}."
             : $"{authorName} a publié sur le mur de {patientName}.";
 
+        var targetUrl = $"/patients/{patientId}?postId={post.Id}";
+
         var notifications = recipients.Select(ct => new Notification
         {
             Id = Guid.NewGuid(),
@@ -77,6 +79,7 @@ public class NotificationService : INotificationService
             Message = message,
             IsRead = false,
             CreatedAt = DateTimeOffset.UtcNow,
+            TargetUrl = targetUrl,
         }).ToList();
 
         foreach (var notification in notifications)
@@ -111,6 +114,8 @@ public class NotificationService : INotificationService
             ? $"Un nouveau commentaire a été ajouté sur le mur de {patientName}."
             : $"{authorName} a ajouté un commentaire sur le mur de {patientName}.";
 
+        var targetUrl = $"/patients/{patientId}?postId={comment.Post.Id}&commentId={commentId}";
+
         var notifications = recipients.Select(ct => new Notification
         {
             Id = Guid.NewGuid(),
@@ -120,6 +125,7 @@ public class NotificationService : INotificationService
             Message = message,
             IsRead = false,
             CreatedAt = DateTimeOffset.UtcNow,
+            TargetUrl = targetUrl,
         }).ToList();
 
         foreach (var notification in notifications)
@@ -139,5 +145,6 @@ public class NotificationService : INotificationService
         Message = notification.Message,
         IsRead = notification.IsRead,
         CreatedAt = notification.CreatedAt,
+        TargetUrl = notification.TargetUrl,
     };
 }

@@ -95,12 +95,21 @@ public class PatientsController : ControllerBase
     }
 
     [HttpDelete("{patientId:guid}/team/{userId}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RemoveCareTeamMember(Guid patientId, string userId)
     {
+        bool callerIsAdmin = User.IsInRole("Admin");
+
+        // Collaborators may only remove themselves; removing another member requires Admin.
+        if (!callerIsAdmin && userId != CurrentUserId)
+            return Forbid();
+
         try
         {
-            await _patientService.RemoveCareTeamMemberAsync(patientId, userId, CurrentUserId);
+            if (callerIsAdmin)
+                await _patientService.RemoveCareTeamMemberAsync(patientId, userId, CurrentUserId);
+            else
+                await _patientService.LeaveCareTeamAsync(patientId, userId);
+
             return NoContent();
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

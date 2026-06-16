@@ -181,6 +181,18 @@ public class PatientService : IPatientService
         await _unitOfWork.SaveChangesAsync();
     }
 
+    public async Task LeaveCareTeamAsync(Guid patientId, string userId)
+    {
+        var membership = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId)
+            ?? throw new KeyNotFoundException($"Care-team member {userId} not found for patient {patientId}.");
+
+        if (ResolveUserRole(membership) == "Admin")
+            throw new InvalidOperationException("The patient's administrator cannot leave the care team.");
+
+        _careTeamRepository.Remove(membership);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     private async Task EnsureAdminAsync(string userId, Guid patientId)
     {
         var ct = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);

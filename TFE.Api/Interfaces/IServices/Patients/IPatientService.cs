@@ -20,4 +20,10 @@ public interface IPatientService
     /// the administrator membership itself cannot be removed.
     /// </summary>
     Task RemoveCareTeamMemberAsync(Guid patientId, string targetUserId, string currentUserId);
+
+    /// <summary>
+    /// Removes the requesting user from a patient's care team (self-leave). The patient's
+    /// administrator cannot leave — they must delete the patient record instead.
+    /// </summary>
+    Task LeaveCareTeamAsync(Guid patientId, string userId);
 }

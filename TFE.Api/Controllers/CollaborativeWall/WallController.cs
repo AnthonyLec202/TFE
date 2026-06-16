@@ -80,6 +80,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.UpdatePostAsync(postId, request, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedPost(response);
             return Ok(response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -92,6 +93,7 @@ public class WallController : ControllerBase
         try
         {
             await _wallService.DeletePostAsync(postId, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedPost(postId);
             return NoContent();
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -106,6 +108,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentWithAttachmentsAsync(patientId, postId, CurrentUserId, request, cancellationToken);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewComment(response);
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
@@ -120,6 +123,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentAsync(postId, request, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewComment(response);
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
@@ -134,6 +138,7 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.UpdateCommentAsync(commentId, request, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedComment(response);
             return Ok(response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -146,6 +151,7 @@ public class WallController : ControllerBase
         try
         {
             await _wallService.DeleteCommentAsync(commentId, CurrentUserId);
+            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedComment(postId, commentId);
             return NoContent();
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

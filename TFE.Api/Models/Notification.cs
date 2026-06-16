@@ -14,4 +14,9 @@ public class Notification
     public string Message { get; set; } = string.Empty;
     public bool IsRead { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>
+    /// Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.
+    /// Null for legacy notifications that pre-date this field.
+    /// </summary>
+    public string? TargetUrl { get; set; }
 }

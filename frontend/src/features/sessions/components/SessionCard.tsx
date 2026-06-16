@@ -15,15 +15,15 @@ export interface SessionCardProps {
   onCompleteSession: (sessionId: string, attendances: LocalSessionAttendance[]) => void;
 }
 
-// Click-cycle order for a patient chip: Unset → Completed → NoShow → PatientCancelled → (loop).
-const ATTENDANCE_CYCLE: SessionStatus[] = [
+// Click-cycle: Default (À définir) → Completed → NoShow → PatientCancelled → Default.
+const ATTENDANCE_CYCLE: (SessionStatus | undefined)[] = [
+  undefined,
   SessionStatus.Completed,
   SessionStatus.NoShow,
   SessionStatus.PatientCancelled,
 ];
 
-function nextStatus(current: SessionStatus | undefined): SessionStatus {
-  if (current === undefined) return ATTENDANCE_CYCLE[0];
+function nextStatus(current: SessionStatus | undefined): SessionStatus | undefined {
   const index = ATTENDANCE_CYCLE.indexOf(current);
   return ATTENDANCE_CYCLE[(index + 1) % ATTENDANCE_CYCLE.length];
 }
@@ -63,12 +63,15 @@ export function SessionCard({ session, patientsById, onCompleteSession }: Sessio
   const [attendanceByPatient, setAttendanceByPatient] = useState<Record<string, SessionStatus | undefined>>({});
 
   function cyclePatientStatus(patientId: string): void {
-    // Immutable, per-key update: spread the previous map and overwrite only the clicked patientId,
-    // leaving every other patient's selection untouched.
-    setAttendanceByPatient(previous => ({
-      ...previous,
-      [patientId]: nextStatus(previous[patientId]),
-    }));
+    setAttendanceByPatient(previous => {
+      const next = nextStatus(previous[patientId]);
+      if (next === undefined) {
+        // Remove the key entirely so the undefined-check in allPatientsRated stays clean.
+        const { [patientId]: _removed, ...rest } = previous;
+        return rest;
+      }
+      return { ...previous, [patientId]: next };
+    });
   }
 
   // The session may only be closed once every participating patient has a defined attendance.

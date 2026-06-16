@@ -195,6 +195,12 @@
             the administrator membership itself cannot be removed.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Patients.IPatientService.LeaveCareTeamAsync(System.Guid,System.String)">
+            <summary>
+            Removes the requesting user from a patient's care team (self-leave). The patient's
+            administrator cannot leave — they must delete the patient record instead.
+            </summary>
+        </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">
             <inheritdoc />
         </member>
@@ -362,6 +368,24 @@
         </member>
         <member name="M:TFE.Api.Migrations.RefactorSessionAttendance.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddNotificationTargetUrl">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotificationTargetUrl.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotificationTargetUrl.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddNotificationTargetUrl.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="P:TFE.Api.Models.Notification.TargetUrl">
+            <summary>
+            Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.
+            Null for legacy notifications that pre-date this field.
+            </summary>
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">
             <summary>

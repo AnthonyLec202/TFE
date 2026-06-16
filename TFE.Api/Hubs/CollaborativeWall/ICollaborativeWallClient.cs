@@ -7,5 +7,10 @@ namespace TFE.Api.Hubs.CollaborativeWall;
 public interface ICollaborativeWallClient
 {
     Task ReceiveNewPost(PostResponse post);
+    Task ReceiveUpdatedPost(PostResponse post);
+    Task ReceiveDeletedPost(Guid postId);
+    Task ReceiveNewComment(CommentResponse comment);
+    Task ReceiveUpdatedComment(CommentResponse comment);
+    Task ReceiveDeletedComment(Guid postId, Guid commentId);
     Task ReceiveNotification(NotificationResponse notification);
 }

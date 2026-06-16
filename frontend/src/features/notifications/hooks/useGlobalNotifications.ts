@@ -43,15 +43,24 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
       .withAutomaticReconnect()
       .build();
 
+    let cancelled = false;
+
     connection.on('ReceiveNotification', (notification: NotificationResponse) => {
       setNotifications(prev => prev.some(n => n.id === notification.id) ? prev : [notification, ...prev]);
     });
 
     connection
       .start()
-      .catch(err => console.warn('[GlobalNotifications] Connection failed — real-time updates unavailable.', err));
+      .catch(err => {
+        // AbortError is expected in React StrictMode (double-invoke cleanup stops the connection
+        // mid-negotiation). Only warn for genuine, user-visible failures.
+        if (!cancelled) {
+          console.warn('[GlobalNotifications] Connection failed — real-time updates unavailable.', err);
+        }
+      });
 
     return () => {
+      cancelled = true;
       connection.off('ReceiveNotification');
       void connection.stop();
     };

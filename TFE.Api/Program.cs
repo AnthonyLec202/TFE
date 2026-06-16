@@ -115,7 +115,11 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendDev", policy =>
         policy.WithOrigins("http://localhost:5173")
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              // SignalR negotiates with credentials mode 'include'; the browser then requires
+              // the response to carry 'Access-Control-Allow-Credentials: true'. Valid here
+              // because the origin is explicit (AllowCredentials is incompatible with AllowAnyOrigin).
+              .AllowCredentials());
 });
 
 // ── Supabase client (singleton) + Repositories & Services ────────────────────

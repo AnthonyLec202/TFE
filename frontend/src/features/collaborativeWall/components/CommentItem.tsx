@@ -8,12 +8,13 @@ export interface CommentItemProps {
   comment: CommentResponse;
   isPurged: boolean;
   canEdit: boolean;
+  canDelete: boolean;
   onSave: (content: string) => Promise<void>;
   onDelete: () => Promise<void>;
   saving: boolean;
 }
 
-export function CommentItem({ comment, isPurged, canEdit, onSave, onDelete, saving }: CommentItemProps) {
+export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onDelete, saving }: CommentItemProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
 
@@ -28,19 +29,23 @@ export function CommentItem({ comment, isPurged, canEdit, onSave, onDelete, savi
   }
 
   return (
-    <div className={`flex flex-col gap-1 pl-4 border-l-2 ${isPurged ? 'border-slate-200 opacity-60' : 'border-slate-100'}`}>
+    <div id={`comment-${comment.id}`} className={`flex flex-col gap-1 pl-4 border-l-2 ${isPurged ? 'border-slate-200 opacity-60' : 'border-slate-100'}`}>
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs text-slate-500">
           {metaLabel(comment.authorFirstName, comment.authorLastName, comment.authorRole, comment.createdAt, comment.updatedAt)}
         </span>
-        {canEdit && !editing && (
+        {(canEdit || canDelete) && !editing && (
           <div className="flex items-center gap-1">
-            <button onClick={() => setEditing(true)} className="text-slate-300 hover:text-slate-500 transition-colors">
-              <Pencil className="h-3 w-3" />
-            </button>
-            <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors">
-              <Trash2 className="h-3 w-3" />
-            </button>
+            {canEdit && (
+              <button onClick={() => setEditing(true)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
           </div>
         )}
       </div>

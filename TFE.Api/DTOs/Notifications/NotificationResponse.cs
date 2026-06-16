@@ -8,4 +8,5 @@ public class NotificationResponse
     public string Message { get; set; } = string.Empty;
     public bool IsRead { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public string? TargetUrl { get; set; }
 }

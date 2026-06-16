@@ -11,6 +11,7 @@ import {
 export interface PostCardProps {
   post: PostResponse;
   canEdit: boolean;
+  canDelete: boolean;
   isPurged: boolean;
   isAdmin: boolean;
   // Post action callbacks
@@ -25,7 +26,7 @@ export interface PostCardProps {
 }
 
 export function PostCard({
-  post, canEdit, isPurged, isAdmin,
+  post, canEdit, canDelete, isPurged, isAdmin,
   onSavePost, onDeletePost, saving,
   commentCount, commentItems, onAddComment, submittingComment,
 }: PostCardProps) {
@@ -97,21 +98,25 @@ export function PostCard({
     .map(v => SPECIFIC_ROLES.find(r => r.value === v)?.label ?? v);
 
   return (
-    <Card className="p-5 flex flex-col gap-4">
+    <Card id={`post-${post.id}`} className="p-5 flex flex-col gap-4">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs text-slate-500">
           {metaLabel(post.authorFirstName, post.authorLastName, post.authorRole, post.createdAt, post.updatedAt)}
         </span>
-        {canEdit && !editing && (
+        {(canEdit || canDelete) && !editing && (
           <div className="flex items-center gap-1.5">
-            <button onClick={enterEdit} className="text-slate-400 hover:text-slate-600 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={onDeletePost} className="text-slate-400 hover:text-red-500 transition-colors">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {canEdit && (
+              <button onClick={enterEdit} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={onDeletePost} className="text-slate-400 hover:text-red-500 transition-colors">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         )}
       </div>

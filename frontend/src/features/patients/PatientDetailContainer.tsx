@@ -1,7 +1,7 @@
 import { useEffect, useState, type SubmitEvent } from 'react';
 import { useAuth } from '../auth';
-import { ArrowLeft, Loader2, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { deletePatient, getPatient, updatePatient } from '../../services/patientService';
+import { ArrowLeft, Loader2, LogOut, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { deletePatient, getPatient, removeCareTeamMember, updatePatient } from '../../services/patientService';
 import { removeLocalPatient } from './services/localPatientService';
 import type { PatientResponse, UpdatePatientPayload } from '../../types/patient';
 import { Button } from '../../components/ui/Button';
@@ -55,6 +55,10 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
 
@@ -99,6 +103,21 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Une erreur est survenue.');
       setDeleting(false);
+    }
+  }
+
+  async function handleLeaveTeam() {
+    if (!user) return;
+    setLeaveError('');
+    setLeaving(true);
+    try {
+      await removeCareTeamMember(patientId, user.userId);
+      // Clear the local patient cache so this record no longer appears in the autocomplete.
+      await removeLocalPatient(patientId);
+      onNavigateBack();
+    } catch (err) {
+      setLeaveError(err instanceof Error ? err.message : 'Une erreur est survenue.');
+      setLeaving(false);
     }
   }
 
@@ -159,28 +178,40 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         </div>
 
         {/* Header actions */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <Button variant="secondary" size="sm" onClick={() => setShowTeamModal(true)}>
-            <Users className="h-3.5 w-3.5" />
-            Voir membres
-          </Button>
-          {canInvite && (
-            <Button variant="secondary" size="sm" onClick={() => setShowInviteModal(true)}>
-              <UserPlus className="h-3.5 w-3.5" />
-              Inviter
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button variant="secondary" size="sm" onClick={() => setShowTeamModal(true)}>
+              <Users className="h-3.5 w-3.5" />
+              Voir membres
             </Button>
-          )}
-          {isAdmin && (
-            <>
-            <Button variant="secondary" size="sm" onClick={openEdit}>
-              <Pencil className="h-3.5 w-3.5" />
-              Modifier
-            </Button>
-            <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="h-3.5 w-3.5" />
-              Supprimer
-            </Button>
-            </>
+            {canInvite && (
+              <Button variant="secondary" size="sm" onClick={() => setShowInviteModal(true)}>
+                <UserPlus className="h-3.5 w-3.5" />
+                Inviter
+              </Button>
+            )}
+            {isAdmin ? (
+              <>
+                <Button variant="secondary" size="sm" onClick={openEdit}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  Modifier
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Supprimer
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => { setLeaveError(''); setShowLeaveConfirm(true); }}>
+                <LogOut className="h-3.5 w-3.5" />
+                Quitter
+              </Button>
+            )}
+          </div>
+          {leaveError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+              {leaveError}
+            </p>
           )}
         </div>
       </Card>
@@ -320,6 +351,57 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                 onClick={handleDelete}
               >
                 Supprimer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Leave confirmation modal ─────────────────────────────────────── */}
+      {showLeaveConfirm && (
+        <div
+          className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
+          onClick={e => { if (e.target === e.currentTarget && !leaving) setShowLeaveConfirm(false); }}
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
+                <LogOut className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Quitter l'équipe ?</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Vous n'aurez plus accès au dossier de{' '}
+                  <span className="font-medium text-slate-700">
+                    {patient.firstName} {patient.lastName}
+                  </span>
+                  .
+                </p>
+              </div>
+            </div>
+
+            {leaveError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+                {leaveError}
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowLeaveConfirm(false)}
+                disabled={leaving}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                loading={leaving}
+                onClick={handleLeaveTeam}
+              >
+                Quitter
               </Button>
             </div>
           </div>

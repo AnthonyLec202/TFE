@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import type { PatientUserRole } from '../../types/patient';
 import { useCollaborativeWall } from './hooks/useCollaborativeWall';
@@ -14,11 +16,64 @@ export function CollaborativeWallContainer({ patientId, userRole }: Props) {
   const { user } = useAuth();
   const currentUserId = user?.userId ?? '';
 
-  const { posts, loading, error, addPost, updatePostState, deletePostState } =
-    useCollaborativeWall(patientId);
+  const [searchParams] = useSearchParams();
+  const targetPostId = searchParams.get('postId');
+  const targetCommentId = searchParams.get('commentId');
+  // Tracks the composite key of the last scroll target so re-renders from unrelated state
+  // changes (e.g. SignalR updates) don't re-trigger the animation, while a genuinely new
+  // notification target (different postId or commentId) does.
+  const lastScrolledTargetRef = useRef<string | null>(null);
+  // Holds a reference to the currently highlighted element so the class can be removed
+  // immediately if the user clicks a different notification before the 2.5 s timer fires.
+  const highlightedElementRef = useRef<HTMLElement | null>(null);
 
-  // Real-time: appends posts created by other connected users without a page reload.
-  useCollaborativeWallSocket(patientId, addPost);
+  const {
+    posts, loading, error,
+    addPost, updatePostState, deletePostState,
+    addCommentToPost, updateCommentInPost, deleteCommentFromPost,
+  } = useCollaborativeWall(patientId);
+
+  useCollaborativeWallSocket(patientId, {
+    onPostReceived:    addPost,
+    onPostUpdated:     updatePostState,
+    onPostDeleted:     deletePostState,
+    onCommentReceived: addCommentToPost,
+    onCommentUpdated:  updateCommentInPost,
+    onCommentDeleted:  deleteCommentFromPost,
+  });
+
+  useEffect(() => {
+    if (loading || !targetPostId) return;
+
+    // A composite key distinguishes "same notification re-rendered" from "new notification clicked".
+    const targetKey = `${targetPostId}:${targetCommentId ?? ''}`;
+    if (lastScrolledTargetRef.current === targetKey) return;
+
+    const element =
+      (targetCommentId ? document.getElementById(`comment-${targetCommentId}`) : null)
+      ?? document.getElementById(`post-${targetPostId}`);
+
+    if (!element) return;
+
+    // Strip the animation class from the previously highlighted element before starting a new one.
+    if (highlightedElementRef.current) {
+      highlightedElementRef.current.classList.remove('highlight-flash');
+    }
+
+    lastScrolledTargetRef.current = targetKey;
+    highlightedElementRef.current = element;
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element.classList.add('highlight-flash');
+    const timer = setTimeout(() => {
+      element.classList.remove('highlight-flash');
+      highlightedElementRef.current = null;
+    }, 2500);
+
+    // clearTimeout fires on cleanup (dep change or unmount), preventing a stale timer from
+    // removing the class of a newly highlighted element.
+    return () => clearTimeout(timer);
+  }, [loading, posts, targetPostId, targetCommentId]);
 
   if (loading) return <div className="py-12 text-center text-sm text-slate-400">Chargement…</div>;
   if (error) return <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</p>;
@@ -44,6 +99,7 @@ export function CollaborativeWallContainer({ patientId, userRole }: Props) {
             userRole={userRole}
             onUpdated={updatePostState}
             onDeleted={deletePostState}
+            onCommentAdded={addCommentToPost}
           />
         ))
       )}

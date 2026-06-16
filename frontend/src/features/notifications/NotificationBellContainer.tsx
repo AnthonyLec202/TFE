@@ -23,9 +23,8 @@ export function NotificationBellContainer() {
   async function handleSelect(notification: NotificationResponse) {
     setIsOpen(false);
     await markAsRead(notification.id);
-    // The collaborative wall is the default tab of the patient detail page — there is no
-    // dedicated /wall route.
-    navigate(`/patients/${notification.patientId}`);
+    // Use the deep-link when available (post/comment target); fall back to the patient page root.
+    navigate(notification.targetUrl ?? `/patients/${notification.patientId}`);
   }
 
   return (
