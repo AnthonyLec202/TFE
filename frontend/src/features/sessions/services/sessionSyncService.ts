@@ -1,4 +1,4 @@
-import { db, type SyncStatus } from '../../../core/offline/LocalDatabase';
+import { db, type SyncStatus, type LocalNote } from '../../../core/offline/LocalDatabase';
 import { AuthError, HttpError } from '../../../services/apiClient';
 import { syncSessionsBatch, updateSession, deleteSession } from './sessionApiService';
 
@@ -13,7 +13,17 @@ const SYNCED: SyncStatus = 'synced';
  */
 export async function syncSessions(): Promise<void> {
   const pendingSessions = await db.sessions.filter(s => s.syncStatus !== 'synced').toArray();
-  const pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
+
+  // Read pending notes in isolation. The DBCore decryption middleware already neutralises a single
+  // corrupted note, but a catastrophic read failure on the notes table must not abort the session
+  // push (and, since this whole handler would otherwise throw, fail the entire sync cycle for
+  // unrelated tables like patients). On failure we log and proceed with an empty note set.
+  let pendingNotes: LocalNote[] = [];
+  try {
+    pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
+  } catch (error) {
+    console.error('[sessionSync] Failed to read pending notes — pushing sessions without them this cycle.', error);
+  }
 
   const deletes = pendingSessions.filter(s => s.syncStatus === 'pending_delete');
   const updates = pendingSessions.filter(s => s.syncStatus === 'pending_update');

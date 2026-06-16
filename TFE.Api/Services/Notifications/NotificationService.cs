@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.SignalR;
-using TFE.Api.DTOs.CollaborativeWall;
 using TFE.Api.DTOs.Notifications;
 using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Interfaces;
@@ -14,7 +13,6 @@ public class NotificationService : INotificationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationRepository _notificationRepository;
     private readonly ICareTeamRepository _careTeamRepository;
-    private readonly IPatientRepository _patientRepository;
     private readonly ICommentRepository _commentRepository;
     private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _hubContext;
 
@@ -22,14 +20,12 @@ public class NotificationService : INotificationService
         IUnitOfWork unitOfWork,
         INotificationRepository notificationRepository,
         ICareTeamRepository careTeamRepository,
-        IPatientRepository patientRepository,
         ICommentRepository commentRepository,
         IHubContext<CollaborativeWallHub, ICollaborativeWallClient> hubContext)
     {
         _unitOfWork = unitOfWork;
         _notificationRepository = notificationRepository;
         _careTeamRepository = careTeamRepository;
-        _patientRepository = patientRepository;
         _commentRepository = commentRepository;
         _hubContext = hubContext;
     }
@@ -37,7 +33,7 @@ public class NotificationService : INotificationService
     public async Task<IEnumerable<NotificationResponse>> GetUnreadNotificationsAsync(string userId)
     {
         var notifications = await _notificationRepository.GetUnreadForUserAsync(userId);
-        return notifications.Select(ToResponse).ToList();
+        return notifications.Select(n => ToResponse(n)).ToList();
     }
 
     public async Task MarkAsReadAsync(Guid notificationId, string userId)
@@ -52,31 +48,23 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
     }
 
-    public async Task NotifyNewPostAsync(Guid patientId, string authorUserId, PostResponse post)
+    public async Task NotifyNewPostAsync(Guid patientId, string authorUserId, Guid postId)
     {
         var careTeam = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
         var recipients = careTeam.Where(ct => ct.UserId != authorUserId).ToList();
         if (recipients.Count == 0) return;
 
-        var patient = await _patientRepository.GetByIdAsync(patientId)
-            ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
-
-        var authorName = $"{post.AuthorFirstName} {post.AuthorLastName}".Trim();
-        var patientName = $"{patient.FirstName} {patient.LastName}".Trim();
-        const string title = "Nouvelle publication";
-        var message = string.IsNullOrEmpty(authorName)
-            ? $"Une nouvelle publication a été ajoutée au mur de {patientName}."
-            : $"{authorName} a publié sur le mur de {patientName}.";
-
-        var targetUrl = $"/patients/{patientId}?postId={post.Id}";
+        // Actor user is in the care team load (GetByPatientIdWithUsersAsync includes .User).
+        var actor = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
+        var targetUrl = $"/patients/{patientId}?postId={postId}";
 
         var notifications = recipients.Select(ct => new Notification
         {
             Id = Guid.NewGuid(),
             UserId = ct.UserId,
             PatientId = patientId,
-            Title = title,
-            Message = message,
+            Type = NotificationType.NewPost,
+            ActorId = authorUserId,
             IsRead = false,
             CreatedAt = DateTimeOffset.UtcNow,
             TargetUrl = targetUrl,
@@ -88,7 +76,7 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
 
         foreach (var notification in notifications)
-            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification));
+            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor));
     }
 
     public async Task NotifyNewCommentAsync(Guid commentId)
@@ -103,17 +91,7 @@ public class NotificationService : INotificationService
         var recipients = careTeam.Where(ct => ct.UserId != authorUserId).ToList();
         if (recipients.Count == 0) return;
 
-        var patient = await _patientRepository.GetByIdAsync(patientId)
-            ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
-
-        var author = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
-        var authorName = author is null ? string.Empty : $"{author.FirstName} {author.LastName}".Trim();
-        var patientName = $"{patient.FirstName} {patient.LastName}".Trim();
-        const string title = "Nouveau commentaire";
-        var message = string.IsNullOrEmpty(authorName)
-            ? $"Un nouveau commentaire a été ajouté sur le mur de {patientName}."
-            : $"{authorName} a ajouté un commentaire sur le mur de {patientName}.";
-
+        var actor = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
         var targetUrl = $"/patients/{patientId}?postId={comment.Post.Id}&commentId={commentId}";
 
         var notifications = recipients.Select(ct => new Notification
@@ -121,8 +99,8 @@ public class NotificationService : INotificationService
             Id = Guid.NewGuid(),
             UserId = ct.UserId,
             PatientId = patientId,
-            Title = title,
-            Message = message,
+            Type = NotificationType.NewComment,
+            ActorId = authorUserId,
             IsRead = false,
             CreatedAt = DateTimeOffset.UtcNow,
             TargetUrl = targetUrl,
@@ -134,17 +112,24 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
 
         foreach (var notification in notifications)
-            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification));
+            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor));
     }
 
-    private static NotificationResponse ToResponse(Notification notification) => new()
+    // Used for REST GET responses where the repository has eagerly loaded Notification.Actor.
+    // Used for SignalR broadcasts by passing the actor resolved from the in-memory care team load.
+    private static NotificationResponse ToResponse(Notification notification, ApplicationUser? actorOverride = null)
     {
-        Id = notification.Id,
-        PatientId = notification.PatientId,
-        Title = notification.Title,
-        Message = notification.Message,
-        IsRead = notification.IsRead,
-        CreatedAt = notification.CreatedAt,
-        TargetUrl = notification.TargetUrl,
-    };
+        var actor = actorOverride ?? notification.Actor;
+        return new NotificationResponse
+        {
+            Id = notification.Id,
+            PatientId = notification.PatientId,
+            Type = notification.Type.ToString(),
+            ActorFirstName = actor?.FirstName ?? string.Empty,
+            ActorLastName = actor?.LastName ?? string.Empty,
+            IsRead = notification.IsRead,
+            CreatedAt = notification.CreatedAt,
+            TargetUrl = notification.TargetUrl,
+        };
+    }
 }

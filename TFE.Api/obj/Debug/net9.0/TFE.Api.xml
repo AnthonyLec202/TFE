@@ -19,6 +19,28 @@
             </summary>
             <param name="id">The ID of the user to delete.</param>
         </member>
+        <member name="T:TFE.Api.Data.Converters.EncryptedStringConverter">
+             <summary>
+             EF Core ValueConverter that transparently encrypts/decrypts string columns using
+             <see cref="T:TFE.Api.Interfaces.IServices.Encryption.IEncryptionService"/>. Applied to Patient.FirstName, Patient.LastName,
+             SessionNote.ContentText, and Post.Content.
+            
+             NULL HANDLING
+             ─────────────
+             EF Core does not invoke a ValueConverter for null model/column values, so a null
+             Post.Content is persisted and read back as null without ever reaching the lambdas.
+             As defense-in-depth, <see cref="T:TFE.Api.Interfaces.IServices.Encryption.IEncryptionService"/> also returns empty/whitespace
+             values untouched, so a blank ContentText round-trips without cryptographic work.
+            
+             The lambdas passed to the base constructor contain NO try/catch. A genuine cryptographic
+             failure (tampered ciphertext, wrong key) still propagates and rolls back the transaction —
+             silently returning plaintext on failure would defeat the purpose of the converter.
+            
+             Singleton model-cache constraint: EncryptedStringConverter instances are held by the
+             EF Core model cache for the application lifetime. IEncryptionService must therefore
+             be registered as Singleton so the captured reference is never disposed.
+             </summary>
+        </member>
         <member name="T:TFE.Api.DTOs.CollaborativeWall.CreateCommentFormRequest">
             <summary>
             Multipart/form-data variant of the comment creation request.
@@ -35,6 +57,9 @@
             The service layer enforces the rule that at least one of Content or Attachments must be present.
             File validation (size, MIME type) is enforced in the service layer.
             </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Notifications.NotificationResponse.Type">
+            <summary>Serialised from <see cref="T:TFE.Api.Models.NotificationType"/> — string value, e.g. "NewPost".</summary>
         </member>
         <member name="T:TFE.Api.DTOs.Patients.CareTeamMemberResponse">
             <summary>
@@ -167,21 +192,35 @@
             Deletes the object at <paramref name="storagePath"/> from <paramref name="bucketName"/>.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Encryption.IEncryptionService.Encrypt(System.String)">
+            <summary>
+            Encrypts a plaintext string. Returns a sentinel-prefixed Base64 blob.
+            Throws <see cref="T:System.InvalidOperationException"/> if the key is missing or the operation fails.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Encryption.IEncryptionService.Decrypt(System.String)">
+            <summary>
+            Decrypts a blob produced by <see cref="M:TFE.Api.Interfaces.IServices.Encryption.IEncryptionService.Encrypt(System.String)"/>.
+            If the value does not start with the sentinel prefix it is returned as-is
+            (graceful migration of legacy plaintext records).
+            Throws <see cref="T:System.InvalidOperationException"/> if authentication or decryption fails.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IServices.Invitations.IInvitationService.JoinPatientAsync(System.String,System.String)">
             <summary>
             Adds an already-authenticated user to a patient's care team using an invitation code.
             </summary>
         </member>
-        <member name="M:TFE.Api.Interfaces.IServices.Notifications.INotificationService.NotifyNewPostAsync(System.Guid,System.String,TFE.Api.DTOs.CollaborativeWall.PostResponse)">
+        <member name="M:TFE.Api.Interfaces.IServices.Notifications.INotificationService.NotifyNewPostAsync(System.Guid,System.String,System.Guid)">
             <summary>
-            Persists and broadcasts a notification to every member of the patient's care team
-            other than the author of the new post.
+            Persists and broadcasts a NewPost notification to every care-team member
+            other than the post author.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.Notifications.INotificationService.NotifyNewCommentAsync(System.Guid)">
             <summary>
-            Persists and broadcasts a notification to every member of the patient's care team
-            other than the author of the new comment.
+            Persists and broadcasts a NewComment notification to every care-team member
+            other than the comment author.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.Patients.IPatientService.GetCareTeamAsync(System.Guid,System.String)">
@@ -381,10 +420,33 @@
         <member name="M:TFE.Api.Migrations.AddNotificationTargetUrl.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.EnforcePatientEncryption">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EnforcePatientEncryption.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EnforcePatientEncryption.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EnforcePatientEncryption.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.EncryptClinicalContentAndMinimizeNotifications">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EncryptClinicalContentAndMinimizeNotifications.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EncryptClinicalContentAndMinimizeNotifications.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.EncryptClinicalContentAndMinimizeNotifications.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">
             <summary>
             Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.
-            Null for legacy notifications that pre-date this field.
             </summary>
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">
@@ -393,6 +455,31 @@
             Persists only the relative storage path; read access is granted through short-lived
             signed URLs generated on demand. Registered as <see cref="T:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService"/> in DI.
             </summary>
+        </member>
+        <member name="T:TFE.Api.Services.Encryption.EncryptionService">
+             <summary>
+             AES-256-CBC + HMAC-SHA256 field-level encryption for PII columns (GDPR Art. 32 / F-01).
+            
+             KEY DERIVATION
+             ──────────────
+             A single base key is read from configuration ("Encryption:PiiKey", Base64-encoded).
+             Two independent 32-byte sub-keys are derived via HKDF-SHA256:
+               - AES encryption key (purpose label: "patient-pii-aes")
+               - HMAC authentication key (purpose label: "patient-pii-mac")
+            
+             WIRE FORMAT
+             ───────────
+             Encrypt() returns: SENTINEL + Base64( IV[16] ‖ MAC[32] ‖ AES-CBC ciphertext )
+             Decrypt() verifies the MAC before attempting decryption (Encrypt-then-MAC).
+             Both methods return null/empty/whitespace values untouched. If a non-blank value does not
+             start with SENTINEL, Decrypt() returns it as-is (legacy plaintext, zero-downtime migration).
+            
+             SINGLETON LIFETIME
+             ──────────────────
+             This service must be registered as Singleton. EF Core caches the model (and the
+             EncryptedStringConverter that captures this service) for the application lifetime.
+             A Scoped registration would be disposed while the model persists.
+             </summary>
         </member>
         <member name="T:TFE.Api.Validators.CollaborativeWall.AttachmentValidator">
             <summary>

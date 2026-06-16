@@ -1,7 +1,6 @@
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\appsettings.Development.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\appsettings.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.staticwebassets.endpoints.json
-C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.exe
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.deps.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.runtimeconfig.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.dll
@@ -270,3 +269,4 @@ C:\Users\antho\Desktop\TFE\TFE.Api\obj\_verifybuild\ru\Microsoft.CodeAnalysis.Wo
 C:\Users\antho\Desktop\TFE\TFE.Api\obj\_verifybuild\tr\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\obj\_verifybuild\zh-Hans\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\obj\_verifybuild\zh-Hant\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
+C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\TFE.Api.exe

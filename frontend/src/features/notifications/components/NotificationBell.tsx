@@ -1,12 +1,41 @@
 import { forwardRef } from 'react';
 import { Bell } from 'lucide-react';
-import type { NotificationResponse } from '../../../types/notification';
+import type { NotificationResponse, NotificationType } from '../../../types/notification';
 
 export interface NotificationBellProps {
   notifications: NotificationResponse[];
   isOpen: boolean;
   onToggle: () => void;
   onSelect: (notification: NotificationResponse) => void;
+}
+
+function resolveNotificationTitle(type: NotificationType): string {
+  switch (type) {
+    case 'NewPost':     return 'Nouvelle publication';
+    case 'NewComment':  return 'Nouveau commentaire';
+    case 'PatientUpdated': return 'Dossier mis à jour';
+  }
+}
+
+function resolveNotificationMessage(notification: NotificationResponse): string {
+  const actorName = [notification.actorFirstName, notification.actorLastName]
+    .filter(Boolean)
+    .join(' ');
+
+  switch (notification.type) {
+    case 'NewPost':
+      return actorName
+        ? `${actorName} a publié sur le mur.`
+        : 'Une nouvelle publication a été ajoutée.';
+    case 'NewComment':
+      return actorName
+        ? `${actorName} a ajouté un commentaire.`
+        : 'Un nouveau commentaire a été ajouté.';
+    case 'PatientUpdated':
+      return actorName
+        ? `${actorName} a mis à jour le dossier.`
+        : 'Le dossier patient a été mis à jour.';
+  }
 }
 
 export const NotificationBell = forwardRef<HTMLDivElement, NotificationBellProps>(
@@ -47,8 +76,12 @@ export const NotificationBell = forwardRef<HTMLDivElement, NotificationBellProps
                       onClick={() => onSelect(notification)}
                       className="w-full flex flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
                     >
-                      <span className="text-sm font-medium text-slate-800">{notification.title}</span>
-                      <span className="text-xs text-slate-500">{notification.message}</span>
+                      <span className="text-sm font-medium text-slate-800">
+                        {resolveNotificationTitle(notification.type)}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {resolveNotificationMessage(notification)}
+                      </span>
                     </button>
                   </li>
                 ))}

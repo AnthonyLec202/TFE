@@ -1,4 +1,3 @@
-using TFE.Api.DTOs.CollaborativeWall;
 using TFE.Api.DTOs.Notifications;
 
 namespace TFE.Api.Interfaces.IServices.Notifications;
@@ -9,14 +8,14 @@ public interface INotificationService
     Task MarkAsReadAsync(Guid notificationId, string userId);
 
     /// <summary>
-    /// Persists and broadcasts a notification to every member of the patient's care team
-    /// other than the author of the new post.
+    /// Persists and broadcasts a NewPost notification to every care-team member
+    /// other than the post author.
     /// </summary>
-    Task NotifyNewPostAsync(Guid patientId, string authorUserId, PostResponse post);
+    Task NotifyNewPostAsync(Guid patientId, string authorUserId, Guid postId);
 
     /// <summary>
-    /// Persists and broadcasts a notification to every member of the patient's care team
-    /// other than the author of the new comment.
+    /// Persists and broadcasts a NewComment notification to every care-team member
+    /// other than the comment author.
     /// </summary>
     Task NotifyNewCommentAsync(Guid commentId);
 }

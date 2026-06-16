@@ -2,6 +2,11 @@ import { createElement, createContext, useContext, useEffect, useState, type Rea
 import { apiClient } from '../../../services/apiClient';
 import { login as apiLogin, consumeToken as apiConsumeToken } from '../../../services/authService';
 import type { AuthContextType, AuthUser, ConsumeTokenRequest } from '../../../types/auth';
+import {
+  deriveEncryptionKey,
+  setActiveEncryptionKey,
+  clearActiveEncryptionKey,
+} from '../../../core/offline/cryptoService';
 
 const TOKEN_KEY = 'np_auth_token';
 
@@ -56,11 +61,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Apply the restored token to the API client before any consumer fires an authenticated
-  // request. isInitialized flips true only after that, so guarded effects (e.g. the dashboard
-  // fetch) wait for the token instead of racing ahead of it on a fresh page load.
+  // Apply the restored token to the API client and derive the at-rest encryption key before
+  // any consumer fires an authenticated request. isInitialized flips true only after both
+  // steps complete, so guarded effects (e.g. the dashboard fetch) wait for the key to be
+  // ready — preventing any note read from racing ahead of key derivation.
   useEffect(() => {
     apiClient.setToken(token);
+
+    if (token) {
+      const parsed = parseUser(token);
+      if (parsed?.userId) {
+        deriveEncryptionKey(parsed.userId)
+          .then(key => { setActiveEncryptionKey(key); })
+          .catch(err => { console.error('[Auth] Encryption key derivation failed.', err); })
+          .finally(() => { setIsInitialized(true); });
+        return; // isInitialized is set inside .finally() once the key is ready
+      }
+    } else {
+      clearActiveEncryptionKey();
+    }
+
     setIsInitialized(true);
   }, [token]);
 
@@ -86,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     apiClient.setToken(null);
+    clearActiveEncryptionKey();
   }
 
   return createElement(

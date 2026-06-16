@@ -3,6 +3,7 @@ using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
+using TFE.Api.Interfaces.IServices.Encryption;
 using TFE.Api.Interfaces.IServices.Invitations;
 using TFE.Api.Interfaces.IServices.Notifications;
 using TFE.Api.Interfaces.IServices.Patients;
@@ -10,6 +11,7 @@ using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Repositories;
 using TFE.Api.Services.Auth;
 using TFE.Api.Services.CollaborativeWall;
+using TFE.Api.Services.Encryption;
 using TFE.Api.Services.Invitations;
 using TFE.Api.Services.Notifications;
 using TFE.Api.Services.Patients;
@@ -21,6 +23,12 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
+        // ── Encryption ────────────────────────────────────────────────────────
+        // Singleton: EF Core caches the model (and EncryptedStringConverter) for the application
+        // lifetime. The converter captures this service in a closure during OnModelCreating.
+        // A Scoped registration would be disposed while the cached model persists.
+        services.AddSingleton<IEncryptionService, EncryptionService>();
+
         // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();

@@ -54,7 +54,7 @@ public class WallController : ControllerBase
         {
             var response = await _wallService.CreatePostWithAttachmentsAsync(patientId, CurrentUserId, request, cancellationToken);
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
-            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response);
+            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }
@@ -68,7 +68,7 @@ public class WallController : ControllerBase
         {
             var response = await _wallService.CreatePostAsync(patientId, request, CurrentUserId);
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
-            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response);
+            await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
         catch (UnauthorizedAccessException) { return Forbid(); }

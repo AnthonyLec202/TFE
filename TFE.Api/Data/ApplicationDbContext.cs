@@ -1,12 +1,22 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using TFE.Api.Data.Converters;
+using TFE.Api.Interfaces.IServices.Encryption;
 using TFE.Api.Models;
 
 namespace TFE.Api.Data;
 
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+    private readonly IEncryptionService _encryptionService;
+
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        IEncryptionService encryptionService)
+        : base(options)
+    {
+        _encryptionService = encryptionService;
+    }
 
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<CareTeam> CareTeams => Set<CareTeam>();
@@ -165,5 +175,52 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(n => n.PatientId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Field-level encryption for all PII and clinical content columns (GDPR Art. 32).
+        // One stateless converter instance is shared across all encrypted properties.
+        var encryptedStringConverter = new EncryptedStringConverter(_encryptionService);
+
+        builder.Entity<Patient>()
+            .Property(p => p.FirstName)
+            .HasConversion(encryptedStringConverter);
+        builder.Entity<Patient>()
+            .Property(p => p.LastName)
+            .HasConversion(encryptedStringConverter);
+
+        // Session note clinical content. This is the entity the offline-first client syncs into
+        // (SessionService.InsertNotesAsync → new Note { Content = ... }), so it is the column that
+        // was previously landing in Supabase as cleartext.
+        builder.Entity<Note>()
+            .Property(n => n.Content)
+            .HasConversion(encryptedStringConverter);
+
+        // Session title only — Date and Time stay cleartext (they are not PII and remain usable
+        // for indexing/sorting). Title can carry the patient's name or clinical context.
+        builder.Entity<Session>()
+            .Property(s => s.Title)
+            .HasConversion(encryptedStringConverter);
+
+        // SessionNote is a separate clinical-content entity (not currently on the sync path).
+        // Encrypted as defense-in-depth so any future write is protected at rest.
+        builder.Entity<SessionNote>()
+            .Property(sn => sn.ContentText)
+            .HasConversion(encryptedStringConverter);
+
+        // Collaborative wall post content (nullable — EF Core skips the converter for null values,
+        // so the ValueConverter<string, string> is safe on a string? column at runtime).
+#pragma warning disable CS8620
+        builder.Entity<Post>()
+            .Property(p => p.Content)
+            .HasConversion(encryptedStringConverter);
+#pragma warning restore CS8620
+
+        // Notification actor: second FK from Notification to ApplicationUser.
+        // SetNull on actor deletion so a GDPR erasure of a user does not cascade-delete
+        // the notification from other recipients' inboxes.
+        builder.Entity<Notification>()
+            .HasOne(n => n.Actor)
+            .WithMany()
+            .HasForeignKey(n => n.ActorId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }
