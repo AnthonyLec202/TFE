@@ -17,12 +17,14 @@ public class SessionRepository : ISessionRepository
     public Task<List<Session>> GetByIdsWithPatientsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
         => _context.Sessions
             .Include(s => s.Patients)
+            .Include(s => s.TherapeuticTools)
             .Where(s => ids.Contains(s.Id))
             .ToListAsync(cancellationToken);
 
     public Task<Session?> GetByIdWithPatientsAsync(Guid id, CancellationToken cancellationToken = default)
         => _context.Sessions
             .Include(s => s.Patients)
+            .Include(s => s.TherapeuticTools)
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
     public Task AddAsync(Session session, CancellationToken cancellationToken = default)

@@ -15,5 +15,9 @@ public class Session
     public virtual ICollection<Patient> Patients { get; set; } = new List<Patient>();
     public virtual ICollection<SessionAttendance> Attendances { get; set; } = new List<SessionAttendance>();
     public virtual ICollection<SessionNote> SessionNotes { get; set; } = new HashSet<SessionNote>();
+
+    // Therapeutic tools deployed during this session (many-to-many with TherapeuticTool).
+    public virtual ICollection<TherapeuticTool> TherapeuticTools { get; set; } = new List<TherapeuticTool>();
+
     public Note? Note { get; set; }
 }

@@ -20,6 +20,7 @@ export function CreateSessionContainer() {
         date,
         time,
         patientIds: selectedPatients.map(p => p.id),
+        toolIds: [],
         isClosed: false,
         attendances: [],
         syncStatus: 'pending_create',

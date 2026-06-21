@@ -169,6 +169,21 @@ namespace TFE.Api.Migrations
                     b.ToTable("PatientSession");
                 });
 
+            modelBuilder.Entity("SessionTherapeuticTool", b =>
+                {
+                    b.Property<Guid>("TherapeuticToolsId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SessionsId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TherapeuticToolsId", "SessionsId");
+
+                    b.HasIndex("SessionsId");
+
+                    b.ToTable("SessionTherapeuticTool");
+                });
+
             modelBuilder.Entity("TFE.Api.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -587,6 +602,43 @@ namespace TFE.Api.Migrations
                     b.ToTable("SessionNotes");
                 });
 
+            modelBuilder.Entity("TFE.Api.Models.TherapeuticTool", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DownGradingStrategy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Theme")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UpGradingStrategy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Theme");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("TherapeuticTools");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -649,6 +701,21 @@ namespace TFE.Api.Migrations
                     b.HasOne("TFE.Api.Models.Session", null)
                         .WithMany()
                         .HasForeignKey("SessionsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SessionTherapeuticTool", b =>
+                {
+                    b.HasOne("TFE.Api.Models.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TFE.Api.Models.TherapeuticTool", null)
+                        .WithMany()
+                        .HasForeignKey("TherapeuticToolsId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

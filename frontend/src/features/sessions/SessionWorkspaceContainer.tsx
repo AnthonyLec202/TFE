@@ -6,13 +6,17 @@ import type { SessionDetailOrigin } from '../../types/navigation';
 import {
   getSessionById, getNoteForSession, saveNoteLocally, getAllLocalPatients,
   updateSessionLocally, deleteSessionLocally,
+  associateToolToSession, dissociateToolFromSession,
 } from './services/localSessionService';
+import { ClinicalToolsContainer, getToolsByIds } from '../clinicalTools';
+import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useNetworkStatus } from '../../core/offline/hooks/useNetworkStatus';
 import { recognizeBatch } from './services/handwritingApiService';
 import { SessionWorkspace, type InputMode } from './components/SessionWorkspace';
 import { SessionEditModal } from './components/SessionEditModal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Drawer } from '../../components/ui/Drawer';
 
 function parseStrokes(raw: string | undefined): any[] {
   if (!raw) return [];
@@ -68,6 +72,52 @@ export function SessionWorkspaceContainer() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // ── Therapeutic tool association ───────────────────────────────────────────
+  // The set of tools linked to this session, derived live from the session row, plus the ids whose
+  // toggle is mid-flight (optimistic pending state for the catalog UI).
+  const associatedToolIds = useMemo(
+    () => new Set(session?.toolIds ?? []),
+    [session?.toolIds],
+  );
+  const [pendingToolIds, setPendingToolIds] = useState<Set<string>>(new Set());
+
+  // Resolve the associated tool ids into records (live) so the persistent workspace sidebar can list
+  // their titles. Re-runs when the session's toolIds change or the catalog mirror is (re)hydrated.
+  const associatedTools = useLiveQuery(
+    () => getToolsByIds(session?.toolIds ?? []),
+    [session?.toolIds],
+  );
+
+  // The "Mes Outils" catalog is presented on-demand in a side drawer rather than stacked under the
+  // note editor, keeping the clinical writing surface uncluttered.
+  const [isToolDrawerOpen, setIsToolDrawerOpen] = useState(false);
+
+  async function handleToggleTool(tool: LocalTherapeuticTool): Promise<void> {
+    if (!session) return;
+    setPendingToolIds(prev => new Set(prev).add(tool.id));
+    try {
+      if (associatedToolIds.has(tool.id)) {
+        await dissociateToolFromSession(session.id, tool.id);
+      } else {
+        await associateToolToSession(session.id, tool.id);
+      }
+      runSyncCycle(); // fire-and-forget: push the link change to the server if online
+    } finally {
+      setPendingToolIds(prev => {
+        const next = new Set(prev);
+        next.delete(tool.id);
+        return next;
+      });
+    }
+  }
+
+  // Direct unlink from the workspace sidebar. Reuses handleToggleTool (the tool is currently
+  // associated, so the toggle dissociates it) by resolving the full record from the live list.
+  function handleUnlinkTool(toolId: string): void {
+    const tool = (associatedTools ?? []).find(t => t.id === toolId);
+    if (tool) void handleToggleTool(tool);
+  }
 
   // Auto-create the note record when the session is loaded and no note exists yet.
   // The ref guard prevents React strict-mode's double-invocation from creating duplicates.
@@ -236,7 +286,33 @@ export function SessionWorkspaceContainer() {
         canConvert={canConvert}
         onEdit={handleEditOpen}
         onDelete={() => setIsConfirmDeleteOpen(true)}
+        onOpenTools={() => setIsToolDrawerOpen(true)}
+        associatedTools={(associatedTools ?? []).map(tool => ({
+          id: tool.id,
+          title: tool.title,
+          isPending: pendingToolIds.has(tool.id),
+        }))}
+        onUnlinkTool={handleUnlinkTool}
       />
+
+      {/* "Mes Outils" scoped to this session, presented on-demand in a side drawer. The catalog
+          feature owns the search/display; this container injects the session-side association
+          mutation and suppresses the admin curation controls (browse + associate only). */}
+      <Drawer
+        open={isToolDrawerOpen}
+        onClose={() => setIsToolDrawerOpen(false)}
+        title="Mes Outils"
+      >
+        <ClinicalToolsContainer
+          hideAdminControls
+          isCompactView
+          association={{
+            associatedToolIds,
+            pendingToolIds,
+            onToggle: handleToggleTool,
+          }}
+        />
+      </Drawer>
 
       {isEditOpen && (
         <SessionEditModal

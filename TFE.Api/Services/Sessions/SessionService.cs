@@ -12,17 +12,20 @@ public class SessionService : ISessionService
     private readonly ISessionRepository _sessionRepository;
     private readonly INoteRepository _noteRepository;
     private readonly IPatientRepository _patientRepository;
+    private readonly ITherapeuticToolRepository _toolRepository;
 
     public SessionService(
         IUnitOfWork unitOfWork,
         ISessionRepository sessionRepository,
         INoteRepository noteRepository,
-        IPatientRepository patientRepository)
+        IPatientRepository patientRepository,
+        ITherapeuticToolRepository toolRepository)
     {
         _unitOfWork = unitOfWork;
         _sessionRepository = sessionRepository;
         _noteRepository = noteRepository;
         _patientRepository = patientRepository;
+        _toolRepository = toolRepository;
     }
 
     public async Task SyncBatchAsync(SessionSyncBatchRequest request, CancellationToken cancellationToken)
@@ -81,6 +84,17 @@ public class SessionService : ISessionService
                 if (patientMap.TryGetValue(patientId, out var patient))
                     session.Patients.Add(patient);
 
+            // Rebuild the tool associations from the loaded (tracked) collection, mirroring the
+            // patient replacement above.
+            var toolIds = request.ToolIds.Distinct().ToList();
+            var tools = await _toolRepository.GetByIdsAsync(toolIds, cancellationToken);
+            var toolMap = tools.ToDictionary(t => t.Id);
+
+            session.TherapeuticTools.Clear();
+            foreach (var toolId in toolIds)
+                if (toolMap.TryGetValue(toolId, out var tool))
+                    session.TherapeuticTools.Add(tool);
+
             await _sessionRepository.UpdateAsync(session, cancellationToken);
 
             // Replace attendances at the database level: purge the existing rows immediately, then
@@ -136,6 +150,11 @@ public class SessionService : ISessionService
         var patients = await _patientRepository.GetByIdsAsync(allPatientIds);
         var patientMap = patients.ToDictionary(p => p.Id);
 
+        // Likewise batch-resolve every referenced therapeutic tool for the many-to-many rebuild.
+        var allToolIds = requests.SelectMany(r => r.ToolIds).Distinct().ToList();
+        var tools = await _toolRepository.GetByIdsAsync(allToolIds, ct);
+        var toolMap = tools.ToDictionary(t => t.Id);
+
         // Purge attendances for every incoming session in one immediate set-based DELETE before
         // rebuilding them. This bypasses the change tracker, avoiding the DbUpdateConcurrencyException
         // that deleting tracked navigation entities caused during batch sync.
@@ -150,6 +169,11 @@ public class SessionService : ISessionService
                 .Select(pid => patientMap[pid])
                 .ToList();
 
+            var linkedTools = req.ToolIds
+                .Where(tid => toolMap.ContainsKey(tid))
+                .Select(tid => toolMap[tid])
+                .ToList();
+
             if (existingMap.TryGetValue(req.Id, out var session))
             {
                 session.Title = req.Title;
@@ -160,6 +184,10 @@ public class SessionService : ISessionService
                 session.Patients.Clear();
                 foreach (var patient in linkedPatients)
                     session.Patients.Add(patient);
+
+                session.TherapeuticTools.Clear();
+                foreach (var tool in linkedTools)
+                    session.TherapeuticTools.Add(tool);
             }
             else
             {
@@ -173,6 +201,8 @@ public class SessionService : ISessionService
                 };
                 foreach (var patient in linkedPatients)
                     newSession.Patients.Add(patient);
+                foreach (var tool in linkedTools)
+                    newSession.TherapeuticTools.Add(tool);
 
                 await _sessionRepository.AddAsync(newSession, ct);
             }

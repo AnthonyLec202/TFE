@@ -30,14 +30,10 @@ export async function updateSessionLocally(id: string, changes: SessionEditableF
   const existing = await db.sessions.get(id);
   if (!existing) return;
 
-  // Preserve pending_create so a not-yet-synced session still flows through the create path;
-  // otherwise mark it pending_update for the SyncEngine to push via PUT.
-  const syncStatus: SyncStatus = existing.syncStatus === 'pending_create' ? 'pending_create' : 'pending_update';
-
   await db.sessions.put({
     ...existing,
     ...changes,
-    syncStatus,
+    syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
   });
 }
@@ -74,15 +70,46 @@ export async function closeSessionLocally(id: string, attendances: LocalSessionA
   const existing = await db.sessions.get(id);
   if (!existing) return;
 
-  // Preserve pending_create so a not-yet-synced session still flows through the create path;
-  // otherwise mark it pending_update for the SyncEngine to push the closure via PUT.
-  const syncStatus: SyncStatus = existing.syncStatus === 'pending_create' ? 'pending_create' : 'pending_update';
-
   await db.sessions.put({
     ...existing,
     isClosed: true,
     attendances,
-    syncStatus,
+    syncStatus: nextSyncStatusAfterEdit(existing),
+    lastModifiedAt: new Date().toISOString(),
+  });
+}
+
+// Re-marks a session for sync after a local mutation, preserving a not-yet-synced pending_create so
+// the session still flows through the create path instead of being PUT before it exists server-side.
+function nextSyncStatusAfterEdit(existing: LocalSession): SyncStatus {
+  return existing.syncStatus === 'pending_create' ? 'pending_create' : 'pending_update';
+}
+
+// Associates a therapeutic tool with a session (idempotent). Mutates the local session's toolIds and
+// re-marks it for sync, so the many-to-many link is pushed to the server on the next cycle. Lives in
+// the sessions feature because it owns the sessions table; the clinicalTools feature calls it through
+// this feature's public façade.
+export async function associateToolToSession(sessionId: string, toolId: string): Promise<void> {
+  const existing = await db.sessions.get(sessionId);
+  if (!existing || existing.toolIds.includes(toolId)) return;
+
+  await db.sessions.put({
+    ...existing,
+    toolIds: [...existing.toolIds, toolId],
+    syncStatus: nextSyncStatusAfterEdit(existing),
+    lastModifiedAt: new Date().toISOString(),
+  });
+}
+
+// Removes a tool association from a session (idempotent).
+export async function dissociateToolFromSession(sessionId: string, toolId: string): Promise<void> {
+  const existing = await db.sessions.get(sessionId);
+  if (!existing || !existing.toolIds.includes(toolId)) return;
+
+  await db.sessions.put({
+    ...existing,
+    toolIds: existing.toolIds.filter(id => id !== toolId),
+    syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
   });
 }

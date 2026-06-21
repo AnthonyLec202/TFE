@@ -29,6 +29,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<SessionNote> SessionNotes => Set<SessionNote>();
     public DbSet<Note> Notes => Set<Note>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<TherapeuticTool> TherapeuticTools => Set<TherapeuticTool>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -149,6 +150,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithOne(n => n.Session)
             .HasForeignKey<Note>(n => n.SessionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Session ↔ TherapeuticTool: many-to-many with an explicit join table.
+        // The join row is purely associative (no payload), so cascade on both sides removes it when
+        // either the session or the tool is deleted — deleting a tool from the library detaches it
+        // from past sessions without deleting the sessions, and vice-versa.
+        builder.Entity<TherapeuticTool>()
+            .HasMany(t => t.Sessions)
+            .WithMany(s => s.TherapeuticTools)
+            .UsingEntity<Dictionary<string, object>>(
+                "SessionTherapeuticTool",
+                r => r.HasOne<Session>().WithMany()
+                      .HasForeignKey("SessionsId")
+                      .OnDelete(DeleteBehavior.Cascade),
+                l => l.HasOne<TherapeuticTool>().WithMany()
+                      .HasForeignKey("TherapeuticToolsId")
+                      .OnDelete(DeleteBehavior.Cascade),
+                j => j.HasKey("TherapeuticToolsId", "SessionsId")
+            );
+
+        // TherapeuticTool: persist the enums as integers (default) and index the discriminating
+        // columns the catalog filters on. Title/Description/strategies are practitioner-authored
+        // reference material (not patient PII), so they stay cleartext for indexing and search.
+        builder.Entity<TherapeuticTool>()
+            .HasIndex(t => t.Type);
+        builder.Entity<TherapeuticTool>()
+            .HasIndex(t => t.Theme);
 
         // SessionNote
         builder.Entity<SessionNote>()

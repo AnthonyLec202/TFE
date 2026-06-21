@@ -41,6 +41,15 @@
              be registered as Singleton so the captured reference is never disposed.
              </summary>
         </member>
+        <member name="M:TFE.Api.Data.DbInitializer.SeedTherapeuticToolsAsync(TFE.Api.Data.ApplicationDbContext)">
+            <summary>
+            Idempotently provisions a curated set of concrete CBT (TCC) tools. Each tool carries a stable
+            Guid, so only entries absent from the database are inserted — restarts never duplicate them,
+            and a tool deleted by the practitioner is not resurrected (its id is filtered, not re-added,
+            only when missing AND not already present; deletions persist because we never re-insert an id
+            that still exists, and we only add ids that are entirely absent).
+            </summary>
+        </member>
         <member name="T:TFE.Api.DTOs.Auth.AuthResponse">
             <summary>
             Internal result returned by the auth/enrollment services to their controllers. Carries the raw JWT
@@ -53,6 +62,23 @@
             The authenticated user's public identity, returned by login, enrollment, and GET /api/auth/me.
             Contains no token — the JWT lives only in the HttpOnly cookie. The client uses UserId to derive
             its at-rest IndexedDB encryption key and Roles to drive role-based UI.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.ClinicalTools.CreateTherapeuticToolRequest">
+            <summary>
+            Inbound payload to add a new tool to the practitioner's library. The optional client-generated
+            <see cref="P:TFE.Api.DTOs.ClinicalTools.CreateTherapeuticToolRequest.Id"/> lets an offline creation keep a stable identity that survives the sync push.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.ClinicalTools.TherapeuticToolResponse">
+            <summary>
+            Outbound projection of a <see cref="T:TFE.Api.Models.TherapeuticTool"/>. The enums are serialized as their integer
+            values so the local-first client can store and index them directly in IndexedDB.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.ClinicalTools.UpdateTherapeuticToolRequest">
+            <summary>
+            Inbound payload to edit an existing tool. The id is carried in the route, not the body.
             </summary>
         </member>
         <member name="T:TFE.Api.DTOs.CollaborativeWall.CreateCommentFormRequest">
@@ -205,6 +231,34 @@
             Stages the removal of the session with the given id. Returns false if no such session exists.
             The associated Note, SessionNotes and PatientSession join rows are removed by the configured
             ON DELETE CASCADE foreign keys. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.GetAllAsync(System.String,System.Nullable{TFE.Api.Models.ToolType},System.Nullable{TFE.Api.Models.CbtTheme},System.Threading.CancellationToken)">
+            <summary>
+            Returns the whole tool library, optionally narrowed by a free-text query (matched against
+            Title or Description) and/or by Type and Theme. Filtering is pushed to the database; the
+            local-first client performs its own zero-latency filtering against the IndexedDB cache.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.GetByIdsAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Returns the tools matching the given ids (used when rebuilding a session's tool associations).
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.AddAsync(TFE.Api.Models.TherapeuticTool,System.Threading.CancellationToken)">
+            <summary>
+            Stages the insertion of a new tool. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.Update(TFE.Api.Models.TherapeuticTool)">
+            <summary>
+            Stages an update for an already-tracked tool. Persistence is committed by the caller via IUnitOfWork.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.Remove(TFE.Api.Models.TherapeuticTool)">
+            <summary>
+            Stages the removal of the given tool. The associative join rows are removed by the configured
+            ON DELETE CASCADE. Persistence is committed by the caller via IUnitOfWork.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
@@ -489,9 +543,41 @@
         <member name="M:TFE.Api.Migrations.AddGdprConsentVersion.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.AddTherapeuticTools">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddTherapeuticTools.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddTherapeuticTools.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddTherapeuticTools.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Models.CbtTheme">
+            <summary>
+            Identifies the clinical theme a therapeutic tool targets. Persisted as an integer; the client
+            mirrors the numeric values.
+            </summary>
+        </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">
             <summary>
             Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Models.TherapeuticTool">
+            <summary>
+            A reusable clinical instrument curated by the practitioner (the "Matériauthèque"). Beyond its
+            descriptive metadata it carries the adaptive scaffolding (down/up-grading strategies) that lets
+            the clinician titrate the intervention to the patient's tolerance during an active session, and
+            links to the therapy sessions in which it was deployed (many-to-many).
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Models.ToolType">
+            <summary>
+            Classifies a therapeutic tool by its clinical modality within a CBT (TCC) practice.
+            Persisted as an integer; the client mirrors the numeric values.
             </summary>
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

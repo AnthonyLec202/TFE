@@ -2,6 +2,7 @@ using Supabase;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
+using TFE.Api.Interfaces.IServices.ClinicalTools;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Encryption;
 using TFE.Api.Interfaces.IServices.Invitations;
@@ -10,6 +11,7 @@ using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Repositories;
 using TFE.Api.Services.Auth;
+using TFE.Api.Services.ClinicalTools;
 using TFE.Api.Services.CollaborativeWall;
 using TFE.Api.Services.Encryption;
 using TFE.Api.Services.Invitations;
@@ -40,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<INoteRepository, NoteRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<ITherapeuticToolRepository, TherapeuticToolRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // ── Services ──────────────────────────────────────────────────────────
@@ -53,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<ITherapeuticToolService, TherapeuticToolService>();
 
         return services;
     }

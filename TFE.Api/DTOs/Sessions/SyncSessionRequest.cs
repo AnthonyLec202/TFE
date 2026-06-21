@@ -10,5 +10,6 @@ public class SyncSessionRequest
     public string Time { get; set; } = string.Empty;
     public bool IsClosed { get; set; }
     public List<Guid> PatientIds { get; set; } = new();
+    public List<Guid> ToolIds { get; set; } = new();
     public List<SessionAttendanceRequest> Attendances { get; set; } = new();
 }

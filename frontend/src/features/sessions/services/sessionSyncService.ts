@@ -64,6 +64,7 @@ export async function syncSessions(): Promise<void> {
         time: session.time,
         isClosed: session.isClosed,
         patientIds: session.patientIds,
+        toolIds: session.toolIds,
         attendances: session.attendances,
       });
       await db.sessions.update(session.id, { syncStatus: SYNCED });
@@ -87,6 +88,7 @@ export async function syncSessions(): Promise<void> {
         time: s.time,
         isClosed: s.isClosed,
         patientIds: s.patientIds,
+        toolIds: s.toolIds,
         attendances: s.attendances,
       })),
       notes: notesToSync.map(n => ({

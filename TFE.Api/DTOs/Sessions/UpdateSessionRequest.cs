@@ -20,5 +20,9 @@ public class UpdateSessionRequest
 
     public List<Guid> PatientIds { get; set; } = new();
 
+    // Therapeutic tools associated to this session (many-to-many). Carried on the update path so a
+    // tool association made during an active session persists server-side through the sync cycle.
+    public List<Guid> ToolIds { get; set; } = new();
+
     public List<SessionAttendanceRequest> Attendances { get; set; } = new();
 }

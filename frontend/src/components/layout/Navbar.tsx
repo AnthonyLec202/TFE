@@ -33,6 +33,11 @@ export function Navbar() {
                 My Sessions
               </NavLink>
             )}
+            {isAdmin && (
+              <NavLink to="/clinical-tools" className={navLinkClass}>
+                Mes Outils
+              </NavLink>
+            )}
           </nav>
         )}
       </div>

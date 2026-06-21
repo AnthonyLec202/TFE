@@ -27,6 +27,24 @@ export enum SessionStatus {
   NoShow = 3,
 }
 
+// Mirrors TFE.Api.Models.ToolType. Numeric values must stay in sync with the backend enum.
+export enum ToolType {
+  BehavioralContract = 0,
+  CognitiveRestructuringSheet = 1,
+  ExposureProtocol = 2,
+  RelaxationExercise = 3,
+  PsychoeducationMaterial = 4,
+}
+
+// Mirrors TFE.Api.Models.CbtTheme. Numeric values must stay in sync with the backend enum.
+export enum CbtTheme {
+  AnxietyManagement = 0,
+  EmotionalRegulation = 1,
+  SocialSkills = 2,
+  CognitiveDistortions = 3,
+  Assertiveness = 4,
+}
+
 // One participating patient's attendance outcome within a session (mirrors the backend junction).
 export interface LocalSessionAttendance {
   patientId: string;
@@ -38,11 +56,28 @@ export interface LocalSession {
   date: string;          // ISO date string, e.g. "2026-06-09"
   time: string;          // e.g. "14:30"
   patientIds: string[];
+  toolIds: string[];     // therapeutic tools associated to this session (many-to-many)
   title: string;
   isClosed: boolean;     // open sessions are active; closed sessions archive to patients' history
   attendances: LocalSessionAttendance[]; // per-patient outcome, populated when the session is closed
   syncStatus: SyncStatus;
   lastModifiedAt: string; // ISO datetime string
+}
+
+/**
+ * Read-only local mirror of a server TherapeuticTool. The catalog is authored by the practitioner
+ * and pulled into IndexedDB so the clinician can search and filter it with zero latency — including
+ * offline, during an active session. Type/Theme are stored as their numeric enum values and indexed
+ * so the filtering UI can branch on them without scanning the whole store.
+ */
+export interface LocalTherapeuticTool {
+  id: string;
+  title: string;
+  description: string;
+  type: ToolType;
+  theme: CbtTheme;
+  downGradingStrategy: string;
+  upGradingStrategy: string;
 }
 
 export interface LocalNote {
@@ -78,6 +113,7 @@ class ClinicalAppDatabase extends Dexie {
   notes!: Table<LocalNote, string>;
   patients!: Table<LocalPatientSync, string>;
   offlinePatientQueue!: Table<QueuedPatientCreation, string>;
+  therapeuticTools!: Table<LocalTherapeuticTool, string>;
 
   constructor() {
     super('ClinicalAppDB');
@@ -139,6 +175,21 @@ class ClinicalAppDatabase extends Dexie {
           ? [{ patientId: primaryPatientId, status: previousStatus }]
           : [];
         delete session.status;
+      });
+    });
+
+    // v7 adds the therapeutic tool catalog (read-only local mirror, indexed on type + theme for the
+    // filter UI) and the session→tool association (sessions.toolIds, multi-entry indexed so a tool's
+    // sessions can be looked up). Existing session rows backfill an empty toolIds array in place.
+    this.version(7).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
+    }).upgrade(async tx => {
+      await tx.table('sessions').toCollection().modify((session: any) => {
+        if (!Array.isArray(session.toolIds)) session.toolIds = [];
       });
     });
 

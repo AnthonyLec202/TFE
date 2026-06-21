@@ -8,6 +8,7 @@ interface SyncSessionPayload {
   time: string;
   isClosed: boolean;
   patientIds: string[];
+  toolIds: string[];
   attendances: LocalSessionAttendance[];
 }
 
@@ -29,6 +30,7 @@ export interface UpdateSessionPayload {
   time: string;
   isClosed: boolean;
   patientIds: string[];
+  toolIds: string[];
   attendances: LocalSessionAttendance[];
 }
 
