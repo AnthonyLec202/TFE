@@ -54,6 +54,8 @@ public class AuthService : IAuthService
             Email = user.Email!,
             Roles = roles.ToList(),
             ExpiresAt = expiresAt,
+            ConsentGivenAt = user.ConsentGivenAt,
+            ConsentVersion = user.ConsentVersion ?? string.Empty,
         };
     }
 
@@ -109,6 +111,22 @@ public class AuthService : IAuthService
         {
             var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
             throw new InvalidOperationException($"Password change failed: {errors}");
+        }
+    }
+
+    public async Task UpdateConsentAsync(string userId, string version)
+    {
+        var user = await _userRepository.FindByIdAsync(userId)
+                   ?? throw new KeyNotFoundException("User not found.");
+
+        user.ConsentVersion = version;
+        user.ConsentGivenAt = DateTimeOffset.UtcNow;
+
+        var result = await _userRepository.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Consent update failed: {errors}");
         }
     }
 

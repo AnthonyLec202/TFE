@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
-import { useAuth } from '../../features/auth';
+import { useAuth, ConsentBumpModal } from '../../features/auth';
 import { usePatientSync } from '../../features/patients';
 import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
 import { registerAuthFailureHandler } from '../../core/offline/syncEngine';
@@ -26,6 +26,8 @@ export function MainLayout() {
       <main className="flex-1 w-full max-w-5xl mx-auto px-6 py-8">
         <Outlet />
       </main>
+      {/* Blocks all navigation until the user accepts the current policy version. */}
+      <ConsentBumpModal />
     </div>
   );
 }

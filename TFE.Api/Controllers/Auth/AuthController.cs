@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TFE.Api.DTOs.Auth;
 using TFE.Api.Extensions;
+using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Auth;
 
 namespace TFE.Api.Controllers.Auth;
@@ -13,10 +14,12 @@ namespace TFE.Api.Controllers.Auth;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserRepository _userRepository;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserRepository userRepository)
     {
         _authService = authService;
+        _userRepository = userRepository;
     }
 
     [HttpPost("login")]
@@ -32,23 +35,58 @@ public class AuthController : ControllerBase
         return Ok(ToCurrentUser(response));
     }
 
+    // Fetches the authenticated user's real-time identity from the database rather than reading
+    // consent fields from JWT claims. The JWT remains strictly stateless (sub + email + roles);
+    // mutable state (ConsentGivenAt, ConsentVersion) is always resolved to its current DB value.
     [HttpGet("me")]
     [Authorize]
-    public IActionResult Me()
+    public async Task<IActionResult> Me()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                      ?? User.FindFirst("sub")?.Value;
         if (userId is null)
             return Unauthorized();
 
+        var user = await _userRepository.FindByIdAsync(userId);
+        if (user is null)
+            return Unauthorized();
+
         return Ok(new CurrentUserResponse
         {
-            UserId = userId,
-            Email = User.FindFirst(ClaimTypes.Email)?.Value
-                    ?? User.FindFirst("email")?.Value
-                    ?? string.Empty,
+            UserId = user.Id,
+            Email = user.Email ?? string.Empty,
+            // Roles are read from JWT claims — they are immutable for the duration of the session
+            // and do not require a DB round-trip.
             Roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList(),
+            ConsentGivenAt = user.ConsentGivenAt,
+            ConsentVersion = user.ConsentVersion ?? string.Empty,
         });
+    }
+
+    // Records that the authenticated user has accepted the specified policy version. Called by the
+    // ConsentBumpModal when the user has read and accepted the updated Terms of Service.
+    [HttpPost("me/consent")]
+    [Authorize]
+    public async Task<IActionResult> UpdateConsent([FromBody] UpdateConsentRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst("sub")?.Value;
+        if (userId is null)
+            return Unauthorized();
+
+        try
+        {
+            await _authService.UpdateConsentAsync(userId, request.Version);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("logout")]
@@ -65,6 +103,8 @@ public class AuthController : ControllerBase
         UserId = response.UserId,
         Email = response.Email,
         Roles = response.Roles,
+        ConsentGivenAt = response.ConsentGivenAt,
+        ConsentVersion = response.ConsentVersion,
     };
 
     [HttpPost("forgot-password")]

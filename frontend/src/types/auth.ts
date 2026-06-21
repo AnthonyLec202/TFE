@@ -9,6 +9,9 @@ export interface CurrentUser {
   userId: string;
   email: string;
   roles: string[];
+  // ISO 8601 UTC string (DateTimeOffset from backend). Null for accounts created before consent tracking.
+  consentGivenAt: string | null;
+  consentVersion: string;
 }
 
 export interface ConsumeTokenRequest {
@@ -37,4 +40,7 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   enroll: (data: ConsumeTokenRequest) => Promise<void>;
   logout: () => Promise<void>;
+  // Applies a shallow merge onto the in-memory AuthUser without a server round-trip.
+  // Used after mutations that update a known subset of user fields (e.g. consent version).
+  patchUser: (partial: Partial<AuthUser>) => void;
 }

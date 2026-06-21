@@ -31,3 +31,7 @@ export const changePassword = (
   newPassword: string
 ): Promise<{ message: string }> =>
   apiClient.post<{ message: string }>('/api/auth/change-password', { currentPassword, newPassword });
+
+// Records the authenticated user's acceptance of the given policy version (204 NoContent).
+export const updateConsent = (version: string): Promise<void> =>
+  apiClient.postVoid('/api/auth/me/consent', { version });

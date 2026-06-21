@@ -36,4 +36,7 @@ public class UserRepository : IUserRepository
 
     public Task<IdentityResult> ChangePasswordAsync(ApplicationUser user, string currentPassword, string newPassword)
         => _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+
+    public Task<IdentityResult> UpdateAsync(ApplicationUser user)
+        => _userManager.UpdateAsync(user);
 }

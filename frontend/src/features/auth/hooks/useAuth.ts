@@ -74,9 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearActiveEncryptionKey(); // wipes the key from the WebCrypto subsystem
   }
 
+  function patchUser(partial: Partial<AuthUser>): void {
+    setUser(prev => (prev ? { ...prev, ...partial } : null));
+  }
+
   return createElement(
     AuthContext.Provider,
-    { value: { user, isAuthenticated: !!user, isInitialized, login, enroll, logout } },
+    { value: { user, isAuthenticated: !!user, isInitialized, login, enroll, logout, patchUser } },
     children
   );
 }

@@ -32,6 +32,8 @@ public class EnrollmentController : ControllerBase
                 UserId = response.UserId,
                 Email = response.Email,
                 Roles = response.Roles,
+                ConsentGivenAt = response.ConsentGivenAt,
+                ConsentVersion = response.ConsentVersion,
             });
         }
         catch (InvalidOperationException ex)

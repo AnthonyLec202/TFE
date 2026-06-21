@@ -9,7 +9,10 @@ public class ApplicationUser : IdentityUser
 
     // GDPR consent trace (Art. 7): UTC timestamp at which the user accepted data collection
     // during enrollment. Null means no consent has been recorded.
-    public DateTime? ConsentGivenAt { get; set; }
+    public DateTimeOffset? ConsentGivenAt { get; set; }
+
+    // Identifies which version of the privacy policy / terms the user accepted at enrollment.
+    public string? ConsentVersion { get; set; }
 
     public virtual ICollection<CareTeam> CareTeamMemberships { get; set; }
 

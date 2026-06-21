@@ -9,6 +9,14 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ChangePasswordForm } from './components/ChangePasswordForm';
 
+function formatConsentDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('fr-BE', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 const ROLE_LABELS: Record<string, string> = {
   Admin: 'Administrateur',
   Other: 'Collaborateur',
@@ -23,6 +31,7 @@ export function ProfileContainer() {
   const [pwSuccess, setPwSuccess] = useState(false);
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [isConsentRevokeOpen, setIsConsentRevokeOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
@@ -49,11 +58,18 @@ export function ProfileContainer() {
     setIsDeleting(true);
     try {
       await deleteAccount(user.userId);
-      logout();
+      await logout();
       navigate('/login');
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Une erreur est survenue.');
       setIsDeleting(false);
+    }
+  }
+
+  function handleConsentUncheck(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.checked) {
+      e.preventDefault();
+      setIsConsentRevokeOpen(true);
     }
   }
 
@@ -72,6 +88,29 @@ export function ProfileContainer() {
           <ShieldCheck className="h-4 w-4 text-slate-400" />
           {roleLabel}
         </div>
+      </Card>
+
+      {/* GDPR consent */}
+      <Card className="p-5 flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-slate-700">Consentement RGPD</h2>
+        {user.consentGivenAt && (
+          <p className="text-sm text-slate-500">
+            Consentement donné le {formatConsentDate(user.consentGivenAt)}
+          </p>
+        )}
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={true}
+            onChange={handleConsentUncheck}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-blue-600"
+          />
+          <span className="text-sm text-slate-600">
+            J'accepte les Conditions d'Utilisation et je consens expressément au traitement de mes
+            données personnelles et de santé dans le cadre du suivi neuropsychologique,
+            conformément à la Politique de Confidentialité.
+          </span>
+        </label>
       </Card>
 
       {/* Change password */}
@@ -112,6 +151,17 @@ export function ProfileContainer() {
         loading={isDeleting}
         onConfirm={handleDeleteAccount}
         onCancel={() => setIsConfirmDeleteOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={isConsentRevokeOpen}
+        title="Retrait du consentement"
+        message="Si vous retirez votre consentement, votre compte sera supprimé et vos données seront anonymisées. Êtes-vous sûr de vouloir supprimer votre compte ?"
+        confirmLabel="Confirmer la suppression"
+        cancelLabel="Annuler"
+        loading={isDeleting}
+        onConfirm={handleDeleteAccount}
+        onCancel={() => setIsConsentRevokeOpen(false)}
       />
     </div>
   );

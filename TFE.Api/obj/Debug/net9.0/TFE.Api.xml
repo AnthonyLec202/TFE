@@ -477,6 +477,18 @@
         <member name="M:TFE.Api.Migrations.EncryptClinicalContentAndMinimizeNotifications.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.AddGdprConsentVersion">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddGdprConsentVersion.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddGdprConsentVersion.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddGdprConsentVersion.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">
             <summary>
             Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.

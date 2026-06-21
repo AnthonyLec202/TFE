@@ -11,6 +11,9 @@ namespace TFE.Api.Services.Auth;
 
 public class EnrollmentService : IEnrollmentService
 {
+    // Bump this constant whenever the privacy policy / terms of use are materially updated.
+    private const string CurrentConsentVersion = "v1.0";
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEnrollmentTokenRepository _tokenRepository;
     private readonly ICareTeamRepository _careTeamRepository;
@@ -59,7 +62,8 @@ public class EnrollmentService : IEnrollmentService
                 EmailConfirmed = true,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
-                ConsentGivenAt = DateTime.UtcNow
+                ConsentGivenAt = DateTimeOffset.UtcNow,
+                ConsentVersion = CurrentConsentVersion,
             };
 
             var identityResult = await _userRepository.CreateAsync(user, request.Password);
