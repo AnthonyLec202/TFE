@@ -17,7 +17,7 @@ export function useCollaborativeWallSocket(
   patientId: string,
   callbacks: CollaborativeWallSocketCallbacks,
 ): void {
-  const { token } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
 
   // Ref-stabilised callbacks prevent the connection from being torn down and rebuilt
   // whenever the parent renders a new function instance.
@@ -25,11 +25,13 @@ export function useCollaborativeWallSocket(
   callbacksRef.current = callbacks;
 
   useEffect(() => {
-    if (!token) return;
+    if (!isInitialized || !isAuthenticated) return;
 
+    // Cookie auth: the same-site HttpOnly session cookie is sent automatically on the negotiate
+    // request and WebSocket upgrade (withCredentials); no access_token query param is exposed to JS.
     const connection: HubConnection = new HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/collaborative-wall`, {
-        accessTokenFactory: () => token,
+        withCredentials: true,
       })
       .withAutomaticReconnect()
       .build();
@@ -62,5 +64,5 @@ export function useCollaborativeWallSocket(
       connection.off('ReceiveDeletedComment');
       void connection.stop();
     };
-  }, [patientId, token]);
+  }, [patientId, isInitialized, isAuthenticated]);
 }

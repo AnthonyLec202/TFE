@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using TFE.Api.DTOs.Auth;
+using TFE.Api.Extensions;
 using TFE.Api.Interfaces.IServices.Auth;
 
 namespace TFE.Api.Controllers.Auth;
@@ -26,8 +27,45 @@ public class AuthController : ControllerBase
         if (response is null)
             return Unauthorized(new { message = "Invalid email or password." });
 
-        return Ok(response);
+        // Issue the JWT as an HttpOnly cookie; never expose the token to JavaScript (F-02).
+        Response.AppendAuthCookie(response.Token, response.ExpiresAt);
+        return Ok(ToCurrentUser(response));
     }
+
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst("sub")?.Value;
+        if (userId is null)
+            return Unauthorized();
+
+        return Ok(new CurrentUserResponse
+        {
+            UserId = userId,
+            Email = User.FindFirst(ClaimTypes.Email)?.Value
+                    ?? User.FindFirst("email")?.Value
+                    ?? string.Empty,
+            Roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList(),
+        });
+    }
+
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public IActionResult Logout()
+    {
+        // Clear the cookie regardless of token validity, so an expired session can still log out.
+        Response.ClearAuthCookie();
+        return NoContent();
+    }
+
+    private static CurrentUserResponse ToCurrentUser(AuthResponse response) => new()
+    {
+        UserId = response.UserId,
+        Email = response.Email,
+        Roles = response.Roles,
+    };
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]

@@ -41,6 +41,20 @@
              be registered as Singleton so the captured reference is never disposed.
              </summary>
         </member>
+        <member name="T:TFE.Api.DTOs.Auth.AuthResponse">
+            <summary>
+            Internal result returned by the auth/enrollment services to their controllers. Carries the raw JWT
+            and its expiry so the controller can issue the HttpOnly session cookie. The token is NEVER
+            serialised to the HTTP response body — controllers map this to a <see cref="T:TFE.Api.DTOs.Auth.CurrentUserResponse"/>.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.Auth.CurrentUserResponse">
+            <summary>
+            The authenticated user's public identity, returned by login, enrollment, and GET /api/auth/me.
+            Contains no token — the JWT lives only in the HttpOnly cookie. The client uses UserId to derive
+            its at-rest IndexedDB encryption key and Roles to drive role-based UI.
+            </summary>
+        </member>
         <member name="T:TFE.Api.DTOs.CollaborativeWall.CreateCommentFormRequest">
             <summary>
             Multipart/form-data variant of the comment creation request.
@@ -87,6 +101,25 @@
             Thrown by a repository when a write violates a unique / primary-key constraint
             (SQLSTATE 23505). It lets the service layer treat a duplicate insert idempotently
             without depending on the underlying database provider's exception types.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Extensions.AuthCookieExtensions">
+            <summary>
+            Centralises the issuance and clearing of the JWT session cookie (F-02 XSS mitigation).
+            The token is delivered in an HttpOnly cookie so JavaScript can never read it; the API authenticates
+            every request (and the SignalR handshake) from this cookie instead of an Authorization header.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Extensions.AuthCookieExtensions.AppendAuthCookie(Microsoft.AspNetCore.Http.HttpResponse,System.String,System.DateTimeOffset)">
+            <summary>
+            Writes the JWT into the response as a hardened cookie whose lifetime matches the token's own
+            expiry, so the browser drops it at the same instant the token stops validating.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Extensions.AuthCookieExtensions.ClearAuthCookie(Microsoft.AspNetCore.Http.HttpResponse)">
+            <summary>
+            Emits an already-expired cookie carrying the same attributes, instructing the browser to delete
+            the session cookie. Used by the logout endpoint.
             </summary>
         </member>
         <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddSupabaseClient(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">

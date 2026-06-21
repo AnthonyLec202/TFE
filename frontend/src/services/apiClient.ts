@@ -42,17 +42,13 @@ export class AuthError extends HttpError {
 }
 
 class ApiClient {
-  private token: string | null = null;
-
-  setToken(token: string | null): void {
-    this.token = token;
-  }
-
   // Single place where the native fetch rejection is normalized into a NetworkError, so every
-  // request method classifies connection failures identically.
+  // request method classifies connection failures identically. `credentials: 'include'` is forced
+  // on every request so the browser transmits the HttpOnly session cookie (F-02) cross-origin; the
+  // JWT is never held in JS, so there is no Authorization header to set.
   private async safeFetch(path: string, init: RequestInit): Promise<Response> {
     try {
-      return await fetch(`${API_BASE}${path}`, init);
+      return await fetch(`${API_BASE}${path}`, { ...init, credentials: 'include' });
     } catch (err) {
       throw new NetworkError(err instanceof Error ? err.message : 'Network request failed');
     }
@@ -69,7 +65,6 @@ class ApiClient {
 
   private async request<T>(method: HttpMethod, path: string, body?: unknown, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
     const response = await this.safeFetch(path, {
       method,
@@ -86,12 +81,8 @@ class ApiClient {
 
   // FormData variant: omits Content-Type so the browser sets the multipart boundary automatically.
   async postForm<T>(path: string, body: FormData): Promise<T> {
-    const headers: Record<string, string> = {};
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-
     const response = await this.safeFetch(path, {
       method: 'POST',
-      headers,
       body,
     });
 
@@ -102,11 +93,9 @@ class ApiClient {
 
   // Variant for endpoints that return 200/204 with no body (avoids response.json() error).
   async postVoid(path: string, body: unknown): Promise<void> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const response = await this.safeFetch(path, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!response.ok) await this.raiseForStatus(response);

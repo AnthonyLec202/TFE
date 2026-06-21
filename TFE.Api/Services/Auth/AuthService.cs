@@ -42,8 +42,19 @@ public class AuthService : IAuthService
         var passwordValid = await _userRepository.CheckPasswordAsync(user, request.Password);
         if (!passwordValid) return null;
 
-        var token = await GenerateJwtTokenAsync(user);
-        return new AuthResponse(token, user.Id, user.Email!);
+        var roles = await _userRepository.GetRolesAsync(user);
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
+            double.Parse(_configuration["Jwt:ExpiresInMinutes"]!));
+        var token = GenerateJwtToken(user, roles, expiresAt.UtcDateTime);
+
+        return new AuthResponse
+        {
+            Token = token,
+            UserId = user.Id,
+            Email = user.Email!,
+            Roles = roles.ToList(),
+            ExpiresAt = expiresAt,
+        };
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -101,7 +112,7 @@ public class AuthService : IAuthService
         }
     }
 
-    private async Task<string> GenerateJwtTokenAsync(ApplicationUser user)
+    private string GenerateJwtToken(ApplicationUser user, IEnumerable<string> roles, DateTime expiry)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -114,11 +125,7 @@ public class AuthService : IAuthService
         };
 
         // Append role claims so [Authorize(Roles = "...")] works on controllers
-        var roles = await _userRepository.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
-
-        var expiry = DateTime.UtcNow.AddMinutes(
-            double.Parse(_configuration["Jwt:ExpiresInMinutes"]!));
 
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"],

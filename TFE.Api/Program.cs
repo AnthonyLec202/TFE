@@ -67,18 +67,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew                = TimeSpan.FromMinutes(5)
         };
 
-        // SignalR's browser client can't set the Authorization header on the WebSocket
-        // handshake, so it sends the JWT as a query string parameter instead. Only honor
-        // that fallback for hub endpoints — regular API requests keep using the header.
+        // The JWT is delivered exclusively in an HttpOnly cookie (F-02), so it is unreadable by
+        // JavaScript and never travels in an Authorization header or query string. Extract it from
+        // the cookie for every request — including the SignalR handshake, whose WebSocket upgrade
+        // carries the same-site cookie automatically when the client connects with credentials.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
             {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
-                {
-                    context.Token = accessToken;
-                }
+                context.Token = context.Request.Cookies[AuthCookieExtensions.AuthCookieName];
                 return Task.CompletedTask;
             }
         };

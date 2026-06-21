@@ -16,12 +16,12 @@ export interface UseGlobalNotificationsResult {
 // offline/Dexie state — if the connection cannot be established, the bell simply shows whatever
 // was loaded from the initial REST fetch.
 export function useGlobalNotifications(): UseGlobalNotificationsResult {
-  const { token, isInitialized } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isInitialized || !token) return;
+    if (!isInitialized || !isAuthenticated) return;
 
     let ignore = false;
     setLoading(true);
@@ -31,14 +31,16 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
       .finally(() => { if (!ignore) setLoading(false); });
 
     return () => { ignore = true; };
-  }, [isInitialized, token]);
+  }, [isInitialized, isAuthenticated]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!isInitialized || !isAuthenticated) return;
 
+    // Cookie auth: the same-site HttpOnly session cookie rides the negotiate request and the
+    // WebSocket upgrade automatically (withCredentials), so no access_token query param is needed.
     const connection: HubConnection = new HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/collaborative-wall`, {
-        accessTokenFactory: () => token,
+        withCredentials: true,
       })
       .withAutomaticReconnect()
       .build();
@@ -64,7 +66,7 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
       connection.off('ReceiveNotification');
       void connection.stop();
     };
-  }, [token]);
+  }, [isInitialized, isAuthenticated]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     setNotifications(prev => prev.filter(n => n.id !== notificationId));

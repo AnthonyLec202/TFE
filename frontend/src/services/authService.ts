@@ -1,11 +1,20 @@
 import { apiClient } from './apiClient';
-import type { AuthResponse, ConsumeTokenRequest, LoginRequest } from '../types/auth';
+import type { CurrentUser, ConsumeTokenRequest, LoginRequest } from '../types/auth';
 
-export const login = (data: LoginRequest): Promise<AuthResponse> =>
-  apiClient.post<AuthResponse>('/api/auth/login', data);
+// All three set/clear the HttpOnly session cookie server-side; the body carries only the identity.
+export const login = (data: LoginRequest): Promise<CurrentUser> =>
+  apiClient.post<CurrentUser>('/api/auth/login', data);
 
-export const consumeToken = (data: ConsumeTokenRequest): Promise<AuthResponse> =>
-  apiClient.post<AuthResponse>('/api/enrollment/consume', data);
+export const consumeToken = (data: ConsumeTokenRequest): Promise<CurrentUser> =>
+  apiClient.post<CurrentUser>('/api/enrollment/consume', data);
+
+// Restores the session on page load by reading the cookie server-side. Throws AuthError (401) when
+// no valid session cookie is present.
+export const getCurrentUser = (): Promise<CurrentUser> =>
+  apiClient.get<CurrentUser>('/api/auth/me');
+
+export const logout = (): Promise<void> =>
+  apiClient.postVoid('/api/auth/logout', {});
 
 export const forgotPassword = (email: string): Promise<{ message: string }> =>
   apiClient.post<{ message: string }>('/api/auth/forgot-password', { email });
