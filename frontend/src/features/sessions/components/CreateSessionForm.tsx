@@ -1,8 +1,9 @@
 import { type SubmitEvent } from 'react';
+import { Calendar } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { DatePicker } from '../../../components/ui/DatePicker';
-import { TimePicker } from '../../../components/ui/TimePicker';
+import { MaskedTimeInput } from '../../../components/ui/MaskedTimeInput';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
 import { PatientAutocomplete } from './PatientAutocomplete';
 
@@ -30,7 +31,12 @@ export function CreateSessionForm({
 
   return (
     <Card className="p-5">
-      <h2 className="text-[15px] font-semibold text-ink mb-4">Nouvelle séance</h2>
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="w-[30px] h-[30px] rounded-lg bg-petrol-50 text-petrol-600 flex items-center justify-center shrink-0">
+          <Calendar className="h-4 w-4" strokeWidth={1.85} />
+        </span>
+        <h2 className="text-[15px] font-semibold text-ink">Nouvelle séance</h2>
+      </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Titre</label>
@@ -45,21 +51,21 @@ export function CreateSessionForm({
         </div>
 
         <div className="flex gap-3">
-          <div className="flex flex-col gap-1 flex-1">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
             <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Date</label>
             <DatePicker
               value={date}
               onChange={onDateChange}
-              placeholder="Choisir une date"
+              placeholder="jj/mm/aaaa"
               required
             />
           </div>
-          <div className="flex flex-col gap-1 flex-1">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
             <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Heure</label>
-            <TimePicker
+            <MaskedTimeInput
               value={time}
               onChange={onTimeChange}
-              placeholder="Choisir une heure"
+              placeholder="HH:mm"
               required
             />
           </div>

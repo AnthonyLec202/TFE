@@ -29,6 +29,7 @@ export interface DatePickerProps {
 }
 
 const ISO_FORMAT = 'yyyy-MM-dd';
+const DISPLAY_FORMAT = 'dd/MM/yyyy';
 
 /** Parse an ISO `yyyy-MM-dd` string into a local `Date`, or `undefined` when empty/invalid. */
 function parseIsoDate(value: string): Date | undefined {
@@ -37,13 +38,32 @@ function parseIsoDate(value: string): Date | undefined {
   return isValid(parsed) ? parsed : undefined;
 }
 
-/**
- * Tailwind class map applied to react-day-picker's internal elements so the
- * calendar renders entirely with the "Clinique sereine" design tokens — no
- * default stylesheet is imported. Selection / today / disabled states live on
- * the day `<td>`, so they are projected onto the inner `<button>` via the
- * `[&>button]` child selector.
- */
+/** Render an ISO date as the editable `dd / mm / yyyy` display string. */
+function isoToDisplay(value: string): string {
+  const date = parseIsoDate(value);
+  return date ? format(date, DISPLAY_FORMAT) : '';
+}
+
+/** Progressively format raw keystrokes into `dd / mm / yyyy` (digits only, grouped 2-2-4). */
+function maskDisplay(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  let out = digits.slice(0, 2);
+  if (digits.length > 2) out += '/' + digits.slice(2, 4);
+  if (digits.length > 4) out += '/' + digits.slice(4, 8);
+  return out;
+}
+
+/** Convert a complete `dd / mm / yyyy` display string into an ISO date, validating the calendar date. */
+function displayToIso(display: string): string | null {
+  const digits = display.replace(/\D/g, '');
+  if (digits.length !== 8) return null;
+  const candidate = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+  const parsed = parse(candidate, 'dd/MM/yyyy', new Date());
+  // Round-trip guard rejects impossible dates (e.g. 31/02) that `parse` would otherwise roll over.
+  if (!isValid(parsed) || format(parsed, 'dd/MM/yyyy') !== candidate) return null;
+  return format(parsed, ISO_FORMAT);
+}
+
 const calendarClassNames = {
   months: 'relative',
   month: 'flex flex-col gap-2',
@@ -75,7 +95,7 @@ const calendarClassNames = {
 } as const;
 
 export function DatePicker({
-  label, value, onChange, placeholder = 'Sélectionner une date', required, disabled,
+  label, value, onChange, placeholder = 'jj/mm/aaaa', required, disabled,
   id, error, captionLayout = 'label', fromYear, toYear,
 }: DatePickerProps) {
   const reactId = useId();
@@ -84,6 +104,11 @@ export function DatePicker({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedDate = parseIsoDate(value);
+
+  // The text input is the source of truth while typing; it is re-synced whenever `value` changes
+  // externally (e.g. a calendar pick), but stays untouched during partial/in-progress entry.
+  const [text, setText] = useState(() => isoToDisplay(value));
+  useEffect(() => setText(isoToDisplay(value)), [value]);
 
   // Close on outside click or Escape, mirroring a Popover primitive.
   useEffect(() => {
@@ -104,6 +129,17 @@ export function DatePicker({
     };
   }, [open]);
 
+  function handleTextChange(raw: string) {
+    const masked = maskDisplay(raw);
+    setText(masked);
+    if (masked.replace(/\D/g, '').length === 0) {
+      onChange('');
+      return;
+    }
+    const iso = displayToIso(masked);
+    if (iso) onChange(iso);
+  }
+
   function handleSelect(day: Date | undefined) {
     onChange(day ? format(day, ISO_FORMAT) : '');
     if (day) setOpen(false);
@@ -118,38 +154,34 @@ export function DatePicker({
       )}
 
       <div className="relative">
+        <input
+          type="text"
+          inputMode="numeric"
+          id={fieldId}
+          disabled={disabled}
+          required={required}
+          value={text}
+          placeholder={placeholder}
+          onChange={e => handleTextChange(e.target.value)}
+          className={[
+            'w-full rounded-lg border bg-white py-2.5 pl-3 pr-9 text-sm text-ink placeholder:text-taupe-400',
+            'transition-colors focus:outline-none focus:ring-2 focus:border-transparent',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            error ? 'border-red-400 focus:ring-red-500' : 'border-sand-300 focus:ring-petrol-600',
+          ].join(' ')}
+        />
         <button
           type="button"
-          id={fieldId}
+          tabIndex={-1}
           disabled={disabled}
           onClick={() => setOpen(prev => !prev)}
           aria-haspopup="dialog"
           aria-expanded={open}
-          className={[
-            'flex w-full items-center justify-between gap-2 rounded-lg border bg-white px-3.5 py-2.5 text-left',
-            'text-sm transition-colors focus:outline-none focus:ring-2 focus:border-transparent',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            selectedDate ? 'text-ink' : 'text-taupe-400',
-            error ? 'border-red-400 focus:ring-red-500' : 'border-sand-300 focus:ring-petrol-600',
-          ].join(' ')}
+          aria-label="Ouvrir le calendrier"
+          className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-taupe-500 transition-colors hover:bg-sand-100 hover:text-ink disabled:opacity-50"
         >
-          <span className="truncate">
-            {selectedDate ? format(selectedDate, 'd MMMM yyyy', { locale: fr }) : placeholder}
-          </span>
-          <CalendarIcon className="h-4 w-4 shrink-0 text-taupe-500" strokeWidth={1.85} />
+          <CalendarIcon className="h-4 w-4" strokeWidth={1.85} />
         </button>
-
-        {/* Preserves native form-level `required` validation now that the field is a button. */}
-        {required && (
-          <input
-            tabIndex={-1}
-            aria-hidden="true"
-            required
-            value={value}
-            onChange={() => {}}
-            className="pointer-events-none absolute bottom-0 left-3 h-0 w-0 opacity-0"
-          />
-        )}
 
         {open && (
           <div

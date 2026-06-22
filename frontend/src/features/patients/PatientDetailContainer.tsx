@@ -7,7 +7,7 @@ import type { PatientResponse, UpdatePatientPayload } from '../../types/patient'
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { DatePicker } from '../../components/ui/DatePicker';
+import { MaskedDateInput } from '../../components/ui/MaskedDateInput';
 import { SessionHistoryContainer } from './SessionHistoryContainer';
 import { CareTeamContainer } from './CareTeamContainer';
 import { CollaborativeWallContainer } from '../collaborativeWall';
@@ -282,14 +282,11 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                   required
                 />
               </div>
-              <DatePicker
+              <MaskedDateInput
                 label="Date de naissance"
                 value={editForm.birthDate}
                 onChange={value => setEditForm(p => ({ ...p, birthDate: value }))}
-                placeholder="Sélectionner une date"
-                captionLayout="dropdown"
-                fromYear={1920}
-                toYear={new Date().getFullYear()}
+                placeholder="jj / mm / aaaa"
                 required
               />
               {updateError && (

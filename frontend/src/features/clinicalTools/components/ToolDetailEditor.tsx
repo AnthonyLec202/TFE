@@ -41,7 +41,7 @@ export function ToolDetailEditor({
           className="inline-flex w-fit items-center gap-1.5 text-sm text-taupe-500 transition-colors hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
-          Retour à la matériauthèque
+          Mes outils
         </button>
 
         <div className="flex items-center justify-between gap-4">

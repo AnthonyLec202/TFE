@@ -2,7 +2,7 @@ import { type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { DatePicker } from '../../../components/ui/DatePicker';
-import { TimePicker } from '../../../components/ui/TimePicker';
+import { MaskedTimeInput } from '../../../components/ui/MaskedTimeInput';
 import type { LocalPatientSync } from '../../../core/offline/LocalDatabase';
 import { PatientAutocomplete } from './PatientAutocomplete';
 
@@ -47,21 +47,21 @@ export function SessionEditModal({
           </div>
 
           <div className="flex gap-3">
-            <div className="flex flex-col gap-1 flex-1">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
               <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Date</label>
               <DatePicker
                 value={date}
                 onChange={onDateChange}
-                placeholder="Choisir une date"
+                placeholder="jj/mm/aaaa"
                 required
               />
             </div>
-            <div className="flex flex-col gap-1 flex-1">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
               <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Heure</label>
-              <TimePicker
+              <MaskedTimeInput
                 value={time}
                 onChange={onTimeChange}
-                placeholder="Choisir une heure"
+                placeholder="HH:mm"
                 required
               />
             </div>

@@ -1,9 +1,9 @@
 import { type SubmitEvent } from 'react';
-import { Plus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
-import { DatePicker } from '../../../components/ui/DatePicker';
+import { MaskedDateInput } from '../../../components/ui/MaskedDateInput';
 
 export interface CreatePatientFormProps {
   firstName: string;
@@ -31,7 +31,7 @@ export function CreatePatientForm({
     <Card className="p-[22px]">
       <div className="flex items-center gap-2.5 mb-4">
         <span className="w-[30px] h-[30px] rounded-lg bg-petrol-50 text-petrol-600 flex items-center justify-center shrink-0">
-          <Plus className="h-4 w-4" strokeWidth={1.85} />
+          <UserPlus className="h-4 w-4" strokeWidth={1.85} />
         </span>
         <h2 className="text-[15px] font-semibold text-ink">Nouveau patient</h2>
       </div>
@@ -55,14 +55,11 @@ export function CreatePatientForm({
           />
         </div>
 
-        <DatePicker
+        <MaskedDateInput
           label="Date de naissance"
           value={birthDate}
           onChange={onBirthDateChange}
-          placeholder="Sélectionner une date"
-          captionLayout="dropdown"
-          fromYear={1920}
-          toYear={new Date().getFullYear()}
+          placeholder="jj / mm / aaaa"
           required
         />
 
