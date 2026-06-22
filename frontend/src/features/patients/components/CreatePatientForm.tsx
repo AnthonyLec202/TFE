@@ -1,4 +1,5 @@
 import { type SubmitEvent } from 'react';
+import { Plus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
@@ -26,8 +27,13 @@ export function CreatePatientForm({
   }
 
   return (
-    <Card className="p-5">
-      <h2 className="text-sm font-semibold text-slate-700 mb-4">Nouveau patient</h2>
+    <Card className="p-[22px]">
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="w-[30px] h-[30px] rounded-lg bg-petrol-50 text-petrol-600 flex items-center justify-center shrink-0">
+          <Plus className="h-4 w-4" strokeWidth={1.85} />
+        </span>
+        <h2 className="text-[15px] font-semibold text-ink">Nouveau patient</h2>
+      </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3">
           <Input

@@ -51,11 +51,13 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
       setNotifications(prev => prev.some(n => n.id === notification.id) ? prev : [notification, ...prev]);
     });
 
-    connection
+    // Retain the start promise so cleanup can wait for negotiation to settle before stopping.
+    // Stopping a connection mid-negotiation makes SignalR log "The connection was stopped during
+    // negotiation" — notably on React StrictMode's mount → unmount → mount in development.
+    const startPromise = connection
       .start()
       .catch(err => {
-        // AbortError is expected in React StrictMode (double-invoke cleanup stops the connection
-        // mid-negotiation). Only warn for genuine, user-visible failures.
+        // Only warn for genuine, user-visible failures, not for a teardown-triggered abort.
         if (!cancelled) {
           console.warn('[GlobalNotifications] Connection failed — real-time updates unavailable.', err);
         }
@@ -64,7 +66,8 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
     return () => {
       cancelled = true;
       connection.off('ReceiveNotification');
-      void connection.stop();
+      // Defer stop() until start() has settled so we never abort an in-flight negotiation.
+      void startPromise.then(() => connection.stop()).catch(() => {});
     };
   }, [isInitialized, isAuthenticated]);
 

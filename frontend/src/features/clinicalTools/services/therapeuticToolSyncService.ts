@@ -1,4 +1,6 @@
 import { getTherapeuticTools } from '../../../services/therapeuticToolService';
+import { HttpError } from '../../../services/apiClient';
+import type { TherapeuticToolResponse } from '../../../types/therapeuticTool';
 import { replaceLocalToolCatalog, toLocalTool } from './localTherapeuticToolService';
 
 // Coalesces concurrent callers onto one in-flight pull, so a single hydration never fires redundant
@@ -17,6 +19,17 @@ export function syncTherapeuticToolsFromServer(): Promise<void> {
 }
 
 async function pullAndReconcile(): Promise<void> {
-  const tools = await getTherapeuticTools();
+  let tools: TherapeuticToolResponse[];
+  try {
+    tools = await getTherapeuticTools();
+  } catch (err) {
+    // The tool catalog is an Admin-only resource (the route, the nav entry, and the API endpoint are
+    // all restricted to Admin). For a collaborator the GET legitimately returns 403 Forbidden; that
+    // is expected, not a real sync failure, so it must not poison the global sync cycle (which would
+    // surface a false "Impossible de synchroniser" banner on the patients page). Treat it as a no-op
+    // — a non-admin has no catalog to mirror — and let any other error propagate normally.
+    if (err instanceof HttpError && err.status === 403) return;
+    throw err;
+  }
   await replaceLocalToolCatalog(tools.map(toLocalTool));
 }

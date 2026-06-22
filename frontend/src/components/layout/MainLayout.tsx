@@ -21,9 +21,9 @@ export function MainLayout() {
   useSyncEngine();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-sand-50 flex flex-col">
       <Navbar />
-      <main className="flex-1 w-full max-w-5xl mx-auto px-6 py-8">
+      <main className="flex-1 w-full max-w-[1040px] mx-auto px-6 py-9">
         <Outlet />
       </main>
       {/* Blocks all navigation until the user accepts the current policy version. */}

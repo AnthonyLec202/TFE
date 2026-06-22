@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight, CloudOff, RotateCw } from 'lucide-react';
+import { Calendar, ChevronRight, Clock, RotateCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type { LocalPatientSync, SyncStatus } from '../../../core/offline/LocalDatabase';
@@ -13,6 +13,8 @@ export interface PatientsListProps {
   patients: PatientListItem[];
   isLoading: boolean;
   error?: string;
+  // Shown in place of the list when it is empty (e.g. a contextual "no search results" message).
+  emptyMessage?: string;
   onSelectPatient: (id: string) => void;
   onRetry?: () => void;
 }
@@ -23,14 +25,29 @@ function formatBirthDate(iso: string): string {
   });
 }
 
+// Whole years elapsed since the birth date.
+function computeAge(iso: string): number {
+  const today = new Date();
+  const birth = new Date(iso);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDelta = today.getMonth() - birth.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+// First letter of the first + last name, e.g. "Marie Dumont" → "MD".
+function initials(firstName: string, lastName: string): string {
+  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+}
+
 // Mirrors the SessionCard "pending" indicator: a patient created/updated offline is awaiting sync.
 function isPendingSync(status: SyncStatus | undefined): boolean {
   return status === 'pending_create' || status === 'pending_update';
 }
 
-export function PatientsList({ patients, isLoading, error, onSelectPatient, onRetry }: PatientsListProps) {
+export function PatientsList({ patients, isLoading, error, emptyMessage, onSelectPatient, onRetry }: PatientsListProps) {
   if (isLoading) {
-    return <p className="text-sm text-slate-400">Chargement des patients…</p>;
+    return <p className="text-sm text-taupe-400">Chargement des patients…</p>;
   }
 
   if (error) {
@@ -50,7 +67,7 @@ export function PatientsList({ patients, isLoading, error, onSelectPatient, onRe
   if (patients.length === 0) {
     return (
       <Card className="p-8 flex items-center justify-center">
-        <p className="text-sm text-slate-400">Aucun patient pour le moment.</p>
+        <p className="text-sm text-taupe-400">{emptyMessage ?? 'Aucun patient pour le moment.'}</p>
       </Card>
     );
   }
@@ -61,31 +78,33 @@ export function PatientsList({ patients, isLoading, error, onSelectPatient, onRe
         <button
           key={patient.id}
           onClick={() => onSelectPatient(patient.id)}
-          className="block w-full text-left group"
+          className="block w-full text-left rounded-xl border border-sand-200 bg-white px-[18px] py-4 transition-[border-color,box-shadow] hover:border-petrol-100 hover:shadow-[0_2px_10px_rgba(31,111,107,0.08)]"
         >
-          <Card className="p-4 flex flex-col gap-2 group-hover:border-blue-200 group-hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <h3 className="text-sm font-semibold text-slate-800 leading-snug truncate group-hover:text-blue-700 transition-colors">
-                  {patient.lastName.toUpperCase()}, {patient.firstName}
-                </h3>
-                {isPendingSync(patient.syncStatus) && (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                    <CloudOff className="h-3 w-3" />
-                    pending
-                  </span>
-                )}
-              </div>
-              <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-blue-500 shrink-0 transition-colors" />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5" />
-                Né(e) le {formatBirthDate(patient.birthDate)}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-[13px] min-w-0">
+              <span className="w-[42px] h-[42px] rounded-full bg-petrol-50 text-petrol-600 flex items-center justify-center font-bold text-sm shrink-0">
+                {initials(patient.firstName, patient.lastName)}
               </span>
+              <div className="flex flex-col gap-[3px] min-w-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[15px] font-semibold text-ink truncate">
+                    {patient.lastName.toUpperCase()}, {patient.firstName}
+                  </span>
+                  {isPendingSync(patient.syncStatus) && (
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-[#F7EFDC] text-[#9A6A18] border border-[#E4D2A6]">
+                      <Clock className="h-[11px] w-[11px]" />
+                      en attente
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-[7px] text-[13px] text-taupe-500">
+                  <Calendar className="h-3.5 w-3.5 text-[#B6AFA4]" />
+                  Né(e) le {formatBirthDate(patient.birthDate)} · {computeAge(patient.birthDate)} ans
+                </div>
+              </div>
             </div>
-          </Card>
+            <ChevronRight className="h-5 w-5 text-[#C2BBB0] shrink-0" />
+          </div>
         </button>
       ))}
     </div>

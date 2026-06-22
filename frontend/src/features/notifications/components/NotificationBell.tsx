@@ -47,14 +47,14 @@ export const NotificationBell = forwardRef<HTMLDivElement, NotificationBellProps
         <button
           type="button"
           onClick={onToggle}
-          className="relative flex items-center justify-center w-9 h-9 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full text-taupe-500 hover:bg-sand-100 hover:text-ink transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-petrol-600 focus-visible:ring-offset-2"
           aria-label="Notifications"
           aria-haspopup="menu"
           aria-expanded={isOpen}
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-semibold leading-none">
+            <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-terracotta text-white text-[10px] font-semibold leading-none">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}

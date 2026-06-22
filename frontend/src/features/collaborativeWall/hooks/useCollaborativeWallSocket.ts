@@ -45,7 +45,10 @@ export function useCollaborativeWallSocket(
     connection.on('ReceiveUpdatedComment',(comment: CommentResponse) => callbacksRef.current.onCommentUpdated(comment));
     connection.on('ReceiveDeletedComment',(postId: string, commentId: string) => callbacksRef.current.onCommentDeleted(postId, commentId));
 
-    connection
+    // Retain the start promise so cleanup can wait for negotiation to settle before stopping.
+    // Stopping a connection mid-negotiation makes SignalR log "The connection was stopped during
+    // negotiation" — notably on React StrictMode's mount → unmount → mount in development.
+    const startPromise = connection
       .start()
       .then(() => connection.invoke('JoinWallGroup', patientId))
       .catch(err => {
@@ -62,7 +65,8 @@ export function useCollaborativeWallSocket(
       connection.off('ReceiveNewComment');
       connection.off('ReceiveUpdatedComment');
       connection.off('ReceiveDeletedComment');
-      void connection.stop();
+      // Defer stop() until start() has settled so we never abort an in-flight negotiation.
+      void startPromise.then(() => connection.stop()).catch(() => {});
     };
   }, [patientId, isInitialized, isAuthenticated]);
 }

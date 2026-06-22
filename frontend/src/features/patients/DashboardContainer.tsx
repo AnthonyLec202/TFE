@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { CreatePatientForm } from './components/CreatePatientForm';
 import { PatientsList, type PatientListItem } from './components/PatientsList';
+import { PatientSearch } from './components/PatientSearch';
 import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
 import { upsertLocalPatient } from './services/localPatientService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
@@ -51,6 +52,18 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
 
     return [...syncedPatients, ...pending];
   }, [syncedPatients, queuedPatients]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Case-insensitive substring match on the precomputed "firstname lastname" key. Filtering is
+  // display-only — the sync-state logic below keys off the full (unfiltered) list so an active
+  // search never masks the offline banner / empty-cache states.
+  const filteredPatients = useMemo<PatientListItem[] | undefined>(() => {
+    if (patients === undefined) return undefined;
+    const query = searchTerm.trim().toLowerCase();
+    if (query.length === 0) return patients;
+    return patients.filter(patient => patient.searchableName.includes(query));
+  }, [patients, searchTerm]);
 
   const [syncing, setSyncing] = useState(true);
   const [syncError, setSyncError] = useState('');
@@ -122,18 +135,21 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   const isEmpty = patients !== undefined && count === 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          {isAdmin ? 'Mes patients' : 'Patients suivis'}
-        </h1>
-        <p className="mt-0.5 text-sm text-slate-500">
-          {count} patient{count !== 1 ? 's' : ''}
-        </p>
+    <div className="flex flex-col gap-7">
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">
+            {isAdmin ? 'Mes patients' : 'Patients suivis'}
+          </h1>
+          <p className="text-[14.5px] text-taupe-500">
+            {count} patient{count !== 1 ? 's' : ''} suivi{count !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <SyncBadge syncing={syncing} failed={syncFailed} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
+        <div>
           {isAdmin ? (
             <CreatePatientForm
               firstName={form.firstName}
@@ -161,7 +177,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
           ) : null}
         </div>
 
-        <div className="lg:col-span-2 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           {syncFailed && !isEmpty && (
             <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
               <p className="text-sm text-amber-700">Impossible de synchroniser avec le serveur.</p>
@@ -171,15 +187,44 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
               </Button>
             </div>
           )}
+          {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} />}
           <PatientsList
-            patients={patients ?? []}
+            patients={filteredPatients ?? []}
             isLoading={patients === undefined || (syncing && isEmpty)}
             error={!syncing && isEmpty ? syncError : ''}
+            emptyMessage={searchTerm.trim() ? 'Aucun patient ne correspond à votre recherche.' : undefined}
             onSelectPatient={onSelectPatient}
             onRetry={reconnectAndLoad}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+// Header sync indicator mirroring the mockup's pill: green when synced, amber while syncing,
+// terracotta/red when the last cycle failed.
+function SyncBadge({ syncing, failed }: { syncing: boolean; failed: boolean }) {
+  if (syncing) {
+    return (
+      <span className="flex items-center gap-1.5 text-[12.5px] text-taupe-500 bg-sand-100 border border-sand-200 px-3 py-1.5 rounded-full">
+        <span className="w-[7px] h-[7px] rounded-full bg-taupe-400 animate-pulse" />
+        Synchronisation…
+      </span>
+    );
+  }
+  if (failed) {
+    return (
+      <span className="flex items-center gap-1.5 text-[12.5px] text-[#B5453C] bg-[#F6E9E6] border border-[#E7CEC8] px-3 py-1.5 rounded-full">
+        <span className="w-[7px] h-[7px] rounded-full bg-[#B5453C]" />
+        Hors ligne
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[12.5px] text-[#2F7D5B] bg-[#E6F0EA] border border-[#CADDD0] px-3 py-1.5 rounded-full">
+      <span className="w-[7px] h-[7px] rounded-full bg-[#2F7D5B]" />
+      Synchronisé · à l'instant
+    </span>
   );
 }

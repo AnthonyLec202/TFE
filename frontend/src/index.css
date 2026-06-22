@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/* ── "Piste A — Clinique sereine" design tokens ──────────────────────────────
+   Warm sand surfaces with a pétrole (teal) primary and terracotta accent.
+   Exposed as Tailwind v4 theme variables so they generate utilities, e.g.
+   bg-petrol-600, text-ink, border-sand-200, font-serif. */
+@theme {
+  --font-sans: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+
+  /* Pétrole (primary) */
+  --color-petrol-50: #E4F0EE;
+  --color-petrol-100: #C7E2DE;
+  --color-petrol-600: #1F6F6B;
+  --color-petrol-700: #1A5C58;
+
+  /* Sand neutrals (surfaces, borders) */
+  --color-sand-50: #F7F5F1;
+  --color-sand-100: #F0EDE7;
+  --color-sand-200: #E9E4DC;
+  --color-sand-300: #E0DACF;
+  --color-sand-400: #DED9D0;
+
+  /* Ink / muted text */
+  --color-ink: #221F1B;
+  --color-ink-700: #3D382F;
+  --color-taupe-600: #4A453C;
+  --color-taupe-500: #7C746A;
+  --color-taupe-400: #A39C90;
+
+  /* Terracotta accent */
+  --color-terracotta: #BC6A4E;
+}
+
 @keyframes highlight-flash {
   0%   { box-shadow: 0 0 0 0   rgba(96, 165, 250, 0.0); }
   15%  { box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.7); }
@@ -19,7 +51,9 @@
 
   body {
     margin: 0;
-    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: 'Public Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    background: #F7F5F1;
+    color: #221F1B;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
