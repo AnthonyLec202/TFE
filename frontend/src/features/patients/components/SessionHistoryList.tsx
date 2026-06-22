@@ -43,7 +43,7 @@ function resolveAttendanceVisuals(status: SessionStatus | undefined): Attendance
     default:
       return {
         label: 'Indéfini',
-        chipClass: 'bg-slate-50 text-slate-500 border-slate-200',
+        chipClass: 'bg-sand-100 text-taupe-500 border-sand-200',
         borderClass: '',
       };
   }
@@ -53,7 +53,7 @@ export function SessionHistoryList({ sessions, patientId, backOrigin }: SessionH
   if (sessions === undefined) {
     return (
       <div className="flex items-center justify-center py-16">
-        <p className="text-sm text-slate-400">Loading session history…</p>
+        <p className="text-sm text-taupe-400">Chargement de l'historique des séances…</p>
       </div>
     );
   }
@@ -61,8 +61,8 @@ export function SessionHistoryList({ sessions, patientId, backOrigin }: SessionH
   if (sessions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16">
-        <FileText className="h-8 w-8 text-slate-300" />
-        <p className="text-sm text-slate-400">Aucune séance pour ce patient.</p>
+        <FileText className="h-8 w-8 text-taupe-400" />
+        <p className="text-sm text-taupe-400">Aucune séance pour ce patient.</p>
       </div>
     );
   }
@@ -79,16 +79,16 @@ export function SessionHistoryList({ sessions, patientId, backOrigin }: SessionH
             state={backOrigin}
             className="block group"
           >
-            <Card className={`p-4 flex flex-col gap-2 group-hover:border-blue-200 group-hover:shadow-sm transition-shadow ${visuals.borderClass}`}>
+            <Card className={`p-4 flex flex-col gap-2 group-hover:border-petrol-100 group-hover:shadow-sm transition-shadow ${visuals.borderClass}`}>
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-semibold text-slate-800 leading-snug group-hover:text-blue-700 transition-colors">
+                <h3 className="text-sm font-semibold text-ink leading-snug group-hover:text-petrol-600 transition-colors">
                   {session.title}
                 </h3>
                 <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full border ${visuals.chipClass}`}>
                   {visuals.label}
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-taupe-500">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   {session.date}

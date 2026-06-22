@@ -8,6 +8,15 @@ titres en serif. Sobre, clinique, lisible.
 
 ---
 
+## 0. Règle de langue
+
+- **Tout le texte présent sur l'application doit être en français.** Aucun libellé, message,
+  placeholder, bouton, info-bulle ou texte d'état visible par l'utilisateur ne doit rester en anglais.
+  (Les identifiants de code — variables, props, types — restent en anglais conformément à la section 1
+  de `CLAUDE.md`.)
+
+---
+
 ## 1. Fondations techniques
 
 - **Stack** : React + Tailwind CSS **v4** (configuration par `@theme` dans `src/index.css`, pas de

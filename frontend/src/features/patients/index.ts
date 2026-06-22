@@ -3,4 +3,3 @@ export { PatientsDashboardContainer } from './PatientsDashboardContainer';
 export { searchLocalPatients, syncPatientsFromServer } from './services/localPatientService';
 export type { PatientSearchResult } from './services/localPatientService';
 export { syncOfflinePatientQueue } from './services/offlinePatientQueueService';
-export { usePatientSync } from './hooks/usePatientSync';

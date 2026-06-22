@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { useApiReachability } from '../../core/offline/hooks/useApiReachability';
+import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 import { getToolById } from './services/localTherapeuticToolService';
 import { updateTool } from './services/therapeuticToolCommandService';
-import { syncTherapeuticToolsFromServer } from './services/therapeuticToolSyncService';
 import { ToolDetailEditor, type ToolSaveState } from './components/ToolDetailEditor';
 
 // Same debounce window as the session-note editor — when the clinician pauses typing, the edit is
@@ -28,17 +27,9 @@ export function ToolDetailContainer({ toolId, onBack }: ToolDetailContainerProps
   // The tool catalog has no offline-first edit queue, so an edit made offline could not be pushed and
   // would be lost on the next server hydration. We therefore put the editor in read-only fallback
   // mode whenever the backend is unreachable (inputs disabled below) and never attempt a doomed PUT.
-  // useApiReachability is stronger than navigator.onLine: it also reflects "LAN up but backend down".
-  const isOnline = useApiReachability();
-
-  // Best-effort hydration on mount. On a deep link straight to this page (no master-page visit), this
-  // is what proactively probes the backend so the read-only fallback engages before the first edit.
-  useEffect(() => {
-    if (!navigator.onLine) return;
-    syncTherapeuticToolsFromServer().catch(() => {
-      /* reachability state is updated inside the pull; nothing else to do here */
-    });
-  }, []);
+  // Read from the hoisted global state — persisted across navigation and kept fresh by the background
+  // poll, so this page neither re-seeds to "online" nor pings on its own (no flash on remount).
+  const isOnline = useGlobalNetworkState();
 
   const [description, setDescription] = useState('');
   const [downGradingStrategy, setDownGradingStrategy] = useState('');
@@ -106,8 +97,8 @@ export function ToolDetailContainer({ toolId, onBack }: ToolDetailContainerProps
   if (tool === null) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-        <p className="text-sm text-taupe-500">Cet outil est introuvable dans la matériauthèque.</p>
-        <Button variant="secondary" size="sm" onClick={onBack}>Retour à la matériauthèque</Button>
+        <p className="text-sm text-taupe-500">Cet outil est introuvable.</p>
+        <Button variant="secondary" size="sm" onClick={onBack}>Mes outils</Button>
       </div>
     );
   }

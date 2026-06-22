@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { useAuth, ConsentBumpModal } from '../../features/auth';
-import { usePatientSync } from '../../features/patients';
 import { useSyncEngine } from '../../core/offline/hooks/useSyncEngine';
 import { registerAuthFailureHandler } from '../../core/offline/syncEngine';
 
@@ -16,8 +15,10 @@ export function MainLayout() {
     registerAuthFailureHandler(logout);
   }, [logout]);
 
-  usePatientSync();
-  // Drives runSyncCycle, which now drains the offline patient queue before pushing sessions.
+  // Single hydration path: runSyncCycle drains the offline patient queue and pushes sessions, then
+  // its post-sync handler pulls the authoritative patient list into the cache. It runs on mount and
+  // on every reconnect (online event), so the cache is hydrated exactly once per init/reconnect — no
+  // separate usePatientSync pull racing alongside it.
   useSyncEngine();
 
   return (

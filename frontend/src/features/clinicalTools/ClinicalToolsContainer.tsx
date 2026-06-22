@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import type { CreateTherapeuticToolPayload } from '../../types/therapeuticTool';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { useApiReachability } from '../../core/offline/hooks/useApiReachability';
+import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 import { useAuth } from '../auth';
 import { useTherapeuticToolSearch } from './hooks/useTherapeuticToolSearch';
 import { syncTherapeuticToolsFromServer } from './services/therapeuticToolSyncService';
@@ -65,9 +65,9 @@ export function ClinicalToolsContainer({
   // Admin curation controls render only for an Admin AND when not explicitly suppressed by the host.
   const canManage = (user?.roles?.includes('Admin') ?? false) && !hideAdminControls;
 
-  // Robust backend reachability (not just navigator.onLine): creation requires a live server, so the
-  // submit button is disabled while it is unreachable to avoid a silent POST failure.
-  const isOnline = useApiReachability();
+  // Robust backend reachability (not just navigator.onLine), read from the hoisted global state:
+  // creation requires a live server, so the submit button is disabled while it is unreachable.
+  const isOnline = useGlobalNetworkState();
 
   const { state, setSearch, setType, setTheme, reset, results, isLoading } = useTherapeuticToolSearch();
 

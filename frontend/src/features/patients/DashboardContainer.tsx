@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { RotateCw, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { useAuth } from '../auth';
 import type { CreatePatientPayload } from '../../types/patient';
 import { db } from '../../core/offline/LocalDatabase';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { OfflinePill } from '../../components/ui/OfflinePill';
 import { CreatePatientForm } from './components/CreatePatientForm';
 import { PatientsList, type PatientListItem } from './components/PatientsList';
 import { PatientSearch } from './components/PatientSearch';
 import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
 import { upsertLocalPatient } from './services/localPatientService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
+import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 
 // The id is generated at submission, so the editable form state omits it.
 type PatientFormState = Omit<CreatePatientPayload, 'id'>;
@@ -25,6 +27,11 @@ interface Props {
 export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   const { user, isInitialized } = useAuth();
   const isAdmin = user?.roles.includes('Admin') ?? false;
+
+  // Single source of truth for connectivity: the hoisted global state, persisted across navigation.
+  // The header pill, the offline banner and the empty-cache message all derive from this — never from
+  // a transient per-mount sync result — so returning to this page shows the correct state with no flash.
+  const isOnline = useGlobalNetworkState();
 
   // Sourced directly from Dexie and updated reactively. The synced server cache is the primary
   // source; patients still pending in the offline creation queue are merged in below so they show
@@ -65,9 +72,9 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
     return patients.filter(patient => patient.searchableName.includes(query));
   }, [patients, searchTerm]);
 
-  const [syncing, setSyncing] = useState(true);
-  const [syncError, setSyncError] = useState('');
-  const [syncFailed, setSyncFailed] = useState(false);
+  // Transient spinner only — true while an online sync cycle is actually in flight. Offline status is
+  // NOT inferred here; it comes from the global state above.
+  const [syncing, setSyncing] = useState(false);
 
   const [form, setForm] = useState<PatientFormState>(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
@@ -79,31 +86,24 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   // authoritative patient list back into db.patients — one cycle, one GET. MainLayout stays mounted
   // across navigation, so this remount is the trigger that refreshes the cache on return.
   const reconnectAndLoad = useCallback(async () => {
+    // Read the global state first: if we already know the backend is unreachable, do NOT attempt the
+    // request. The offline UI is driven by isOnline, not by a doomed fetch's failure.
+    if (!isOnline) return;
     setSyncing(true);
-    setSyncError('');
     try {
-      // runSyncCycle never throws; it reports failure via its return value instead.
-      const succeeded = await runSyncCycle();
-      if (!succeeded) {
-        // Backend unreachable: the list keeps showing whatever is cached locally; we only surface
-        // the full-page error (and the Réessayer button) when there is nothing cached — see render
-        // below. When the cache is non-empty, syncFailed drives a non-blocking banner instead.
-        setSyncError('Impossible de charger la liste des patients.');
-        setSyncFailed(true);
-      } else {
-        setSyncFailed(false);
-      }
+      await runSyncCycle(); // never throws; offline status is owned by the global state, not its result
     } finally {
       setSyncing(false);
     }
-  }, []);
+  }, [isOnline]);
 
   // Wait for auth to be initialized (token restored AND applied to the API client) before syncing,
-  // otherwise the request races ahead of the token on a fresh page load and 401s.
+  // otherwise the request races ahead of the token on a fresh page load and 401s. Re-runs when
+  // connectivity returns (isOnline → true), so the cache refreshes automatically on reconnect.
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || !isOnline) return;
     reconnectAndLoad();
-  }, [isInitialized, reconnectAndLoad]);
+  }, [isInitialized, isOnline, reconnectAndLoad]);
 
   async function handleCreate() {
     setCreateError('');
@@ -145,7 +145,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
             {count} patient{count !== 1 ? 's' : ''} suivi{count !== 1 ? 's' : ''}
           </p>
         </div>
-        <SyncBadge syncing={syncing} failed={syncFailed} />
+        <SyncBadge syncing={syncing} offline={!isOnline} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
@@ -165,8 +165,8 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
             />
           ) : onJoinPatient ? (
             <Card className="p-5 flex flex-col gap-3">
-              <h2 className="text-sm font-semibold text-slate-700">Rejoindre un patient</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-[15px] font-semibold text-ink">Rejoindre un patient</h2>
+              <p className="text-xs text-taupe-500">
                 Utilisez un code d'invitation pour accéder au suivi d'un patient.
               </p>
               <Button variant="secondary" size="sm" onClick={onJoinPatient} className="w-full">
@@ -178,20 +178,16 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
         </div>
 
         <div className="flex flex-col gap-3">
-          {syncFailed && !isEmpty && (
-            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <p className="text-sm text-amber-700">Impossible de synchroniser avec le serveur.</p>
-              <Button variant="secondary" size="sm" onClick={reconnectAndLoad}>
-                <RotateCw className="h-3.5 w-3.5" />
-                Réessayer
-              </Button>
+          {!isOnline && !isEmpty && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <p className="text-sm text-amber-700">Hors ligne — affichage des données mises en cache.</p>
             </div>
           )}
           {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} />}
           <PatientsList
             patients={filteredPatients ?? []}
             isLoading={patients === undefined || (syncing && isEmpty)}
-            error={!syncing && isEmpty ? syncError : ''}
+            error={!isOnline && isEmpty ? 'Impossible de charger la liste des patients : vous êtes hors ligne.' : ''}
             emptyMessage={searchTerm.trim() ? 'Aucun patient ne correspond à votre recherche.' : undefined}
             onSelectPatient={onSelectPatient}
             onRetry={reconnectAndLoad}
@@ -202,9 +198,11 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
   );
 }
 
-// Header sync indicator mirroring the mockup's pill: green when synced, amber while syncing,
-// terracotta/red when the last cycle failed.
-function SyncBadge({ syncing, failed }: { syncing: boolean; failed: boolean }) {
+// Header status indicator. It only signals an active or problematic state — never a passive "all
+// good" success pill (that was visual noise). Offline (from the global network state) takes
+// precedence; otherwise the transient syncing spinner; otherwise nothing.
+function SyncBadge({ syncing, offline }: { syncing: boolean; offline: boolean }) {
+  if (offline) return <OfflinePill />;
   if (syncing) {
     return (
       <span className="flex items-center gap-1.5 text-[12.5px] text-taupe-500 bg-sand-100 border border-sand-200 px-3 py-1.5 rounded-full">
@@ -213,18 +211,5 @@ function SyncBadge({ syncing, failed }: { syncing: boolean; failed: boolean }) {
       </span>
     );
   }
-  if (failed) {
-    return (
-      <span className="flex items-center gap-1.5 text-[12.5px] text-[#B5453C] bg-[#F6E9E6] border border-[#E7CEC8] px-3 py-1.5 rounded-full">
-        <span className="w-[7px] h-[7px] rounded-full bg-[#B5453C]" />
-        Hors ligne
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-1.5 text-[12.5px] text-[#2F7D5B] bg-[#E6F0EA] border border-[#CADDD0] px-3 py-1.5 rounded-full">
-      <span className="w-[7px] h-[7px] rounded-full bg-[#2F7D5B]" />
-      Synchronisé · à l'instant
-    </span>
-  );
+  return null;
 }

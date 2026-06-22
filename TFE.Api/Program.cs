@@ -152,6 +152,11 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Anonymous liveness probe for the client's global network-reachability poll. Deliberately trivial
+// (no DB, no auth) so it answers fast and a failure means "backend unreachable", not "request denied".
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.MapHub<CollaborativeWallHub>("/hubs/collaborative-wall");
 
 app.Run();

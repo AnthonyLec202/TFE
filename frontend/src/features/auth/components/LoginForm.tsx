@@ -19,7 +19,7 @@ export function LoginForm({ onSubmit, loading, error }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 flex-1">
       <Input
         label="Adresse e-mail"
         type="email"
@@ -40,7 +40,7 @@ export function LoginForm({ onSubmit, loading, error }: Props) {
           autoComplete="current-password"
         />
         <div className="flex justify-end">
-          <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+          <Link to="/forgot-password" className="text-sm text-petrol-600 hover:underline">
             Mot de passe oublié ?
           </Link>
         </div>
@@ -50,7 +50,7 @@ export function LoginForm({ onSubmit, loading, error }: Props) {
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
       )}
 
-      <Button type="submit" variant="secondary" loading={loading} className="w-full">
+      <Button type="submit" variant="secondary" loading={loading} className="w-full mt-auto">
         Se connecter
       </Button>
     </form>

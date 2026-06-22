@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { getAllSessions, getAllLocalPatients, closeSessionLocally } from './services/localSessionService';
 import type { LocalPatientSync, LocalSessionAttendance } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
+import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { OfflinePill } from '../../components/ui/OfflinePill';
 import {
   groupSessionsByWeek, groupSessionsByMonth,
   formatWeekRangeLabel, formatMonthLabel,
@@ -23,6 +25,10 @@ function loadStoredTimeframe(): SessionTimeframe {
 export function SessionsDashboardContainer() {
   const sessions = useLiveQuery(() => getAllSessions());
   const patients = useLiveQuery(() => getAllLocalPatients());
+
+  // Consume the hoisted global reachability state for the header pill — consistent with the Patients
+  // and Clinical Tools pages.
+  const isOnline = useGlobalNetworkState();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [timeframe, setTimeframe] = useState<SessionTimeframe>(loadStoredTimeframe);
@@ -91,7 +97,10 @@ export function SessionsDashboardContainer() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-slate-900">My Sessions</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">Mes séances</h1>
+        {!isOnline && <OfflinePill />}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">

@@ -37,7 +37,7 @@ function chipClasses(status: SessionStatus | undefined): string {
     case SessionStatus.PatientCancelled:
       return 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100';
     default:
-      return 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100';
+      return 'bg-sand-100 text-taupe-500 border-sand-200 hover:bg-sand-200';
   }
 }
 
@@ -89,22 +89,22 @@ export function SessionCard({ session, patientsById, onCompleteSession }: Sessio
   return (
     <Link
       to={`/sessions/${session.id}`}
-      state={{ from: '/sessions', label: 'My Sessions' } satisfies SessionDetailOrigin}
+      state={{ from: '/sessions', label: 'Mes séances' } satisfies SessionDetailOrigin}
       className="block group"
     >
-      <Card className="p-4 flex flex-col gap-3 group-hover:border-blue-200 group-hover:shadow-sm transition-shadow">
+      <Card className="p-4 flex flex-col gap-3 group-hover:border-petrol-100 group-hover:shadow-sm transition-shadow">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-800 leading-snug group-hover:text-blue-700 transition-colors">
+          <h3 className="text-sm font-semibold text-ink leading-snug group-hover:text-petrol-600 transition-colors">
             {session.title}
           </h3>
           {session.syncStatus !== 'synced' && (
             <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-              pending
+              En attente
             </span>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-taupe-500">
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
             {formatSessionDate(session.date)}
@@ -120,7 +120,7 @@ export function SessionCard({ session, patientsById, onCompleteSession }: Sessio
           {participantIds.map(patientId => {
             const status = attendanceByPatient[patientId];
             const patient = patientsById.get(patientId);
-            const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown';
+            const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Inconnu';
             return (
               <button
                 key={patientId}

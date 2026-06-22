@@ -143,11 +143,11 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
 
   return (
     <div className="mx-8 my-6 flex flex-col gap-2">
-      <p className="text-xs text-slate-400">
-        Write with your stylus — scroll with your finger or the mouse wheel. Click{' '}
-        <strong>Convert to Text</strong> to send strokes for recognition.
+      <p className="text-xs text-taupe-400">
+        Écrivez avec votre stylet — faites défiler avec le doigt ou la molette. Cliquez sur{' '}
+        <strong>Convertir en texte</strong> pour envoyer les tracés à la reconnaissance.
         {strokes.length > 0 && (
-          <> {' · '}{strokes.length} stroke{strokes.length !== 1 ? 's' : ''} captured.</>
+          <> {' · '}{strokes.length} tracé{strokes.length !== 1 ? 's' : ''} capturé{strokes.length !== 1 ? 's' : ''}.</>
         )}
       </p>
       <canvas
@@ -156,7 +156,7 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         style={{ touchAction: 'pan-y', height: canvasHeight }}
-        className="w-full rounded-lg border border-slate-200 bg-white cursor-crosshair"
+        className="w-full rounded-lg border border-sand-200 bg-white cursor-crosshair"
       />
     </div>
   );

@@ -18,13 +18,13 @@ export interface SessionsDashboardProps {
 
 export function SessionsDashboard({ groups, patientsById, isLoading, onCompleteSession }: SessionsDashboardProps) {
   if (isLoading) {
-    return <p className="text-sm text-slate-400">Loading sessions…</p>;
+    return <p className="text-sm text-taupe-400">Chargement des séances…</p>;
   }
 
   if (groups.length === 0) {
     return (
       <Card className="p-8 flex items-center justify-center">
-        <p className="text-sm text-slate-400">No sessions match the current filters.</p>
+        <p className="text-sm text-taupe-400">Aucune séance ne correspond aux filtres.</p>
       </Card>
     );
   }
@@ -33,7 +33,7 @@ export function SessionsDashboard({ groups, patientsById, isLoading, onCompleteS
     <div className="flex flex-col gap-6">
       {groups.map(group => (
         <section key={group.key} className="flex flex-col gap-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-taupe-400">
             {group.label}
           </h2>
 

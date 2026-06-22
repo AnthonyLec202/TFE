@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { ClinicalToolsContainer } from '../../features/clinicalTools';
-import { useApiReachability } from '../../core/offline/hooks/useApiReachability';
+import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 import { OfflinePill } from '../../components/ui/OfflinePill';
 
 export function ClinicalToolsPage() {
   const navigate = useNavigate();
-  const isOnline = useApiReachability();
+  // Read the persisted global state synchronously — no per-page ping, so no flash on remount.
+  const isOnline = useGlobalNetworkState();
 
   return (
     <div className="flex flex-col gap-7">

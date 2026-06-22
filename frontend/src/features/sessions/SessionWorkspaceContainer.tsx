@@ -249,7 +249,7 @@ export function SessionWorkspaceContainer() {
   if (session === undefined) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-slate-400">Loading session…</p>
+        <p className="text-sm text-taupe-400">Chargement de la séance…</p>
       </div>
     );
   }

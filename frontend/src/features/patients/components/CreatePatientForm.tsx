@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
+import { DatePicker } from '../../../components/ui/DatePicker';
 
 export interface CreatePatientFormProps {
   firstName: string;
@@ -54,11 +55,14 @@ export function CreatePatientForm({
           />
         </div>
 
-        <Input
+        <DatePicker
           label="Date de naissance"
-          type="date"
           value={birthDate}
-          onChange={e => onBirthDateChange(e.target.value)}
+          onChange={onBirthDateChange}
+          placeholder="Sélectionner une date"
+          captionLayout="dropdown"
+          fromYear={1920}
+          toYear={new Date().getFullYear()}
           required
         />
 

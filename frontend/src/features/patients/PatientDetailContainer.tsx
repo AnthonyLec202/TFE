@@ -7,6 +7,7 @@ import type { PatientResponse, UpdatePatientPayload } from '../../types/patient'
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { DatePicker } from '../../components/ui/DatePicker';
 import { SessionHistoryContainer } from './SessionHistoryContainer';
 import { CareTeamContainer } from './CareTeamContainer';
 import { CollaborativeWallContainer } from '../collaborativeWall';
@@ -124,7 +125,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-taupe-400" />
       </div>
     );
   }
@@ -134,7 +135,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
       <div className="flex flex-col gap-4">
         <button
           onClick={onNavigateBack}
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 w-fit"
+          className="inline-flex items-center gap-1.5 text-sm text-taupe-500 hover:text-ink w-fit"
         >
           <ArrowLeft className="h-4 w-4" /> Retour
         </button>
@@ -150,12 +151,12 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   const canInvite = isAdmin || isParent;
 
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
+    <div className="flex flex-col gap-6 max-w-3xl">
 
       {/* Back */}
       <button
         onClick={onNavigateBack}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 w-fit"
+        className="inline-flex items-center gap-1.5 text-sm text-taupe-500 hover:text-ink w-fit"
       >
         <ArrowLeft className="h-4 w-4" />
         {isAdmin ? 'Mes patients' : 'Patients suivis'}
@@ -164,14 +165,14 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
       {/* Identity card */}
       <Card className="p-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-            <UserRound className="h-6 w-6 text-blue-600" />
+          <div className="w-12 h-12 rounded-full bg-petrol-50 flex items-center justify-center shrink-0">
+            <UserRound className="h-6 w-6 text-petrol-600" />
           </div>
           <div className="flex flex-col gap-1 min-w-0">
-            <h2 className="text-xl font-semibold text-slate-900 truncate">
+            <h2 className="text-xl font-semibold text-ink break-words">
               {patient.lastName.toUpperCase()}, {patient.firstName}
             </h2>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-taupe-500">
               Né(e) le {formatDate(patient.birthDate)} · {calculateAge(patient.birthDate)} ans
             </p>
           </div>
@@ -219,7 +220,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
       {/* Content — tabbed for Admin, direct for others */}
       {isAdmin ? (
         <div className="flex flex-col">
-          <div className="flex border-b border-slate-200">
+          <div className="flex border-b border-sand-200">
             {TABS.map(tab => (
               <button
                 key={tab}
@@ -227,8 +228,8 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                 className={[
                   'px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
                   activeTab === tab
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300',
+                    ? 'border-petrol-600 text-petrol-600'
+                    : 'border-transparent text-taupe-500 hover:text-ink hover:border-sand-300',
                 ].join(' ')}
               >
                 {tab}
@@ -255,10 +256,10 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget) setShowEdit(false); }}
         >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">Modifier le dossier</h3>
-              <button onClick={() => setShowEdit(false)} className="text-slate-400 hover:text-slate-600" aria-label="Fermer">
+              <h3 className="text-base font-semibold text-ink">Modifier le dossier</h3>
+              <button onClick={() => setShowEdit(false)} className="text-taupe-400 hover:text-ink" aria-label="Fermer">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -281,11 +282,14 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                   required
                 />
               </div>
-              <Input
+              <DatePicker
                 label="Date de naissance"
-                type="date"
                 value={editForm.birthDate}
-                onChange={e => setEditForm(p => ({ ...p, birthDate: e.target.value }))}
+                onChange={value => setEditForm(p => ({ ...p, birthDate: value }))}
+                placeholder="Sélectionner une date"
+                captionLayout="dropdown"
+                fromYear={1920}
+                toYear={new Date().getFullYear()}
                 required
               />
               {updateError && (
@@ -312,16 +316,16 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget && !deleting) setShowDeleteConfirm(false); }}
         >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
                 <TriangleAlert className="h-6 w-6 text-red-500" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Supprimer le dossier ?</h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <h3 className="text-base font-semibold text-ink">Supprimer le dossier ?</h3>
+                <p className="mt-1 text-sm text-taupe-500">
                   Cette action est irréversible. Le dossier de{' '}
-                  <span className="font-medium text-slate-700">
+                  <span className="font-medium text-ink">
                     {patient.firstName} {patient.lastName}
                   </span>{' '}
                   et toutes ses données associées seront définitivement supprimés.
@@ -363,16 +367,16 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget && !leaving) setShowLeaveConfirm(false); }}
         >
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
                 <LogOut className="h-6 w-6 text-amber-500" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Quitter l'équipe ?</h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <h3 className="text-base font-semibold text-ink">Quitter l'équipe ?</h3>
+                <p className="mt-1 text-sm text-taupe-500">
                   Vous n'aurez plus accès au dossier de{' '}
-                  <span className="font-medium text-slate-700">
+                  <span className="font-medium text-ink">
                     {patient.firstName} {patient.lastName}
                   </span>
                   .
