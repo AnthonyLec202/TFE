@@ -11,8 +11,8 @@ public interface ITherapeuticToolRepository
     /// </summary>
     Task<List<TherapeuticTool>> GetAllAsync(
         string? query = null,
-        ToolType? type = null,
-        CbtTheme? theme = null,
+        string? type = null,
+        string? theme = null,
         CancellationToken cancellationToken = default);
 
     Task<TherapeuticTool?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);

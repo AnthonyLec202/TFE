@@ -16,17 +16,17 @@ public class TherapeuticToolRepository : ITherapeuticToolRepository
 
     public Task<List<TherapeuticTool>> GetAllAsync(
         string? query = null,
-        ToolType? type = null,
-        CbtTheme? theme = null,
+        string? type = null,
+        string? theme = null,
         CancellationToken cancellationToken = default)
     {
         IQueryable<TherapeuticTool> tools = _context.TherapeuticTools.AsNoTracking();
 
-        if (type.HasValue)
-            tools = tools.Where(t => t.Type == type.Value);
+        if (!string.IsNullOrWhiteSpace(type))
+            tools = tools.Where(t => t.Type == type);
 
-        if (theme.HasValue)
-            tools = tools.Where(t => t.Theme == theme.Value);
+        if (!string.IsNullOrWhiteSpace(theme))
+            tools = tools.Where(t => t.Theme == theme);
 
         if (!string.IsNullOrWhiteSpace(query))
         {

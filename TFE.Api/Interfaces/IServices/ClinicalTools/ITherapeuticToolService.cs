@@ -1,5 +1,4 @@
 using TFE.Api.DTOs.ClinicalTools;
-using TFE.Api.Models;
 
 namespace TFE.Api.Interfaces.IServices.ClinicalTools;
 
@@ -7,8 +6,8 @@ public interface ITherapeuticToolService
 {
     Task<List<TherapeuticToolResponse>> GetAllAsync(
         string? query,
-        ToolType? type,
-        CbtTheme? theme,
+        string? type,
+        string? theme,
         CancellationToken cancellationToken);
 
     Task<TherapeuticToolResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken);

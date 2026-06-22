@@ -11,8 +11,12 @@ public class TherapeuticTool
     public Guid Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public ToolType Type { get; set; }
-    public CbtTheme Theme { get; set; }
+
+    // Type and Theme are free-form categories rather than fixed enums: the clinician curates the
+    // taxonomy on the fly. They stay indexed (see ApplicationDbContext) so the catalog still filters
+    // on them efficiently, and the client suggests existing values via a creatable combobox.
+    public string Type { get; set; } = string.Empty;
+    public string Theme { get; set; } = string.Empty;
 
     // Clinical scaffolding / adaptive properties.
     // DownGradingStrategy: how to lower the exposure/cognitive load when the patient is overwhelmed.

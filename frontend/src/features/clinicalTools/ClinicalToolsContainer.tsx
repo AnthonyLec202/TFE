@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ToolType, CbtTheme } from '../../core/offline/LocalDatabase';
+import { useLiveQuery } from 'dexie-react-hooks';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import type { CreateTherapeuticToolPayload } from '../../types/therapeuticTool';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useApiReachability } from '../../core/offline/hooks/useApiReachability';
 import { useAuth } from '../auth';
 import { useTherapeuticToolSearch } from './hooks/useTherapeuticToolSearch';
 import { syncTherapeuticToolsFromServer } from './services/therapeuticToolSyncService';
 import { createTool, deleteTool } from './services/therapeuticToolCommandService';
+import { getUniqueToolTypes, getUniqueToolThemes } from './services/localTherapeuticToolService';
 import { ToolFilters } from './components/ToolFilters';
 import { ToolLibrary } from './components/ToolLibrary';
 import { ToolCreationForm } from './components/ToolCreationForm';
@@ -32,43 +34,47 @@ export interface ClinicalToolsContainerProps {
    */
   hideAdminControls?: boolean;
   /**
-   * Compact rendering for constrained contexts (e.g. the in-session drawer): a single stacked column,
-   * cards collapsed to title + association toggle only. The filter panel stays fully functional. The
-   * main "Mes Outils" page uses the default (false) split-screen master/detail layout instead.
+   * Compact rendering for constrained contexts (e.g. the in-session drawer): a single stacked column
+   * with cards collapsed to title + association toggle. The main "Mes Outils" page uses the default
+   * (false) split-screen master/detail layout instead.
    */
   isCompactView?: boolean;
+  /**
+   * Navigation callback for the master list (main page only): invoked with a tool id when an item is
+   * clicked, so the host page can route to the tool's detail page. Omitted in the compact drawer.
+   */
+  onSelectTool?: (toolId: string) => void;
 }
 
 interface ToolFormState {
   title: string;
-  description: string;
-  type: ToolType;
-  theme: CbtTheme;
-  downGradingStrategy: string;
-  upGradingStrategy: string;
+  type: string;
+  theme: string;
 }
 
-const EMPTY_TOOL_FORM: ToolFormState = {
-  title: '',
-  description: '',
-  type: ToolType.CognitiveRestructuringSheet,
-  theme: CbtTheme.CognitiveDistortions,
-  downGradingStrategy: '',
-  upGradingStrategy: '',
-};
+const EMPTY_TOOL_FORM: ToolFormState = { title: '', type: '', theme: '' };
 
 // Top-level container: owns the local search state (via the hook), the best-effort catalog pull on
 // mount, and the admin-only create/delete commands. Association behaviour, when present, is supplied
-// by the parent. Renders a split-screen master/detail layout on the main page, or a single compact
-// column when embedded in the in-session drawer.
+// by the parent. Renders a split-screen master/detail layout on the main page (the list navigates to
+// per-tool detail pages), or a single compact column when embedded in the in-session drawer.
 export function ClinicalToolsContainer({
-  association, hideAdminControls = false, isCompactView = false,
+  association, hideAdminControls = false, isCompactView = false, onSelectTool,
 }: ClinicalToolsContainerProps) {
   const { user } = useAuth();
   // Admin curation controls render only for an Admin AND when not explicitly suppressed by the host.
   const canManage = (user?.roles?.includes('Admin') ?? false) && !hideAdminControls;
 
+  // Robust backend reachability (not just navigator.onLine): creation requires a live server, so the
+  // submit button is disabled while it is unreachable to avoid a silent POST failure.
+  const isOnline = useApiReachability();
+
   const { state, setSearch, setType, setTheme, reset, results, isLoading } = useTherapeuticToolSearch();
+
+  // Distinct Type/Theme values present in the local mirror, fed to the creatable comboboxes and the
+  // filter dropdowns. Reactive: a newly created category appears in the suggestions immediately.
+  const typeOptions = useLiveQuery(() => getUniqueToolTypes(), []) ?? [];
+  const themeOptions = useLiveQuery(() => getUniqueToolThemes(), []) ?? [];
 
   // Hydrate the local mirror from the server once on mount (best-effort: offline falls back to cache).
   useEffect(() => {
@@ -77,11 +83,6 @@ export function ClinicalToolsContainer({
       console.warn('[ClinicalTools] Catalog hydration failed — using cached data.', err);
     });
   }, []);
-
-  // ── Master/detail expansion (main page only) ───────────────────────────────
-  const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
-  const toggleExpand = (tool: LocalTherapeuticTool) =>
-    setExpandedToolId(prev => (prev === tool.id ? null : tool.id));
 
   // ── Create (admin, embedded form) ──────────────────────────────────────────
   const [form, setForm] = useState<ToolFormState>(EMPTY_TOOL_FORM);
@@ -92,17 +93,20 @@ export function ClinicalToolsContainer({
     setIsCreating(true);
     setCreateError(undefined);
     try {
+      // Only identity + categories are captured here; the rich clinical content is authored on the
+      // detail page, so it starts empty.
       const payload: CreateTherapeuticToolPayload = {
         title: form.title.trim(),
-        description: form.description.trim(),
-        type: form.type,
-        theme: form.theme,
-        downGradingStrategy: form.downGradingStrategy.trim(),
-        upGradingStrategy: form.upGradingStrategy.trim(),
+        type: form.type.trim(),
+        theme: form.theme.trim(),
+        description: '',
+        downGradingStrategy: '',
+        upGradingStrategy: '',
       };
-      // Server-authoritative write, then synchronous local cache update (inside createTool).
-      await createTool(payload);
-      setForm(EMPTY_TOOL_FORM); // reset the persistent form on success
+      const created = await createTool(payload);
+      setForm(EMPTY_TOOL_FORM);
+      // Jump straight into the new tool's detail page to author its content.
+      onSelectTool?.(created.id);
     } catch (err) {
       setCreateError("La création a échoué. Vérifiez la connexion et réessayez.");
       console.error('[ClinicalTools] Tool creation failed.', err);
@@ -133,6 +137,8 @@ export function ClinicalToolsContainer({
       search={state.search}
       type={state.type}
       theme={state.theme}
+      typeOptions={typeOptions}
+      themeOptions={themeOptions}
       onSearchChange={setSearch}
       onTypeChange={setType}
       onThemeChange={setTheme}
@@ -160,40 +166,33 @@ export function ClinicalToolsContainer({
   // ── Main page: split-screen master/detail (left creation sidebar, right list) ──
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr] items-start">
         {canManage && (
-          <div className="lg:col-span-1">
-            <ToolCreationForm
-              title={form.title}
-              description={form.description}
-              type={form.type}
-              theme={form.theme}
-              downGradingStrategy={form.downGradingStrategy}
-              upGradingStrategy={form.upGradingStrategy}
-              submitting={isCreating}
-              error={createError}
-              onTitleChange={value => setForm(prev => ({ ...prev, title: value }))}
-              onDescriptionChange={value => setForm(prev => ({ ...prev, description: value }))}
-              onTypeChange={value => setForm(prev => ({ ...prev, type: value }))}
-              onThemeChange={value => setForm(prev => ({ ...prev, theme: value }))}
-              onDownGradingStrategyChange={value => setForm(prev => ({ ...prev, downGradingStrategy: value }))}
-              onUpGradingStrategyChange={value => setForm(prev => ({ ...prev, upGradingStrategy: value }))}
-              onSubmit={handleCreate}
-            />
-          </div>
+          <ToolCreationForm
+            title={form.title}
+            type={form.type}
+            theme={form.theme}
+            typeOptions={typeOptions}
+            themeOptions={themeOptions}
+            submitting={isCreating}
+            isOnline={isOnline}
+            error={createError}
+            onTitleChange={value => setForm(prev => ({ ...prev, title: value }))}
+            onTypeChange={value => setForm(prev => ({ ...prev, type: value }))}
+            onThemeChange={value => setForm(prev => ({ ...prev, theme: value }))}
+            onSubmit={handleCreate}
+          />
         )}
 
         {/* The list takes the full width when there is no creation sidebar (non-admin). */}
-        <div className={`${canManage ? 'lg:col-span-2' : 'lg:col-span-3'} flex flex-col gap-4`}>
+        <div className={`${canManage ? '' : 'lg:col-span-2'} flex flex-col gap-4`}>
           {filters}
           <ToolLibrary
             tools={results ?? []}
             isLoading={isLoading}
             canManage={canManage}
             onDeleteTool={setToolPendingDelete}
-            isExpandable
-            expandedToolId={expandedToolId}
-            onToggleExpand={toggleExpand}
+            onSelectTool={onSelectTool ? tool => onSelectTool(tool.id) : undefined}
           />
         </div>
       </div>

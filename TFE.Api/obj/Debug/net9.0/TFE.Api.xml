@@ -72,13 +72,14 @@
         </member>
         <member name="T:TFE.Api.DTOs.ClinicalTools.TherapeuticToolResponse">
             <summary>
-            Outbound projection of a <see cref="T:TFE.Api.Models.TherapeuticTool"/>. The enums are serialized as their integer
-            values so the local-first client can store and index them directly in IndexedDB.
+            Outbound projection of a <see cref="T:TFE.Api.Models.TherapeuticTool"/>. Type and Theme are free-form
+            category strings the local-first client stores and indexes directly in IndexedDB.
             </summary>
         </member>
         <member name="T:TFE.Api.DTOs.ClinicalTools.UpdateTherapeuticToolRequest">
             <summary>
-            Inbound payload to edit an existing tool. The id is carried in the route, not the body.
+            Inbound payload to edit an existing tool. The id is carried in the route, not the body. Sent by
+            the detail page's debounced auto-save with the full current field set.
             </summary>
         </member>
         <member name="T:TFE.Api.DTOs.CollaborativeWall.CreateCommentFormRequest">
@@ -233,7 +234,7 @@
             ON DELETE CASCADE foreign keys. Persistence is committed by the caller via IUnitOfWork.
             </summary>
         </member>
-        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.GetAllAsync(System.String,System.Nullable{TFE.Api.Models.ToolType},System.Nullable{TFE.Api.Models.CbtTheme},System.Threading.CancellationToken)">
+        <member name="M:TFE.Api.Interfaces.IRepositories.ITherapeuticToolRepository.GetAllAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Returns the whole tool library, optionally narrowed by a free-text query (matched against
             Title or Description) and/or by Type and Theme. Filtering is pushed to the database; the
@@ -555,11 +556,17 @@
         <member name="M:TFE.Api.Migrations.AddTherapeuticTools.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
-        <member name="T:TFE.Api.Models.CbtTheme">
-            <summary>
-            Identifies the clinical theme a therapeutic tool targets. Persisted as an integer; the client
-            mirrors the numeric values.
-            </summary>
+        <member name="T:TFE.Api.Migrations.ConvertToolTypeAndThemeToStrings">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.ConvertToolTypeAndThemeToStrings.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.ConvertToolTypeAndThemeToStrings.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.ConvertToolTypeAndThemeToStrings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
         </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">
             <summary>
@@ -572,12 +579,6 @@
             descriptive metadata it carries the adaptive scaffolding (down/up-grading strategies) that lets
             the clinician titrate the intervention to the patient's tolerance during an active session, and
             links to the therapy sessions in which it was deployed (many-to-many).
-            </summary>
-        </member>
-        <member name="T:TFE.Api.Models.ToolType">
-            <summary>
-            Classifies a therapeutic tool by its clinical modality within a CBT (TCC) practice.
-            Persisted as an integer; the client mirrors the numeric values.
             </summary>
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

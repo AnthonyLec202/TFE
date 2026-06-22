@@ -13,23 +13,22 @@ export interface ToolLibraryProps {
   /** When true (admin), each card exposes a Delete action wired to onDeleteTool. */
   canManage?: boolean;
   onDeleteTool?: (tool: LocalTherapeuticTool) => void;
-  /** Compact cards (title + association toggle only) and a single-column layout. */
+  /** Compact cards (title + association toggle only) and a single-column layout for the drawer. */
   isCompactView?: boolean;
-  /** Master/detail mode: cards collapse to a clickable header and expand the active one on click. */
-  isExpandable?: boolean;
-  expandedToolId?: string | null;
-  onToggleExpand?: (tool: LocalTherapeuticTool) => void;
+  /** Master-list mode: each item is clickable and navigates to the tool's detail page. */
+  onSelectTool?: (tool: LocalTherapeuticTool) => void;
 }
 
-// Pure presentational grid. Renders loading / empty / populated states and delegates each item to
-// ToolCard, threading the optional per-session association context through.
+// Pure presentational list. Renders loading / empty / populated states and delegates each item to
+// ToolCard, threading either the per-session association context (drawer) or the navigation callback
+// (master page).
 export function ToolLibrary({
   tools, isLoading, associatedToolIds, pendingToolIds, onToggleAssociation, canManage, onDeleteTool,
-  isCompactView = false, isExpandable = false, expandedToolId = null, onToggleExpand,
+  isCompactView = false, onSelectTool,
 }: ToolLibraryProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+      <div className="flex items-center justify-center gap-2 py-16 text-taupe-400">
         <Loader2 className="h-5 w-5 animate-spin" />
         <span className="text-sm">Chargement de la matériauthèque ...</span>
       </div>
@@ -38,7 +37,7 @@ export function ToolLibrary({
 
   if (tools.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400">
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-taupe-400">
         <SearchX className="h-8 w-8" />
         <p className="text-sm">Aucun outil ne correspond aux critères.</p>
       </div>
@@ -53,13 +52,8 @@ export function ToolLibrary({
       })
     : undefined;
 
-  // Single column when compact (drawer) or expandable (master list); two-up otherwise.
-  const gridClass = isCompactView || isExpandable
-    ? 'grid grid-cols-1 gap-3'
-    : 'grid grid-cols-1 gap-4 xl:grid-cols-2';
-
   return (
-    <div className={gridClass}>
+    <div className="grid grid-cols-1 gap-3">
       {tools.map(tool => (
         <ToolCard
           key={tool.id}
@@ -68,9 +62,7 @@ export function ToolLibrary({
           canManage={canManage}
           onDelete={onDeleteTool}
           isCompactView={isCompactView}
-          isExpandable={isExpandable}
-          isExpanded={expandedToolId === tool.id}
-          onToggleExpand={onToggleExpand}
+          onSelect={onSelectTool}
         />
       ))}
     </div>

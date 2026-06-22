@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TFE.Api.DTOs.ClinicalTools;
 using TFE.Api.Interfaces.IServices.ClinicalTools;
-using TFE.Api.Models;
 
 namespace TFE.Api.Controllers.ClinicalTools;
 
@@ -21,8 +20,8 @@ public class TherapeuticToolsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<TherapeuticToolResponse>>> GetAll(
         [FromQuery] string? query,
-        [FromQuery] ToolType? type,
-        [FromQuery] CbtTheme? theme,
+        [FromQuery] string? type,
+        [FromQuery] string? theme,
         CancellationToken cancellationToken)
         => Ok(await _toolService.GetAllAsync(query, type, theme, cancellationToken));
 

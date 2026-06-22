@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using TFE.Api.Models;
 
 namespace TFE.Api.DTOs.ClinicalTools;
 
@@ -14,18 +13,17 @@ public class CreateTherapeuticToolRequest
     [Required, MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 
-    [Required]
+    // Description and the grading strategies are authored on the detail page (auto-saved), so they
+    // are optional at creation time — the inline form only captures Title, Type and Theme.
     public string Description { get; set; } = string.Empty;
 
-    [Required, EnumDataType(typeof(ToolType))]
-    public ToolType Type { get; set; }
+    [Required, MaxLength(100)]
+    public string Type { get; set; } = string.Empty;
 
-    [Required, EnumDataType(typeof(CbtTheme))]
-    public CbtTheme Theme { get; set; }
+    [Required, MaxLength(100)]
+    public string Theme { get; set; } = string.Empty;
 
-    [Required]
     public string DownGradingStrategy { get; set; } = string.Empty;
 
-    [Required]
     public string UpGradingStrategy { get; set; } = string.Empty;
 }

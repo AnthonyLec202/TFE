@@ -169,9 +169,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 j => j.HasKey("TherapeuticToolsId", "SessionsId")
             );
 
-        // TherapeuticTool: persist the enums as integers (default) and index the discriminating
-        // columns the catalog filters on. Title/Description/strategies are practitioner-authored
-        // reference material (not patient PII), so they stay cleartext for indexing and search.
+        // TherapeuticTool: Type and Theme are free-form category strings (the clinician curates the
+        // taxonomy on the fly); they stay indexed so the catalog filters on them efficiently.
+        // Title/Description/strategies are practitioner-authored reference material (not patient PII),
+        // so they stay cleartext for indexing and search.
         builder.Entity<TherapeuticTool>()
             .HasIndex(t => t.Type);
         builder.Entity<TherapeuticTool>()

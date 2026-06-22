@@ -142,8 +142,8 @@ public static class DbInitializer
                 "Situation → Émotion (intensité 0–100) → Pensées automatiques → Distorsions cognitives " +
                 "identifiées → Pensée alternative. Sert à mettre en évidence et à restructurer les " +
                 "interprétations dysfonctionnelles.",
-            Type = ToolType.CognitiveRestructuringSheet,
-            Theme = CbtTheme.CognitiveDistortions,
+            Type = "Fiche de restructuration cognitive",
+            Theme = "Distorsions cognitives",
             DownGradingStrategy =
                 "Réduire à 3 colonnes (Situation → Émotion → Pensée automatique) et travailler une " +
                 "seule situation déjà passée, à faible charge émotionnelle. Le thérapeute remplit la " +
@@ -161,8 +161,8 @@ public static class DbInitializer
                 "Construction d'une hiérarchie d'exposition (échelle SUD 0–100) pour un objet ou une " +
                 "situation anxiogène, puis exposition répétée et prolongée à chaque palier jusqu'à " +
                 "habituation, sans évitement ni comportement de réassurance.",
-            Type = ToolType.ExposureProtocol,
-            Theme = CbtTheme.AnxietyManagement,
+            Type = "Protocole d'exposition",
+            Theme = "Gestion de l'anxiété",
             DownGradingStrategy =
                 "Commencer par de l'exposition en imagination ou par photo/vidéo, sur le palier le plus " +
                 "bas (SUD ≤ 30), sessions courtes accompagnées par le thérapeute, avec autorisation " +
@@ -180,8 +180,8 @@ public static class DbInitializer
                 "Exercice de contraction/relâchement séquentiel des grands groupes musculaires pour " +
                 "apprendre à discriminer tension et détente, et abaisser le niveau d'activation " +
                 "physiologique de base.",
-            Type = ToolType.RelaxationExercise,
-            Theme = CbtTheme.EmotionalRegulation,
+            Type = "Exercice de relaxation",
+            Theme = "Régulation émotionnelle",
             DownGradingStrategy =
                 "Séance guidée audio de 5 minutes ciblant 4 groupes musculaires seulement, en position " +
                 "allongée dans un environnement calme, yeux fermés.",
@@ -198,8 +198,8 @@ public static class DbInitializer
                 "Accord écrit et signé fixant des objectifs comportementaux concrets, mesurables et " +
                 "datés, assortis de renforçateurs définis avec le patient. Soutient l'activation " +
                 "comportementale et l'engagement entre les séances.",
-            Type = ToolType.BehavioralContract,
-            Theme = CbtTheme.Assertiveness,
+            Type = "Contrat comportemental",
+            Theme = "Affirmation de soi",
             DownGradingStrategy =
                 "Limiter à un seul objectif minimal très atteignable par semaine (ex. 10 min de marche), " +
                 "avec renforçateur immédiat et suivi quotidien coché.",
@@ -215,8 +215,8 @@ public static class DbInitializer
                 "Support explicatif du modèle cognitif de Clark : sensation corporelle → interprétation " +
                 "catastrophique → montée de l'anxiété → amplification des sensations. Vise à normaliser " +
                 "les symptômes et à fournir un cadre de compréhension partagé.",
-            Type = ToolType.PsychoeducationMaterial,
-            Theme = CbtTheme.AnxietyManagement,
+            Type = "Matériel de psychoéducation",
+            Theme = "Gestion de l'anxiété",
             DownGradingStrategy =
                 "Présenter un schéma simplifié à 3 cases avec un exemple unique vécu par le patient, en " +
                 "expliquant verbalement chaque étape sans jargon.",
@@ -232,8 +232,8 @@ public static class DbInitializer
                 "Entraînement aux habiletés sociales par jeu de rôle : formuler une demande ou un refus " +
                 "de manière assertive, répéter calmement son message face à l'insistance (disque rayé), " +
                 "sans agressivité ni soumission.",
-            Type = ToolType.ExposureProtocol,
-            Theme = CbtTheme.SocialSkills,
+            Type = "Protocole d'exposition",
+            Theme = "Compétences sociales",
             DownGradingStrategy =
                 "Scénario écrit à l'avance, joué avec le thérapeute qui tient un interlocuteur " +
                 "bienveillant ; le patient peut lire sa réplique. Cibler une situation à faible enjeu.",

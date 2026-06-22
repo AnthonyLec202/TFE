@@ -62,6 +62,22 @@ export async function getToolById(id: string): Promise<LocalTherapeuticTool | un
   return db.therapeuticTools.get(id);
 }
 
+/**
+ * Distinct, alphabetically sorted list of the Type values currently present in the local catalog.
+ * Backs the creatable combobox's suggestions: the practitioner sees existing categories yet can type
+ * an entirely new one. Reads straight off the indexed `type` key, so it never scans the full store.
+ */
+export async function getUniqueToolTypes(): Promise<string[]> {
+  const keys = await db.therapeuticTools.orderBy('type').uniqueKeys();
+  return (keys as string[]).filter(value => value.trim() !== '');
+}
+
+/** Distinct, sorted list of the Theme values present locally — feeds the Theme creatable combobox. */
+export async function getUniqueToolThemes(): Promise<string[]> {
+  const keys = await db.therapeuticTools.orderBy('theme').uniqueKeys();
+  return (keys as string[]).filter(value => value.trim() !== '');
+}
+
 export async function getToolsByIds(ids: string[]): Promise<LocalTherapeuticTool[]> {
   if (ids.length === 0) return [];
   return db.therapeuticTools.bulkGet(ids).then(tools =>

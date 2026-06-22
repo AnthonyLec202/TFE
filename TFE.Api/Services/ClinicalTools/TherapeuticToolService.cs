@@ -19,8 +19,8 @@ public class TherapeuticToolService : ITherapeuticToolService
 
     public async Task<List<TherapeuticToolResponse>> GetAllAsync(
         string? query,
-        ToolType? type,
-        CbtTheme? theme,
+        string? type,
+        string? theme,
         CancellationToken cancellationToken)
     {
         var tools = await _toolRepository.GetAllAsync(query, type, theme, cancellationToken);
@@ -41,8 +41,8 @@ public class TherapeuticToolService : ITherapeuticToolService
             Id = request.Id ?? Guid.NewGuid(),
             Title = request.Title.Trim(),
             Description = request.Description.Trim(),
-            Type = request.Type,
-            Theme = request.Theme,
+            Type = request.Type.Trim(),
+            Theme = request.Theme.Trim(),
             DownGradingStrategy = request.DownGradingStrategy.Trim(),
             UpGradingStrategy = request.UpGradingStrategy.Trim(),
         };
@@ -60,8 +60,8 @@ public class TherapeuticToolService : ITherapeuticToolService
 
         tool.Title = request.Title.Trim();
         tool.Description = request.Description.Trim();
-        tool.Type = request.Type;
-        tool.Theme = request.Theme;
+        tool.Type = request.Type.Trim();
+        tool.Theme = request.Theme.Trim();
         tool.DownGradingStrategy = request.DownGradingStrategy.Trim();
         tool.UpGradingStrategy = request.UpGradingStrategy.Trim();
 

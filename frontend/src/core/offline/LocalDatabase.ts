@@ -27,23 +27,12 @@ export enum SessionStatus {
   NoShow = 3,
 }
 
-// Mirrors TFE.Api.Models.ToolType. Numeric values must stay in sync with the backend enum.
-export enum ToolType {
-  BehavioralContract = 0,
-  CognitiveRestructuringSheet = 1,
-  ExposureProtocol = 2,
-  RelaxationExercise = 3,
-  PsychoeducationMaterial = 4,
-}
-
-// Mirrors TFE.Api.Models.CbtTheme. Numeric values must stay in sync with the backend enum.
-export enum CbtTheme {
-  AnxietyManagement = 0,
-  EmotionalRegulation = 1,
-  SocialSkills = 2,
-  CognitiveDistortions = 3,
-  Assertiveness = 4,
-}
+// A therapeutic tool's Type and Theme are free-form category strings (the clinician curates the
+// taxonomy on the fly). They mirror the backend's string columns and stay indexed in IndexedDB so
+// the catalog filters on them efficiently. Kept as named aliases (rather than bare `string`) so call
+// sites and props remain self-documenting.
+export type ToolType = string;
+export type CbtTheme = string;
 
 // One participating patient's attendance outcome within a session (mirrors the backend junction).
 export interface LocalSessionAttendance {
@@ -67,8 +56,8 @@ export interface LocalSession {
 /**
  * Read-only local mirror of a server TherapeuticTool. The catalog is authored by the practitioner
  * and pulled into IndexedDB so the clinician can search and filter it with zero latency — including
- * offline, during an active session. Type/Theme are stored as their numeric enum values and indexed
- * so the filtering UI can branch on them without scanning the whole store.
+ * offline, during an active session. Type/Theme are free-form category strings, indexed so the
+ * filtering UI can branch on them without scanning the whole store.
  */
 export interface LocalTherapeuticTool {
   id: string;
@@ -191,6 +180,20 @@ class ClinicalAppDatabase extends Dexie {
       await tx.table('sessions').toCollection().modify((session: any) => {
         if (!Array.isArray(session.toolIds)) session.toolIds = [];
       });
+    });
+
+    // v8: TherapeuticTool.type/theme changed from numeric enum ordinals to free-form category
+    // strings. The catalog is a read-only server mirror, so rather than translate stale ordinals we
+    // clear it — the next hydration (post-sync pull) repopulates it with the authoritative string
+    // values. The index declaration is unchanged (Dexie indexes whatever value type is stored).
+    this.version(8).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
+    }).upgrade(async tx => {
+      await tx.table('therapeuticTools').clear();
     });
 
     // ─── Note encryption hooks ────────────────────────────────────────────────

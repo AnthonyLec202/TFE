@@ -10,6 +10,7 @@ import { ProfilePage } from './pages/profile/ProfilePage';
 import { SessionsPage } from './pages/sessions/SessionsPage';
 import { SessionWorkspacePage } from './pages/sessions/SessionWorkspacePage';
 import { ClinicalToolsPage } from './pages/clinicalTools/ClinicalToolsPage';
+import { ToolDetailPage } from './pages/clinicalTools/ToolDetailPage';
 import { MainLayout } from './components/layout/MainLayout';
 
 function ProtectedRoute({ allowedRoles }: { allowedRoles?: string[] } = {}) {
@@ -40,6 +41,7 @@ function App() {
                 <Route path="sessions" element={<SessionsPage />} />
                 <Route path="sessions/:sessionId" element={<SessionWorkspacePage />} />
                 <Route path="clinical-tools" element={<ClinicalToolsPage />} />
+                <Route path="clinical-tools/:id" element={<ToolDetailPage />} />
               </Route>
             </Route>
           </Route>
