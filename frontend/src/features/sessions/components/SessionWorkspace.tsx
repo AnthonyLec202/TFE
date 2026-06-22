@@ -1,6 +1,8 @@
-import { ArrowLeft, CheckCircle2, Keyboard, Loader2, Pencil, PenLine, Plus, Sparkles, Trash2, WifiOff, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Keyboard, Loader2, Pencil, PenLine, Plus, Sparkles, Trash2, WifiOff, X, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { LocalPatientSync, LocalSession } from '../../../core/offline/LocalDatabase';
+import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
 import { formatSessionDate } from '../utils/sessionFormatters';
 import { HandwritingCanvas } from './HandwritingCanvas';
 
@@ -44,87 +46,89 @@ export function SessionWorkspace({
   const convertButtonDisabled = !canConvert;
 
   return (
-    <div className="flex flex-col gap-0 -mx-6 -mt-8 -mb-8 h-[calc(100vh-3.5rem)]">
-      {/* Header */}
-      <div className="shrink-0 px-6 pt-8 pb-4 border-b border-sand-200 bg-white flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      {/* Back */}
+      <Link
+        to={backTo}
+        className="inline-flex items-center gap-1.5 text-sm text-taupe-500 hover:text-ink w-fit"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {backLabel}
+      </Link>
+
+      {/* Page header: title + meta on the left, save status pill on the right. */}
+      <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0">
-          <Link
-            to={backTo}
-            className="inline-flex items-center gap-1.5 text-sm text-taupe-500 hover:text-ink w-fit"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {backLabel}
-          </Link>
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <h1 className="text-lg font-semibold text-ink truncate">{session.title}</h1>
-            <p className="text-xs text-taupe-400">
-              {formatSessionDate(session.date)} · {session.time}
-              {session.patientIds.length > 0 && (
-                <>
-                  {' · '}
-                  {session.patientIds.map((patientId, index) => {
-                    const patient = patientsById.get(patientId);
-                    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Inconnu';
-                    return (
-                      <span key={patientId}>
-                        {index > 0 && ', '}
-                        {/* Quick access to the patient's file from the session header. */}
-                        <Link
-                          to={`/patients/${patientId}`}
-                          className="text-petrol-600 font-medium hover:text-petrol-700 hover:underline"
-                        >
-                          {patientName}
-                        </Link>
-                      </span>
-                    );
-                  })}
-                </>
-              )}
-            </p>
-          </div>
+          <h1 className="font-serif font-semibold text-[26px] leading-tight tracking-[-0.015em] text-ink break-words">
+            {session.title}
+          </h1>
+          <p className="text-[14.5px] text-taupe-500">
+            {formatSessionDate(session.date)} · {session.time}
+            {session.patientIds.length > 0 && (
+              <>
+                {' · '}
+                {session.patientIds.map((patientId, index) => {
+                  const patient = patientsById.get(patientId);
+                  const patientName = patient ? `${patient.firstName} ${patient.lastName}` : 'Inconnu';
+                  return (
+                    <span key={patientId}>
+                      {index > 0 && ', '}
+                      {/* Quick access to the patient's file from the session header. */}
+                      <Link
+                        to={`/patients/${patientId}`}
+                        className="text-petrol-600 font-medium hover:text-petrol-700 hover:underline"
+                      >
+                        {patientName}
+                      </Link>
+                    </span>
+                  );
+                })}
+              </>
+            )}
+          </p>
         </div>
 
-        <div className="shrink-0 flex items-center gap-3">
-          {/* Edit / Delete session */}
-          <div className="flex items-center gap-2">
-            {/* Discreet, on-demand trigger for the "Mes Outils" drawer. */}
-            <button
-              type="button"
-              onClick={onOpenTools}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-sand-200 text-taupe-600 bg-white hover:bg-sand-50 hover:text-ink transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Ajouter un outil
-            </button>
-            <button
-              type="button"
-              onClick={onEdit}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-sand-200 text-taupe-600 bg-white hover:bg-sand-50 hover:text-ink transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Modifier
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-red-200 text-red-600 bg-white hover:bg-red-50 transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Supprimer
-            </button>
-          </div>
+        {/* Save indicator — status pill, consistent with the dashboard's SyncBadge. */}
+        <div className="shrink-0">
+          {isSaving ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-taupe-500 bg-sand-100 border border-sand-200 px-3 py-1.5 rounded-full">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Enregistrement…
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[12.5px] px-3 py-1.5 rounded-full text-[#2F7D5B] bg-[#E6F0EA] border border-[#CADDD0]">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Enregistré localement
+            </span>
+          )}
+        </div>
+      </div>
 
+      {/* Action bar: document actions on the left, editor controls on the right. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={onOpenTools}>
+            <Plus className="h-3.5 w-3.5" />
+            Ajouter un outil
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+            Modifier
+          </Button>
+          <Button variant="danger" size="sm" onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+            Supprimer
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           {/* Convert to Text button — visible only in stylus mode */}
           {inputMode === 'stylus' && (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={onConvertToText}
               disabled={convertButtonDisabled}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                convertButtonDisabled
-                  ? 'border-sand-200 text-taupe-400 bg-sand-50 cursor-not-allowed'
-                  : 'border-petrol-600 text-petrol-600 bg-white hover:bg-petrol-50'
-              }`}
             >
               {isConverting ? (
                 <>
@@ -142,18 +146,18 @@ export function SessionWorkspace({
                   Convertir en texte
                 </>
               )}
-            </button>
+            </Button>
           )}
 
-          {/* Input mode toggle */}
-          <div className="flex items-center rounded-md border border-sand-200 overflow-hidden text-xs">
+          {/* Input mode toggle — segmented control, active state in petrol. */}
+          <div className="flex items-center rounded-lg border border-sand-300 bg-white overflow-hidden text-xs">
             <button
               type="button"
               onClick={() => onInputModeChange('keyboard')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${
                 inputMode === 'keyboard'
-                  ? 'bg-ink text-white'
-                  : 'bg-white text-taupe-500 hover:text-ink hover:bg-sand-50'
+                  ? 'bg-petrol-600 text-white'
+                  : 'text-taupe-500 hover:text-ink hover:bg-sand-50'
               }`}
             >
               <Keyboard className="h-3.5 w-3.5" />
@@ -162,44 +166,29 @@ export function SessionWorkspace({
             <button
               type="button"
               onClick={() => onInputModeChange('stylus')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 border-l border-sand-200 transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-2 border-l border-sand-300 transition-colors ${
                 inputMode === 'stylus'
-                  ? 'bg-ink text-white'
-                  : 'bg-white text-taupe-500 hover:text-ink hover:bg-sand-50'
+                  ? 'bg-petrol-600 text-white'
+                  : 'text-taupe-500 hover:text-ink hover:bg-sand-50'
               }`}
             >
               <PenLine className="h-3.5 w-3.5" />
               Stylet
             </button>
           </div>
-
-          {/* Save indicator */}
-          <div className="flex items-center gap-1.5 text-xs">
-            {isSaving ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 text-taupe-400 animate-spin" />
-                <span className="text-taupe-400">Enregistrement…</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                <span className="text-emerald-600">Enregistré localement</span>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
       {/* Body: note editor on the left, persistent associated-tools sidebar on the right. */}
-      <div className="flex flex-1 min-h-0">
-        {/* Editor area */}
-        <div className="flex flex-1 min-h-0 flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
+        {/* Editor card */}
+        <Card className="overflow-hidden">
           {inputMode === 'keyboard' ? (
             <textarea
               value={editorText}
               onChange={e => onEditorTextChange(e.target.value)}
               placeholder="Commencez à saisir vos notes de séance ici…"
-              className="w-full flex-1 min-h-0 resize-none bg-white px-8 py-6 text-base text-ink placeholder:text-taupe-400 focus:outline-none leading-relaxed"
+              className="w-full min-h-[58vh] resize-none bg-white px-7 py-6 text-base text-ink placeholder:text-taupe-400 focus:outline-none leading-relaxed"
               spellCheck
             />
           ) : (
@@ -207,11 +196,11 @@ export function SessionWorkspace({
             // container. The large bottom padding guarantees blank writing space below the
             // last stroke so the writer is never blocked at the bottom of the viewport.
             <div
-              className="flex-1 min-h-0 overflow-y-auto"
+              className="min-h-[58vh] max-h-[72vh] overflow-y-auto"
               style={{ paddingBottom: '40vh' }}
             >
               {editorText.length > 0 && (
-                <pre className="mx-8 mt-6 whitespace-pre-wrap text-base text-ink leading-relaxed font-sans">
+                <pre className="mx-7 mt-6 whitespace-pre-wrap text-base text-ink leading-relaxed font-sans">
                   {editorText}
                 </pre>
               )}
@@ -221,17 +210,18 @@ export function SessionWorkspace({
               />
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Persistent associated-tools sidebar. Hidden on narrow viewports to preserve writing space;
             the drawer trigger remains the primary entry point there. */}
-        <aside className="hidden lg:flex w-72 shrink-0 flex-col border-l border-sand-200 bg-white">
-          <div className="shrink-0 border-b border-sand-200 px-4 py-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-taupe-500">
+        <Card className="hidden lg:flex flex-col overflow-hidden">
+          <div className="shrink-0 flex items-center gap-2 border-b border-sand-200 px-4 py-3">
+            <Wrench className="h-3.5 w-3.5 text-petrol-600" strokeWidth={1.85} />
+            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
               Outils de la séance
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto p-3">
+          <div className="p-3">
             {associatedTools.length === 0 ? (
               <p className="px-1 py-2 text-sm text-taupe-400">
                 Aucun outil associé à cette séance.
@@ -264,7 +254,7 @@ export function SessionWorkspace({
               </ul>
             )}
           </div>
-        </aside>
+        </Card>
       </div>
     </div>
   );

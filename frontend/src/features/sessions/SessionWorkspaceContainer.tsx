@@ -257,7 +257,7 @@ export function SessionWorkspaceContainer() {
   if (session === null) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-red-400">Session not found.</p>
+        <p className="text-sm text-taupe-500">Séance introuvable.</p>
       </div>
     );
   }
@@ -332,9 +332,9 @@ export function SessionWorkspaceContainer() {
 
       <ConfirmDialog
         open={isConfirmDeleteOpen}
-        title="Delete session"
-        message="This session and its notes will be permanently deleted. This action cannot be undone."
-        confirmLabel="Delete"
+        title="Supprimer la séance"
+        message="Cette séance et ses notes seront définitivement supprimées. Cette action est irréversible."
+        confirmLabel="Supprimer"
         loading={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setIsConfirmDeleteOpen(false)}
