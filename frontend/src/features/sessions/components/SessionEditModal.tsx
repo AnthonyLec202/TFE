@@ -46,7 +46,7 @@ export function SessionEditModal({
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <label className="text-xs font-medium text-taupe-500 uppercase tracking-wide">Date</label>
               <DatePicker

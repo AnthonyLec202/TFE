@@ -61,12 +61,12 @@ export const NotificationBell = forwardRef<HTMLDivElement, NotificationBellProps
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-80 z-50 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100">
-              <span className="text-sm font-medium text-slate-900">Notifications</span>
+          <div className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] z-50 rounded-xl border border-sand-200 bg-white shadow-[0_8px_28px_rgba(45,40,33,0.14)] overflow-hidden">
+            <div className="px-4 py-3 border-b border-sand-100">
+              <span className="text-sm font-medium text-ink">Notifications</span>
             </div>
             {notifications.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-slate-400 text-center">Aucune notification.</p>
+              <p className="px-4 py-6 text-sm text-taupe-400 text-center">Aucune notification.</p>
             ) : (
               <ul className="max-h-96 overflow-y-auto py-1">
                 {notifications.map(notification => (
@@ -74,12 +74,12 @@ export const NotificationBell = forwardRef<HTMLDivElement, NotificationBellProps
                     <button
                       type="button"
                       onClick={() => onSelect(notification)}
-                      className="w-full flex flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                      className="w-full flex flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-sand-50 transition-colors"
                     >
-                      <span className="text-sm font-medium text-slate-800">
+                      <span className="text-sm font-medium text-ink">
                         {resolveNotificationTitle(notification.type)}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-taupe-500">
                         {resolveNotificationMessage(notification)}
                       </span>
                     </button>

@@ -163,7 +163,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
       </button>
 
       {/* Identity card */}
-      <Card className="p-6 flex items-start justify-between gap-4">
+      <Card className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <div className="w-12 h-12 rounded-full bg-petrol-50 flex items-center justify-center shrink-0">
             <UserRound className="h-6 w-6 text-petrol-600" />
@@ -179,8 +179,8 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         </div>
 
         {/* Header actions */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
             <Button variant="secondary" size="sm" onClick={() => setShowTeamModal(true)}>
               <Users className="h-3.5 w-3.5" />
               Voir membres
