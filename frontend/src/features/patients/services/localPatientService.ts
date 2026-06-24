@@ -1,6 +1,6 @@
 import { db, type LocalPatientSync } from '../../../core/offline/LocalDatabase';
 import type { PatientResponse } from '../../../types/patient';
-import { getPatients } from '../../../services/patientService';
+import { getPatients, updatePatient } from '../../../services/patientService';
 
 /** A patient match, tagged with whether it is still pending in the offline creation queue. */
 export interface PatientSearchResult extends LocalPatientSync {
@@ -18,7 +18,39 @@ function toLocalPatient(p: PatientResponse): LocalPatientSync {
     searchableName: `${p.firstName} ${p.lastName}`.toLowerCase(),
     birthDate: p.birthDate,
     userRole: p.userRole,
+    email: p.email ?? null,
+    phoneNumber: p.phoneNumber ?? null,
+    postalAddress: p.postalAddress ?? null,
+    isArchived: p.isArchived,
   };
+}
+
+/**
+ * Flips a patient's archived flag and persists it. Updates the local cache optimistically so the
+ * reactive lists (Mes patients / Archives) react instantly, then pushes the change to the server via
+ * the patient update endpoint. The existing contact fields are forwarded unchanged so the toggle
+ * never wipes them. On failure the optimistic change is rolled back.
+ */
+export async function togglePatientArchiveStatus(
+  patient: LocalPatientSync,
+  isArchived: boolean,
+): Promise<void> {
+  await db.patients.put({ ...patient, isArchived });
+  try {
+    const updated = await updatePatient(patient.id, {
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      birthDate: patient.birthDate,
+      email: patient.email ?? null,
+      phoneNumber: patient.phoneNumber ?? null,
+      postalAddress: patient.postalAddress ?? null,
+      isArchived,
+    });
+    await db.patients.put(toLocalPatient(updated));
+  } catch (error) {
+    await db.patients.put({ ...patient }); // revert the optimistic flag
+    throw error;
+  }
 }
 
 /**

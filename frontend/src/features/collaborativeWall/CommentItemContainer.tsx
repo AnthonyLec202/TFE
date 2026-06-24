@@ -11,18 +11,20 @@ interface Props {
   postId: string;
   currentUserId: string;
   userRole: PatientUserRole;
+  // Archived dossier → read-only: withdraw edit/delete on existing comments.
+  readOnly?: boolean;
   onUpdated: (c: CommentResponse) => void;
   onDeleted: (commentId: string) => void;
 }
 
 export function CommentItemContainer({
-  comment, patientId, postId, currentUserId, userRole, onUpdated, onDeleted,
+  comment, patientId, postId, currentUserId, userRole, readOnly = false, onUpdated, onDeleted,
 }: Props) {
   const [saving, setSaving] = useState(false);
 
   const isPurged = comment.content === PURGED_CONTENT;
-  const canEdit = canModify(comment.createdAt, comment.createdById, currentUserId, userRole) && !isPurged;
-  const canDelete = userRole === 'Admin' || canEdit;
+  const canEdit = !readOnly && canModify(comment.createdAt, comment.createdById, currentUserId, userRole) && !isPurged;
+  const canDelete = !readOnly && (userRole === 'Admin' || canEdit);
 
   async function handleSave(content: string) {
     setSaving(true);

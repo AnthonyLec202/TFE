@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight, Clock, RotateCw } from 'lucide-react';
+import { Archive, ArchiveRestore, Calendar, ChevronRight, Clock, RotateCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import type { LocalPatientSync, SyncStatus } from '../../../core/offline/LocalDatabase';
@@ -17,7 +17,13 @@ export interface PatientsListProps {
   emptyMessage?: string;
   onSelectPatient: (id: string) => void;
   onRetry?: () => void;
+  // When provided, each card renders an Archiver / Restaurer action toggling the archived flag.
+  onToggleArchive?: (patient: PatientListItem, nextArchived: boolean) => void;
 }
+
+// Mirrors the "Terminer la séance" button styling from the Session cards.
+const ARCHIVE_BUTTON_CLASS =
+  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-emerald-200 text-emerald-700 bg-white hover:bg-emerald-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white';
 
 function formatBirthDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-BE', {
@@ -45,7 +51,7 @@ function isPendingSync(status: SyncStatus | undefined): boolean {
   return status === 'pending_create' || status === 'pending_update';
 }
 
-export function PatientsList({ patients, isLoading, error, emptyMessage, onSelectPatient, onRetry }: PatientsListProps) {
+export function PatientsList({ patients, isLoading, error, emptyMessage, onSelectPatient, onRetry, onToggleArchive }: PatientsListProps) {
   if (isLoading) {
     return <p className="text-sm text-taupe-400">Chargement des patients…</p>;
   }
@@ -75,13 +81,18 @@ export function PatientsList({ patients, isLoading, error, emptyMessage, onSelec
   return (
     <div className="flex flex-col gap-3">
       {patients.map(patient => (
-        <button
+        <div
           key={patient.id}
-          onClick={() => onSelectPatient(patient.id)}
-          className="block w-full text-left rounded-xl border border-sand-200 bg-white px-[18px] py-4 transition-[border-color,box-shadow] hover:border-petrol-100 hover:shadow-[0_2px_10px_rgba(31,111,107,0.08)]"
+          className="rounded-xl border border-sand-200 bg-white transition-[border-color,box-shadow] hover:border-petrol-100 hover:shadow-[0_2px_10px_rgba(31,111,107,0.08)]"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-[13px] min-w-0">
+          <div className="flex items-center justify-between gap-3 px-[18px] py-4">
+            {/* Navigation target — a dedicated button so the archive action can sit beside it as a
+                sibling (valid HTML: no interactive element nested inside another). */}
+            <button
+              type="button"
+              onClick={() => onSelectPatient(patient.id)}
+              className="flex items-center gap-[13px] min-w-0 flex-1 text-left"
+            >
               <span className="w-[42px] h-[42px] rounded-full bg-petrol-50 text-petrol-600 flex items-center justify-center font-bold text-sm shrink-0">
                 {initials(patient.firstName, patient.lastName)}
               </span>
@@ -102,10 +113,35 @@ export function PatientsList({ patients, isLoading, error, emptyMessage, onSelec
                   Né(e) le {formatBirthDate(patient.birthDate)} · {computeAge(patient.birthDate)} ans
                 </div>
               </div>
+            </button>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Archive toggle is hidden for not-yet-synced offline creations (no server record yet). */}
+              {onToggleArchive && !isPendingSync(patient.syncStatus) && (
+                patient.isArchived ? (
+                  <button
+                    type="button"
+                    onClick={() => onToggleArchive(patient, false)}
+                    className={ARCHIVE_BUTTON_CLASS}
+                  >
+                    <ArchiveRestore className="h-3.5 w-3.5" />
+                    Restaurer
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onToggleArchive(patient, true)}
+                    className={ARCHIVE_BUTTON_CLASS}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archiver
+                  </button>
+                )
+              )}
+              <ChevronRight className="h-5 w-5 text-[#C2BBB0] shrink-0" />
             </div>
-            <ChevronRight className="h-5 w-5 text-[#C2BBB0] shrink-0" />
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );

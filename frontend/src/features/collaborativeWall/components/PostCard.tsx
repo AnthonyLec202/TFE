@@ -14,6 +14,8 @@ export interface PostCardProps {
   canDelete: boolean;
   isPurged: boolean;
   isAdmin: boolean;
+  // Archived dossier → read-only: the comment composer is not rendered.
+  readOnly?: boolean;
   // Post action callbacks
   onSavePost: (content: string, excludedRoles: string[]) => Promise<void>;
   onDeletePost: () => Promise<void>;
@@ -26,7 +28,7 @@ export interface PostCardProps {
 }
 
 export function PostCard({
-  post, canEdit, canDelete, isPurged, isAdmin,
+  post, canEdit, canDelete, isPurged, isAdmin, readOnly = false,
   onSavePost, onDeletePost, saving,
   commentCount, commentItems, onAddComment, submittingComment,
 }: PostCardProps) {
@@ -230,6 +232,7 @@ export function PostCard({
         {showComments && (
           <div className="flex flex-col gap-3">
             {commentItems}
+            {!readOnly && (
             <form onSubmit={handleAddCommentSubmit} className="flex flex-col gap-2">
               <div className="flex gap-2 items-end">
                 <textarea
@@ -289,6 +292,7 @@ export function PostCard({
                 onChange={handleCommentFileChange}
               />
             </form>
+            )}
           </div>
         )}
       </div>

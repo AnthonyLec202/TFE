@@ -141,6 +141,13 @@
         <member name="T:TFE.Api.DTOs.Sessions.SessionAttendanceResponse">
             <summary>One participating patient's attendance outcome within a session.</summary>
         </member>
+        <member name="T:TFE.Api.Exceptions.ArchivedPatientException">
+            <summary>
+            Thrown when a write operation is attempted against an archived patient's resources (e.g. the
+            collaborative wall). Archived dossiers are strictly read-only; the controller maps this to a
+            403 Forbidden carrying the message so the client can explain why the action was blocked.
+            </summary>
+        </member>
         <member name="T:TFE.Api.Exceptions.DuplicateEntityException">
             <summary>
             Thrown by a repository when a write violates a unique / primary-key constraint
@@ -619,6 +626,30 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.AddSessionCreatedById.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddPatientContactInfo">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientContactInfo.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientContactInfo.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientContactInfo.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddPatientIsArchived">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientIsArchived.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientIsArchived.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddPatientIsArchived.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">

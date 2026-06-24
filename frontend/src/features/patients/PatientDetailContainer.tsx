@@ -1,4 +1,5 @@
 import { useEffect, useState, type SubmitEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { ArrowLeft, Loader2, LogOut, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { deletePatient, getPatient, removeCareTeamMember, updatePatient } from '../../services/patientService';
@@ -48,7 +49,11 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('Page Privée');
 
   const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState<UpdatePatientPayload>({ firstName: '', lastName: '', birthDate: '' });
+  // The modal edits the dossier fields only; the archived flag is preserved separately on submit so a
+  // routine edit never accidentally un-archives the patient.
+  const [editForm, setEditForm] = useState<Omit<UpdatePatientPayload, 'isArchived'>>({
+    firstName: '', lastName: '', birthDate: '', email: '', phoneNumber: '', postalAddress: '',
+  });
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState('');
 
@@ -72,7 +77,14 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
 
   function openEdit() {
     if (!patient) return;
-    setEditForm({ firstName: patient.firstName, lastName: patient.lastName, birthDate: toDateInput(patient.birthDate) });
+    setEditForm({
+      firstName: patient.firstName,
+      lastName: patient.lastName,
+      birthDate: toDateInput(patient.birthDate),
+      email: patient.email ?? '',
+      phoneNumber: patient.phoneNumber ?? '',
+      postalAddress: patient.postalAddress ?? '',
+    });
     setUpdateError('');
     setShowEdit(true);
   }
@@ -82,7 +94,23 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     setUpdateError('');
     setUpdating(true);
     try {
-      const updated = await updatePatient(patientId, editForm);
+      // Optional contact fields are nullified when blank: an empty string would otherwise fail the
+      // server's [EmailAddress] validation (which treats "" as an invalid address) and 400 the whole
+      // update. Trim so a whitespace-only entry is also treated as "no value".
+      const blankToNull = (value?: string | null): string | null => {
+        const trimmed = (value ?? '').trim();
+        return trimmed.length > 0 ? trimmed : null;
+      };
+      const payload: UpdatePatientPayload = {
+        firstName: editForm.firstName,
+        lastName: editForm.lastName,
+        birthDate: editForm.birthDate,
+        email: blankToNull(editForm.email),
+        phoneNumber: blankToNull(editForm.phoneNumber),
+        postalAddress: blankToNull(editForm.postalAddress),
+        isArchived: patient?.isArchived ?? false, // preserve the current archive state
+      };
+      const updated = await updatePatient(patientId, payload);
       setPatient(updated);
       setShowEdit(false);
     } catch (err) {
@@ -146,6 +174,13 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
     );
   }
 
+  // RBAC: an archived dossier is reachable only by the managing psychologist (Admin for this patient).
+  // Any other role (parent, teacher/collaborator, …) is redirected to the root — a client-side mirror
+  // of the backend's 403 guard, so a stale link or manual URL never renders archived content.
+  if (patient.isArchived && patient.userRole !== 'Admin') {
+    return <Navigate to="/" replace />;
+  }
+
   const isAdmin = user?.roles?.includes('Admin') ?? false;
   const isParent = patient.userRole === 'Parent';
   const canInvite = isAdmin || isParent;
@@ -159,7 +194,10 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         className="inline-flex items-center gap-1.5 text-sm text-taupe-500 hover:text-ink w-fit"
       >
         <ArrowLeft className="h-4 w-4" />
-        {isAdmin ? 'Mes patients' : 'Patients suivis'}
+        {/* Derive the label from the loaded patient (not location.state) so a hard reload of the
+            dossier still points back to the correct list. Archived dossiers are Admin-only, so the
+            "Mes archives" branch implies Admin; the rest keeps the role-specific list label. */}
+        {patient.isArchived ? 'Mes archives' : isAdmin ? 'Mes patients' : 'Patients suivis'}
       </button>
 
       {/* Identity card */}
@@ -243,11 +281,11 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                 patientName={`${patient.firstName} ${patient.lastName}`}
               />
             )}
-            {activeTab === 'Page Privée' && <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} />}
+            {activeTab === 'Page Privée' && <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} isArchived={patient.isArchived} />}
           </div>
         </div>
       ) : (
-        <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} />
+        <CollaborativeWallContainer patientId={patient.id} userRole={patient.userRole} isArchived={patient.isArchived} />
       )}
 
       {/* ── Edit modal ──────────────────────────────────────────────────────── */}
@@ -288,6 +326,30 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
                 onChange={value => setEditForm(p => ({ ...p, birthDate: value }))}
                 placeholder="jj / mm / aaaa"
                 required
+              />
+              <Input
+                label="E-mail"
+                type="email"
+                value={editForm.email ?? ''}
+                onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))}
+                placeholder="prenom.nom@exemple.com"
+                autoComplete="off"
+              />
+              <Input
+                label="Téléphone"
+                type="tel"
+                value={editForm.phoneNumber ?? ''}
+                onChange={e => setEditForm(p => ({ ...p, phoneNumber: e.target.value }))}
+                placeholder="+32 470 12 34 56"
+                autoComplete="off"
+              />
+              <Input
+                label="Adresse postale"
+                type="text"
+                value={editForm.postalAddress ?? ''}
+                onChange={e => setEditForm(p => ({ ...p, postalAddress: e.target.value }))}
+                placeholder="Rue, numéro, code postal, ville"
+                autoComplete="off"
               />
               {updateError && (
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

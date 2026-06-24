@@ -240,6 +240,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<Post>()
             .Property(p => p.Content)
             .HasConversion(encryptedStringConverter);
+
+        // Patient contact PII (all nullable — same null-safety as Post.Content above).
+        builder.Entity<Patient>()
+            .Property(p => p.Email)
+            .HasConversion(encryptedStringConverter);
+        builder.Entity<Patient>()
+            .Property(p => p.PhoneNumber)
+            .HasConversion(encryptedStringConverter);
+        builder.Entity<Patient>()
+            .Property(p => p.PostalAddress)
+            .HasConversion(encryptedStringConverter);
 #pragma warning restore CS8620
 
         // Notification actor: second FK from Notification to ApplicationUser.

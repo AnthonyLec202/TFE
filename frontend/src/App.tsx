@@ -5,6 +5,7 @@ import { EnrollmentPage } from './pages/auth/EnrollmentPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { DashboardPage } from './pages/patients/DashboardPage';
+import { ArchivesPage } from './pages/patients/ArchivesPage';
 import { PatientDetailPage } from './pages/patients/PatientDetailPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SessionsPage } from './pages/sessions/SessionsPage';
@@ -38,6 +39,7 @@ function App() {
               <Route path="patients/:id" element={<PatientDetailPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+                <Route path="archives" element={<ArchivesPage />} />
                 <Route path="sessions" element={<SessionsPage />} />
                 <Route path="sessions/:sessionId" element={<SessionWorkspacePage />} />
                 <Route path="clinical-tools" element={<ClinicalToolsPage />} />

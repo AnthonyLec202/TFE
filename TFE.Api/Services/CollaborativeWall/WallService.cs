@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using TFE.Api.DTOs.CollaborativeWall;
+using TFE.Api.Exceptions;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
@@ -15,6 +16,7 @@ public class WallService : IWallService
     private readonly ICommentRepository _commentRepository;
     private readonly IAttachmentRepository _attachmentRepository;
     private readonly ICareTeamRepository _careTeamRepository;
+    private readonly IPatientRepository _patientRepository;
     private readonly IFileStorageService _fileStorage;
     private readonly ILogger<WallService> _logger;
     private readonly string _bucketName;
@@ -25,6 +27,7 @@ public class WallService : IWallService
         ICommentRepository commentRepository,
         IAttachmentRepository attachmentRepository,
         ICareTeamRepository careTeamRepository,
+        IPatientRepository patientRepository,
         IFileStorageService fileStorage,
         IConfiguration configuration,
         ILogger<WallService> logger)
@@ -34,6 +37,7 @@ public class WallService : IWallService
         _commentRepository = commentRepository;
         _attachmentRepository = attachmentRepository;
         _careTeamRepository = careTeamRepository;
+        _patientRepository = patientRepository;
         _fileStorage = fileStorage;
         _logger = logger;
         _bucketName = configuration["Supabase:AttachmentsBucket"]
@@ -44,6 +48,18 @@ public class WallService : IWallService
 
     private Task<CareTeam?> GetCareTeamEntryAsync(string userId, Guid patientId)
         => _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
+
+    // Read-only guard: an archived patient's wall accepts no writes (new posts/comments, edits,
+    // deletes). Throwing here also short-circuits the controller before it reaches the notification
+    // dispatcher, so no notification is ever emitted for an archived dossier.
+    private async Task EnsurePatientNotArchivedAsync(Guid patientId)
+    {
+        var patient = await _patientRepository.GetByIdAsync(patientId)
+            ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
+
+        if (patient.IsArchived)
+            throw new ArchivedPatientException("Ce dossier est archivé : le mur est en lecture seule.");
+    }
 
     private async Task<Dictionary<string, CareTeam>> GetPatientCareTeamMapAsync(Guid patientId)
     {
@@ -81,6 +97,17 @@ public class WallService : IWallService
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
         var isAdmin = ResolveRole(ct) == "Admin";
+
+        // RBAC cascade: an archived patient's wall is readable only by the managing psychologist
+        // (Admin). Other roles are denied even with care-team membership, blocking direct API fetches.
+        if (!isAdmin)
+        {
+            var patient = await _patientRepository.GetByIdAsync(patientId)
+                ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
+            if (patient.IsArchived)
+                throw new UnauthorizedAccessException("This patient record is archived and read-restricted.");
+        }
+
         var userRelationshipRole = ct.Role.ToString();
 
         // Load all CareTeam entries once for efficient author-role resolution
@@ -96,6 +123,8 @@ public class WallService : IWallService
 
     public async Task<PostResponse> CreatePostAsync(Guid patientId, CreatePostRequest request, string currentUserId)
     {
+        await EnsurePatientNotArchivedAsync(patientId);
+
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
@@ -128,6 +157,8 @@ public class WallService : IWallService
     {
         if (string.IsNullOrWhiteSpace(request.Content) && !(request.Attachments?.Any() ?? false))
             throw new ValidationException("A post must contain either text content or at least one attachment.");
+
+        await EnsurePatientNotArchivedAsync(patientId);
 
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
@@ -243,6 +274,8 @@ public class WallService : IWallService
         var post = await _postRepository.GetByIdAsync(postId)
                    ?? throw new KeyNotFoundException($"Post {postId} not found.");
 
+        await EnsurePatientNotArchivedAsync(post.PatientId);
+
         var ct = await GetCareTeamEntryAsync(currentUserId, post.PatientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
@@ -274,6 +307,8 @@ public class WallService : IWallService
 
         var post = await _postRepository.GetByIdAsync(postId, cancellationToken)
                    ?? throw new KeyNotFoundException($"Post {postId} not found.");
+
+        await EnsurePatientNotArchivedAsync(post.PatientId);
 
         _ = await GetCareTeamEntryAsync(currentUserId, post.PatientId)
             ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
@@ -375,6 +410,9 @@ public class WallService : IWallService
         Guid patientId,
         string currentUserId)
     {
+        // Archived dossiers are read-only: no edits or deletes of existing posts/comments either.
+        await EnsurePatientNotArchivedAsync(patientId);
+
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 

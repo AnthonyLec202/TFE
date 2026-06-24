@@ -85,6 +85,13 @@ export interface LocalPatientSync {
   searchableName: string; // lowercase "firstname lastname" for fast substring search
   birthDate: string;      // ISO date "YYYY-MM-DD"
   userRole: string;       // requesting user's role for this patient (Admin | Parent | Collaborator)
+  // Optional contact details mirrored from the server (non-indexed). Absent until set via the dossier.
+  email?: string | null;
+  phoneNumber?: string | null;
+  postalAddress?: string | null;
+  // Archived patients are filtered out of "Mes patients" and listed under "Archives". Optional so
+  // pre-v10 cached rows (and offline-queued creations) default to active.
+  isArchived?: boolean;
 }
 
 /**
@@ -194,6 +201,28 @@ class ClinicalAppDatabase extends Dexie {
       therapeuticTools: 'id, type, theme',
     }).upgrade(async tx => {
       await tx.table('therapeuticTools').clear();
+    });
+
+    // v9 adds optional contact details (email, phoneNumber, postalAddress) to LocalPatientSync. These
+    // are non-indexed fields, so the store key declarations are unchanged; the version bump marks the
+    // shape change. Existing cached rows backfill the new fields on the next sync, whose bulkPut
+    // replaces each record with the complete profile.
+    this.version(9).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
+    });
+
+    // v10 adds the non-indexed `isArchived` flag to LocalPatientSync. Stores are unchanged (the flag
+    // is filtered in memory, not indexed); existing rows backfill it on the next sync's bulkPut.
+    this.version(10).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
     });
 
     // ─── Note encryption hooks ────────────────────────────────────────────────

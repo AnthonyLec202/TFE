@@ -14,4 +14,17 @@ public class UpdatePatientRequest
 
     [Required(ErrorMessage = "Birth date is required.")]
     public DateOnly BirthDate { get; set; }
+
+    // Optional contact details — editable only from the dossier, never required.
+    [StringLength(254, ErrorMessage = "Email must be at most 254 characters.")]
+    [EmailAddress(ErrorMessage = "Email is not a valid address.")]
+    public string? Email { get; set; }
+
+    [StringLength(40, ErrorMessage = "Phone number must be at most 40 characters.")]
+    public string? PhoneNumber { get; set; }
+
+    [StringLength(250, ErrorMessage = "Postal address must be at most 250 characters.")]
+    public string? PostalAddress { get; set; }
+
+    public bool IsArchived { get; set; }
 }

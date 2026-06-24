@@ -11,7 +11,7 @@ import { CreatePatientForm } from './components/CreatePatientForm';
 import { PatientsList, type PatientListItem } from './components/PatientsList';
 import { PatientSearch } from './components/PatientSearch';
 import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
-import { upsertLocalPatient } from './services/localPatientService';
+import { upsertLocalPatient, togglePatientArchiveStatus } from './services/localPatientService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 
@@ -22,11 +22,15 @@ const EMPTY_FORM: PatientFormState = { firstName: '', lastName: '', birthDate: '
 interface Props {
   onSelectPatient: (id: string) => void;
   onJoinPatient?: () => void;
+  // 'active' = the standard "Mes patients" view (create form + non-archived patients).
+  // 'archived' = the "Archives" view (no create form, archived patients only).
+  mode?: 'active' | 'archived';
 }
 
-export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
+export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'active' }: Props) {
   const { user, isInitialized } = useAuth();
   const isAdmin = user?.roles.includes('Admin') ?? false;
+  const archivedView = mode === 'archived';
 
   // Single source of truth for connectivity: the hoisted global state, persisted across navigation.
   // The header pill, the offline banner and the empty-cache message all derive from this — never from
@@ -62,15 +66,23 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
 
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Restrict to the current view's archive scope before any display filtering. An offline-queued
+  // creation (no isArchived field) defaults to active. This scoped list — not the raw one — drives the
+  // count and empty states so "Archives" reports on archived patients only.
+  const scopedPatients = useMemo<PatientListItem[] | undefined>(() => {
+    if (patients === undefined) return undefined;
+    return patients.filter(patient => (patient.isArchived ?? false) === archivedView);
+  }, [patients, archivedView]);
+
   // Case-insensitive substring match on the precomputed "firstname lastname" key. Filtering is
-  // display-only — the sync-state logic below keys off the full (unfiltered) list so an active
+  // display-only — the sync-state logic below keys off the scoped (unsearched) list so an active
   // search never masks the offline banner / empty-cache states.
   const filteredPatients = useMemo<PatientListItem[] | undefined>(() => {
-    if (patients === undefined) return undefined;
+    if (scopedPatients === undefined) return undefined;
     const query = searchTerm.trim().toLowerCase();
-    if (query.length === 0) return patients;
-    return patients.filter(patient => patient.searchableName.includes(query));
-  }, [patients, searchTerm]);
+    if (query.length === 0) return scopedPatients;
+    return scopedPatients.filter(patient => patient.searchableName.includes(query));
+  }, [scopedPatients, searchTerm]);
 
   // Transient spinner only — true while an online sync cycle is actually in flight. Offline status is
   // NOT inferred here; it comes from the global state above.
@@ -131,51 +143,72 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
     }
   }
 
-  const count = patients?.length ?? 0;
-  const isEmpty = patients !== undefined && count === 0;
+  // Toggles a patient's archived flag (admin action). Optimistic local update lives in the service,
+  // so the live query reactively moves the card between the active and archived views.
+  async function handleToggleArchive(patient: PatientListItem, nextArchived: boolean): Promise<void> {
+    try {
+      await togglePatientArchiveStatus(patient, nextArchived);
+    } catch {
+      // The service already reverted the optimistic flag; the row simply stays in place.
+    }
+  }
+
+  const count = scopedPatients?.length ?? 0;
+  const isEmpty = scopedPatients !== undefined && count === 0;
 
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">
-            {isAdmin ? 'Mes patients' : 'Patients suivis'}
+            {archivedView ? 'Archives' : isAdmin ? 'Mes patients' : 'Patients suivis'}
           </h1>
           <p className="text-[14.5px] text-taupe-500">
-            {count} patient{count !== 1 ? 's' : ''} suivi{count !== 1 ? 's' : ''}
+            {archivedView
+              ? `${count} patient${count !== 1 ? 's' : ''} archivé${count !== 1 ? 's' : ''}`
+              : `${count} patient${count !== 1 ? 's' : ''} suivi${count !== 1 ? 's' : ''}`}
           </p>
         </div>
         <SyncBadge syncing={syncing} offline={!isOnline} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
-        <div>
-          {isAdmin ? (
-            <CreatePatientForm
-              firstName={form.firstName}
-              lastName={form.lastName}
-              birthDate={form.birthDate}
-              submitting={creating}
-              error={createError}
-              info={offlineNotice}
-              onFirstNameChange={value => setForm(prev => ({ ...prev, firstName: value }))}
-              onLastNameChange={value => setForm(prev => ({ ...prev, lastName: value }))}
-              onBirthDateChange={value => setForm(prev => ({ ...prev, birthDate: value }))}
-              onSubmit={handleCreate}
-            />
-          ) : onJoinPatient ? (
-            <Card className="p-5 flex flex-col gap-3">
-              <h2 className="text-[15px] font-semibold text-ink">Rejoindre un patient</h2>
-              <p className="text-xs text-taupe-500">
-                Utilisez un code d'invitation pour accéder au suivi d'un patient.
-              </p>
-              <Button variant="secondary" size="sm" onClick={onJoinPatient} className="w-full">
-                <UserPlus className="h-4 w-4" />
-                Rejoindre un patient
-              </Button>
-            </Card>
-          ) : null}
-        </div>
+      <div
+        className={
+          archivedView
+            ? 'flex flex-col gap-3'
+            : 'grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start'
+        }
+      >
+        {/* Create / join sidebar — omitted entirely on the Archives view. */}
+        {!archivedView && (
+          <div>
+            {isAdmin ? (
+              <CreatePatientForm
+                firstName={form.firstName}
+                lastName={form.lastName}
+                birthDate={form.birthDate}
+                submitting={creating}
+                error={createError}
+                info={offlineNotice}
+                onFirstNameChange={value => setForm(prev => ({ ...prev, firstName: value }))}
+                onLastNameChange={value => setForm(prev => ({ ...prev, lastName: value }))}
+                onBirthDateChange={value => setForm(prev => ({ ...prev, birthDate: value }))}
+                onSubmit={handleCreate}
+              />
+            ) : onJoinPatient ? (
+              <Card className="p-5 flex flex-col gap-3">
+                <h2 className="text-[15px] font-semibold text-ink">Rejoindre un patient</h2>
+                <p className="text-xs text-taupe-500">
+                  Utilisez un code d'invitation pour accéder au suivi d'un patient.
+                </p>
+                <Button variant="secondary" size="sm" onClick={onJoinPatient} className="w-full">
+                  <UserPlus className="h-4 w-4" />
+                  Rejoindre un patient
+                </Button>
+              </Card>
+            ) : null}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           {!isOnline && !isEmpty && (
@@ -186,11 +219,18 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient }: Props) {
           {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} />}
           <PatientsList
             patients={filteredPatients ?? []}
-            isLoading={patients === undefined || (syncing && isEmpty)}
+            isLoading={scopedPatients === undefined || (syncing && isEmpty)}
             error={!isOnline && isEmpty ? 'Impossible de charger la liste des patients : vous êtes hors ligne.' : ''}
-            emptyMessage={searchTerm.trim() ? 'Aucun patient ne correspond à votre recherche.' : undefined}
+            emptyMessage={
+              searchTerm.trim()
+                ? 'Aucun patient ne correspond à votre recherche.'
+                : archivedView
+                  ? 'Aucun patient archivé.'
+                  : undefined
+            }
             onSelectPatient={onSelectPatient}
             onRetry={reconnectAndLoad}
+            onToggleArchive={isAdmin ? handleToggleArchive : undefined}
           />
         </div>
       </div>

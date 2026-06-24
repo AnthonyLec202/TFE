@@ -57,6 +57,7 @@ public class PatientService : IPatientService
             FirstName = request.FirstName,
             LastName = request.LastName,
             BirthDate = request.BirthDate,
+            IsArchived = request.IsArchived,
             CreatedAt = DateTime.UtcNow
         };
         var careTeam = new CareTeam
@@ -108,6 +109,13 @@ public class PatientService : IPatientService
                       ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
 
         var careTeamEntry = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
+
+        // RBAC: an archived dossier is visible only to the managing psychologist (Admin). Any other
+        // role (parent, teacher, …) is denied even with a valid care-team membership, blocking direct
+        // URL/API access to an archived record.
+        if (patient.IsArchived && ResolveUserRole(careTeamEntry) != "Admin")
+            throw new UnauthorizedAccessException("This patient record is archived and read-restricted.");
+
         return ToResponse(patient, careTeamEntry);
     }
 
@@ -121,6 +129,12 @@ public class PatientService : IPatientService
         patient.FirstName = request.FirstName;
         patient.LastName = request.LastName;
         patient.BirthDate = request.BirthDate;
+        // Persist blank optional contact fields as NULL (not "") so they round-trip cleanly through the
+        // nullable encrypted columns and are never re-submitted as an invalid empty email.
+        patient.Email = NullIfBlank(request.Email);
+        patient.PhoneNumber = NullIfBlank(request.PhoneNumber);
+        patient.PostalAddress = NullIfBlank(request.PostalAddress);
+        patient.IsArchived = request.IsArchived;
 
         var updated = await _patientRepository.UpdateAsync(patient);
         var ct = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
@@ -200,13 +214,21 @@ public class PatientService : IPatientService
             throw new UnauthorizedAccessException("Only the patient's administrator can perform this action.");
     }
 
+    // Treats a null/empty/whitespace optional field as "no value", normalising it to null.
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
     private static PatientResponse ToResponse(Patient patient, CareTeam? ct = null) => new()
     {
         Id = patient.Id,
         FirstName = patient.FirstName,
         LastName = patient.LastName,
         BirthDate = patient.BirthDate,
-        UserRole = ResolveUserRole(ct)
+        UserRole = ResolveUserRole(ct),
+        Email = patient.Email,
+        PhoneNumber = patient.PhoneNumber,
+        PostalAddress = patient.PostalAddress,
+        IsArchived = patient.IsArchived,
     };
 
     private static string ResolveUserRole(CareTeam? ct) => ct switch

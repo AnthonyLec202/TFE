@@ -22,6 +22,7 @@ export function Navbar() {
 
   const links = [
     { to: '/', end: true, label: 'Mes patients', visible: true },
+    { to: '/archives', end: false, label: 'Archives', visible: isAdmin },
     { to: '/sessions', end: false, label: 'Mes séances', visible: isAdmin },
     { to: '/clinical-tools', end: false, label: 'Mes outils', visible: isAdmin },
   ].filter(link => link.visible);

@@ -19,4 +19,7 @@ public class CreatePatientRequest
 
     [Required(ErrorMessage = "Birth date is required.")]
     public DateOnly BirthDate { get; set; }
+
+    // Optional — a patient is created active by default; the client never sends this on creation.
+    public bool IsArchived { get; set; }
 }

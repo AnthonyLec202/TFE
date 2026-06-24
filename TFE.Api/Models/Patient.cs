@@ -8,6 +8,16 @@ public class Patient
     public DateOnly BirthDate { get; set; }
     public DateTime CreatedAt { get; set; }
 
+    // Optional contact details, captured/edited from the patient dossier (never at creation).
+    // Nullable so existing rows migrate cleanly; encrypted at rest like the other PII columns.
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? PostalAddress { get; set; }
+
+    // Archived patients are hidden from the active "Mes patients" list and surfaced in the Archives
+    // view. Defaults to false so existing rows and new patients start active.
+    public bool IsArchived { get; set; }
+
     public virtual ICollection<EnrollmentToken> EnrollmentTokens { get; set; }
     public virtual ICollection<CareTeam> CareTeam { get; set; }
     public virtual ICollection<Post> Posts { get; set; }

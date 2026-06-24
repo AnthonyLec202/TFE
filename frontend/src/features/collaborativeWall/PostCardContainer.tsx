@@ -11,13 +11,15 @@ interface Props {
   patientId: string;
   currentUserId: string;
   userRole: PatientUserRole;
+  // Archived dossier → suppress every mutation control (edit/delete, comment composer).
+  readOnly?: boolean;
   onUpdated: (p: PostResponse) => void;
   onDeleted: (postId: string) => void;
   onCommentAdded: (comment: CommentResponse) => void;
 }
 
 export function PostCardContainer({
-  post, patientId, currentUserId, userRole, onUpdated, onDeleted, onCommentAdded,
+  post, patientId, currentUserId, userRole, readOnly = false, onUpdated, onDeleted, onCommentAdded,
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [comments, setComments] = useState<CommentResponse[]>(post.comments);
@@ -31,9 +33,10 @@ export function PostCardContainer({
 
   const isPurged = post.content === PURGED_CONTENT;
   const isAdmin = userRole === 'Admin';
-  const canEdit = canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
+  // A read-only (archived) wall withdraws all mutation rights, mirroring the backend guard.
+  const canEdit = !readOnly && canModify(post.createdAt, post.createdById, currentUserId, userRole) && !isPurged;
   // Admins can delete purged posts (author account deleted) — the backend enforces the same rule.
-  const canDelete = isAdmin || canEdit;
+  const canDelete = !readOnly && (isAdmin || canEdit);
 
   async function handleSavePost(content: string, excludedRoles: string[]) {
     setSaving(true);
@@ -85,6 +88,7 @@ export function PostCardContainer({
       postId={post.id}
       currentUserId={currentUserId}
       userRole={userRole}
+      readOnly={readOnly}
       onUpdated={handleCommentUpdated}
       onDeleted={handleCommentDeleted}
     />
@@ -97,6 +101,7 @@ export function PostCardContainer({
       canDelete={canDelete}
       isPurged={isPurged}
       isAdmin={isAdmin}
+      readOnly={readOnly}
       onSavePost={handleSavePost}
       onDeletePost={handleDeletePost}
       saving={saving}

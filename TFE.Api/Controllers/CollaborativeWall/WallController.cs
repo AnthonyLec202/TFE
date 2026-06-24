@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using TFE.Api.DTOs.CollaborativeWall;
+using TFE.Api.Exceptions;
 using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Notifications;
@@ -57,6 +58,7 @@ public class WallController : ControllerBase
             await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (ValidationException ex) { return BadRequest(new { error = ex.Message }); }
     }
@@ -71,6 +73,7 @@ public class WallController : ControllerBase
             await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
     }
 
@@ -83,6 +86,7 @@ public class WallController : ControllerBase
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedPost(response);
             return Ok(response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
@@ -96,6 +100,7 @@ public class WallController : ControllerBase
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedPost(postId);
             return NoContent();
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
@@ -112,6 +117,7 @@ public class WallController : ControllerBase
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
         catch (ValidationException ex) { return BadRequest(new { error = ex.Message }); }
@@ -127,6 +133,7 @@ public class WallController : ControllerBase
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
@@ -141,6 +148,7 @@ public class WallController : ControllerBase
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedComment(response);
             return Ok(response);
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }
@@ -154,6 +162,7 @@ public class WallController : ControllerBase
             await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedComment(postId, commentId);
             return NoContent();
         }
+        catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (KeyNotFoundException) { return NotFound(); }
     }

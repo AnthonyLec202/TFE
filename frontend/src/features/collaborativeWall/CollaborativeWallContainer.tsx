@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Archive } from 'lucide-react';
 import { useAuth } from '../auth';
 import type { PatientUserRole } from '../../types/patient';
 import { useCollaborativeWall } from './hooks/useCollaborativeWall';
@@ -10,9 +11,12 @@ import { PostCardContainer } from './PostCardContainer';
 interface Props {
   patientId: string;
   userRole: PatientUserRole;
+  // When the parent patient is archived, the wall becomes strictly read-only: the composer is
+  // unmounted, edit/delete and comment inputs are suppressed, and a banner explains why.
+  isArchived?: boolean;
 }
 
-export function CollaborativeWallContainer({ patientId, userRole }: Props) {
+export function CollaborativeWallContainer({ patientId, userRole, isArchived = false }: Props) {
   const { user } = useAuth();
   const currentUserId = user?.userId ?? '';
 
@@ -80,11 +84,18 @@ export function CollaborativeWallContainer({ patientId, userRole }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      <CreatePostContainer
-        patientId={patientId}
-        userRole={userRole}
-        onCreated={addPost}
-      />
+      {isArchived ? (
+        <div className="flex items-center gap-2 rounded-lg border border-[#E4D2A6] bg-[#F7EFDC] px-4 py-3 text-[#9A6A18]">
+          <Archive className="h-4 w-4 shrink-0" strokeWidth={1.85} />
+          <p className="text-sm font-medium">Dossier archivé — Mode lecture seule</p>
+        </div>
+      ) : (
+        <CreatePostContainer
+          patientId={patientId}
+          userRole={userRole}
+          onCreated={addPost}
+        />
+      )}
       {posts.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <p className="text-sm text-slate-400">Aucune publication pour le moment.</p>
@@ -97,6 +108,7 @@ export function CollaborativeWallContainer({ patientId, userRole }: Props) {
             patientId={patientId}
             currentUserId={currentUserId}
             userRole={userRole}
+            readOnly={isArchived}
             onUpdated={updatePostState}
             onDeleted={deletePostState}
             onCommentAdded={addCommentToPost}
