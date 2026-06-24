@@ -28,7 +28,7 @@ public class SessionService : ISessionService
         _toolRepository = toolRepository;
     }
 
-    public async Task SyncBatchAsync(SessionSyncBatchRequest request, CancellationToken cancellationToken)
+    public async Task SyncBatchAsync(SessionSyncBatchRequest request, string userId, CancellationToken cancellationToken)
     {
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
@@ -44,7 +44,7 @@ public class SessionService : ISessionService
             .Select(g => g.OrderByDescending(n => n.LastModifiedAt).First())
             .ToList();
 
-        await UpsertSessionsAsync(uniqueSessions, cancellationToken);
+        await UpsertSessionsAsync(uniqueSessions, userId, cancellationToken);
 
         // Phase 1: remove any stale notes that share a SessionId with incoming requests.
         // Flushing here forces the SQL DELETE to execute before the INSERT, which is required
@@ -58,6 +58,40 @@ public class SessionService : ISessionService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IEnumerable<SessionResponse>> GetSessionsForUserAsync(string userId, CancellationToken cancellationToken)
+    {
+        var sessions = await _sessionRepository.GetForUserAsync(userId, cancellationToken);
+        return sessions.Select(session => new SessionResponse
+        {
+            Id = session.Id,
+            Title = session.Title,
+            Date = session.Date,
+            Time = session.Time,
+            IsClosed = session.IsClosed,
+            PatientIds = session.Patients.Select(patient => patient.Id).ToList(),
+            ToolIds = session.TherapeuticTools.Select(tool => tool.Id).ToList(),
+            Attendances = session.Attendances
+                .Select(attendance => new SessionAttendanceResponse
+                {
+                    PatientId = attendance.PatientId,
+                    Status = attendance.Status,
+                })
+                .ToList(),
+        });
+    }
+
+    public async Task<IEnumerable<NoteResponse>> GetNotesForUserAsync(string userId, CancellationToken cancellationToken)
+    {
+        var notes = await _noteRepository.GetForUserAsync(userId, cancellationToken);
+        return notes.Select(note => new NoteResponse
+        {
+            Id = note.Id,
+            SessionId = note.SessionId,
+            Content = note.Content,
+            LastModifiedAt = note.LastModifiedAt,
+        });
     }
 
     public async Task UpdateAsync(Guid id, UpdateSessionRequest request, CancellationToken cancellationToken)
@@ -136,7 +170,7 @@ public class SessionService : ISessionService
         }
     }
 
-    private async Task UpsertSessionsAsync(List<SyncSessionRequest> requests, CancellationToken ct)
+    private async Task UpsertSessionsAsync(List<SyncSessionRequest> requests, string userId, CancellationToken ct)
     {
         if (requests.Count == 0) return;
 
@@ -198,6 +232,9 @@ public class SessionService : ISessionService
                     Date = req.Date,
                     Time = req.Time,
                     IsClosed = req.IsClosed,
+                    // Stamp ownership on creation so the creator can always read the session back —
+                    // including drafts with no patients (the care-team scope alone cannot reach those).
+                    CreatedById = userId,
                 };
                 foreach (var patient in linkedPatients)
                     newSession.Patients.Add(patient);

@@ -8,6 +8,10 @@ public class Session
     public string Time { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
 
+    // Owner of the session (the admin who created it). Nullable so existing rows migrate cleanly and
+    // so a draft "patient-less" session is still reachable by its creator's user-scoped read.
+    public string? CreatedById { get; set; }
+
     // Open sessions appear on the general dashboard; once closed the session is archived to the
     // participating patients' clinical history. Per-patient attendance lives in Attendances.
     public bool IsClosed { get; set; }

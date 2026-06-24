@@ -21,6 +21,19 @@ public class SessionRepository : ISessionRepository
             .Where(s => ids.Contains(s.Id))
             .ToListAsync(cancellationToken);
 
+    public Task<List<Session>> GetForUserAsync(string userId, CancellationToken cancellationToken = default)
+        => _context.Sessions
+            .AsNoTracking()
+            .Include(s => s.Patients)
+            .Include(s => s.TherapeuticTools)
+            .Include(s => s.Attendances)
+            // Scope to the requesting user's reachable clinical data: a session is visible when the
+            // user created it (covers draft, patient-less sessions) OR it involves at least one patient
+            // whose care team includes the user.
+            .Where(s => s.CreatedById == userId
+                || s.Patients.Any(p => p.CareTeam.Any(ct => ct.UserId == userId)))
+            .ToListAsync(cancellationToken);
+
     public Task<Session?> GetByIdWithPatientsAsync(Guid id, CancellationToken cancellationToken = default)
         => _context.Sessions
             .Include(s => s.Patients)

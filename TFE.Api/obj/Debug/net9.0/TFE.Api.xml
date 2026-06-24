@@ -123,6 +123,24 @@
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
             </summary>
         </member>
+        <member name="T:TFE.Api.DTOs.Sessions.NoteResponse">
+            <summary>
+            A session note returned to the offline-first client for cross-device hydration.
+            <see cref="P:TFE.Api.DTOs.Sessions.NoteResponse.Content"/> is already decrypted: the EncryptedStringConverter strips the
+            <c>$penc$</c> sentinel and returns plaintext when EF Core materializes the entity, so the
+            client never sees ciphertext.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.Sessions.SessionResponse">
+            <summary>
+            A session returned to the offline-first client for cross-device hydration. <see cref="P:TFE.Api.DTOs.Sessions.SessionResponse.Title"/> is
+            already decrypted: the EncryptedStringConverter strips the <c>$penc$</c> sentinel on materialization.
+            Mirrors the client's local session shape so the reconciler can persist it directly.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.Sessions.SessionAttendanceResponse">
+            <summary>One participating patient's attendance outcome within a session.</summary>
+        </member>
         <member name="T:TFE.Api.Exceptions.DuplicateEntityException">
             <summary>
             Thrown by a repository when a write violates a unique / primary-key constraint
@@ -183,6 +201,12 @@
             Explicitly loads the Attachments navigation property for a tracked comment.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.INoteRepository.GetForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns every note the given user may read: those attached to a session involving at least one
+            patient in the user's care team. Content is decrypted by EF Core on materialization.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.IPostRepository.GetWallForPatientAsync(System.Guid,System.Boolean,System.String,System.Threading.CancellationToken)">
             <summary>
             Returns all posts visible to the requesting user for the given patient,
@@ -202,6 +226,13 @@
         <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.GetByIdsWithPatientsAsync(System.Collections.Generic.IEnumerable{System.Guid},System.Threading.CancellationToken)">
             <summary>
             Returns the sessions matching the given ids, including their linked patients.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.GetForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns every session readable by the given user — those involving at least one patient in the
+            user's care team — with patients, tools and attendances loaded. Read-only (AsNoTracking); Title
+            is decrypted by EF Core on materialization. For cross-device hydration.
             </summary>
         </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.ISessionRepository.GetByIdWithPatientsAsync(System.Guid,System.Threading.CancellationToken)">
@@ -326,6 +357,16 @@
             <summary>
             Removes the requesting user from a patient's care team (self-leave). The patient's
             administrator cannot leave — they must delete the patient record instead.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Sessions.ISessionService.GetSessionsForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns all sessions readable by the user, decrypted, for cross-device hydration.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Sessions.ISessionService.GetNotesForUserAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Returns all session notes readable by the user, decrypted, for cross-device hydration.
             </summary>
         </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">
@@ -566,6 +607,18 @@
             <inheritdoc />
         </member>
         <member name="M:TFE.Api.Migrations.ConvertToolTypeAndThemeToStrings.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TFE.Api.Migrations.AddSessionCreatedById">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionCreatedById.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionCreatedById.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddSessionCreatedById.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">

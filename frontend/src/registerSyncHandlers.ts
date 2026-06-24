@@ -3,7 +3,7 @@
 // any feature import. Imported once for its side effects from main.tsx, before the app renders.
 import { registerSyncHandler, registerPostSyncHandler } from './core/offline/syncEngine';
 import { syncOfflinePatientQueue, syncPatientsFromServer } from './features/patients';
-import { syncSessions } from './features/sessions';
+import { syncSessions, syncSessionsFromServer, syncNotesFromServer } from './features/sessions';
 import { syncTherapeuticToolsFromServer } from './features/clinicalTools';
 
 // Registration order defines execution order. Patients MUST sync before sessions so a session
@@ -22,4 +22,18 @@ registerPostSyncHandler(async () => {
 // post-sync pull that reconciles the local IndexedDB mirror with the authoritative server list.
 registerPostSyncHandler(async () => {
   await syncTherapeuticToolsFromServer();
+});
+
+// Cross-device read for sessions. MUST be registered before the notes pull below: post-sync handlers
+// run sequentially in registration order, and a pulled note's parent session must already exist
+// locally for the workspace's getSessionById lookup to resolve (referential integrity).
+registerPostSyncHandler(async () => {
+  await syncSessionsFromServer();
+});
+
+// Cross-device read for session notes: pull the server-decrypted notes and reconcile them into the
+// local store (the notes table's encryption hooks re-wrap them in $enc$). Runs after the session push
+// so freshly-authored notes are already 'synced' and are not treated as remote overwrites.
+registerPostSyncHandler(async () => {
+  await syncNotesFromServer();
 });

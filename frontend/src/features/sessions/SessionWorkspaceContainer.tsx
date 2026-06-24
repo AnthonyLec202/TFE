@@ -38,14 +38,18 @@ export function SessionWorkspaceContainer() {
   // (deep link, page reload) or when the state is malformed.
   const origin = location.state as Partial<SessionDetailOrigin> | null;
   const backTo = origin?.from ?? '/sessions';
-  const backLabel = origin?.label ?? 'My Sessions';
+  const backLabel = origin?.label ?? 'Mes séances';
 
   const session = useLiveQuery(
     () => getSessionById(sessionId!),
     [sessionId],
   );
+  // Coerce a missing note to `null` so the component can distinguish the two states `useLiveQuery`
+  // otherwise collapses into `undefined`: query still loading (`undefined`) vs. confirmed no note
+  // exists (`null`). Without this, the auto-create effect below cannot tell them apart and fires
+  // during the loading window — inserting a duplicate empty note that shadows the real one.
   const note = useLiveQuery(
-    () => getNoteForSession(sessionId!),
+    () => getNoteForSession(sessionId!).then(existing => existing ?? null),
     [sessionId],
   );
   const patients = useLiveQuery(() => getAllLocalPatients());
@@ -120,9 +124,12 @@ export function SessionWorkspaceContainer() {
   }
 
   // Auto-create the note record when the session is loaded and no note exists yet.
-  // The ref guard prevents React strict-mode's double-invocation from creating duplicates.
+  // Gate strictly on `note === null` (confirmed absent). While the note query is still loading it is
+  // `undefined`, and creating here would race the live query and insert a duplicate empty note that
+  // overwrites the real one on the next sync. The ref guard additionally prevents React strict-mode's
+  // double-invocation from creating duplicates.
   useEffect(() => {
-    if (!session || note !== undefined || autoCreateAttemptedRef.current) return;
+    if (!session || note !== null || autoCreateAttemptedRef.current) return;
     autoCreateAttemptedRef.current = true;
 
     const newNote: LocalNote = {

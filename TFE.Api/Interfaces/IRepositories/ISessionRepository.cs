@@ -10,6 +10,13 @@ public interface ISessionRepository
     Task<List<Session>> GetByIdsWithPatientsAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns every session readable by the given user — those involving at least one patient in the
+    /// user's care team — with patients, tools and attendances loaded. Read-only (AsNoTracking); Title
+    /// is decrypted by EF Core on materialization. For cross-device hydration.
+    /// </summary>
+    Task<List<Session>> GetForUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns a single session with its linked patients loaded (for update/delete flows), or null if not found.
     /// </summary>
     Task<Session?> GetByIdWithPatientsAsync(Guid id, CancellationToken cancellationToken = default);

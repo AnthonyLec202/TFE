@@ -1,6 +1,6 @@
-import { db, type SyncStatus, type LocalNote } from '../../../core/offline/LocalDatabase';
+import { db, type SyncStatus, type LocalNote, type LocalSession } from '../../../core/offline/LocalDatabase';
 import { AuthError, HttpError } from '../../../services/apiClient';
-import { syncSessionsBatch, updateSession, deleteSession } from './sessionApiService';
+import { syncSessionsBatch, updateSession, deleteSession, getSessions, getSessionNotes } from './sessionApiService';
 
 const SYNCED: SyncStatus = 'synced';
 
@@ -115,4 +115,108 @@ export async function syncSessions(): Promise<void> {
       console.warn('[sessionSync] Failed to push the create/notes batch — will retry later.', err);
     }
   }
+}
+
+/**
+ * Post-sync hydration (cross-device read): pulls the authoritative, server-decrypted sessions and
+ * reconciles them into Dexie. MUST run before {@link syncNotesFromServer} so a pulled note's parent
+ * session already exists locally (preserving referential integrity the workspace relies on).
+ *
+ * Reconciliation rules (identical safety guarantees to the notes pull):
+ *  - A session with unsynced local changes (syncStatus !== 'synced', i.e. pending_create/update/delete)
+ *    is left untouched: local pending work always wins until pushed, so a pull never resurrects a
+ *    tombstone nor clobbers an in-progress edit.
+ *  - Otherwise the server record is upserted as 'synced'.
+ *  - Locally-cached 'synced' sessions absent server-side (deleted on another device) are pruned;
+ *    their now-orphaned notes are pruned by syncNotesFromServer immediately afterwards in the cycle.
+ *
+ * The server Session carries no modified timestamp, so the local lastModifiedAt is preserved when a
+ * row already exists, else stamped at hydration time.
+ */
+export async function syncSessionsFromServer(): Promise<void> {
+  const serverSessions = await getSessions();
+  const serverIds = new Set(serverSessions.map(s => s.id));
+
+  await db.transaction('rw', db.sessions, async () => {
+    for (const serverSession of serverSessions) {
+      const local = await db.sessions.get(serverSession.id);
+
+      // Never overwrite an un-pushed local mutation with the (older) server copy.
+      if (local && local.syncStatus !== SYNCED) continue;
+
+      const merged: LocalSession = {
+        id: serverSession.id,
+        title: serverSession.title,
+        date: serverSession.date,
+        time: serverSession.time,
+        patientIds: serverSession.patientIds,
+        toolIds: serverSession.toolIds,
+        isClosed: serverSession.isClosed,
+        attendances: serverSession.attendances,
+        syncStatus: SYNCED,
+        lastModifiedAt: local?.lastModifiedAt ?? new Date().toISOString(),
+      };
+      await db.sessions.put(merged);
+    }
+
+    // Prune sessions that are synced locally but absent server-side (deleted elsewhere). Pending local
+    // sessions (never pushed, or tombstoned) are never pruned — they have not been reconciled yet.
+    // Patient-less drafts are returned by GET /api/sessions via their CreatedById owner, so their
+    // absence here is now a genuine deletion signal — no special-case guard needed.
+    const localSessions = await db.sessions.toArray();
+    const staleIds = localSessions
+      .filter(s => s.syncStatus === SYNCED && !serverIds.has(s.id))
+      .map(s => s.id);
+    if (staleIds.length > 0) await db.sessions.bulkDelete(staleIds);
+  });
+}
+
+/**
+ * Post-sync hydration (cross-device read): pulls the authoritative, server-decrypted session notes
+ * and reconciles them into Dexie. Registered as a post-sync handler so it runs once per cycle AFTER
+ * the push phase — by which point any locally-authored note has already been marked 'synced'.
+ *
+ * Reconciliation rules:
+ *  - A note with unsynced local changes (syncStatus !== 'synced') is left untouched: a local pending
+ *    edit always wins over the server copy until it is pushed, so cross-device pull never clobbers
+ *    in-progress work.
+ *  - Otherwise the server record is upserted as 'synced'. The plaintext `content` is re-encrypted to
+ *    the `$enc$` at-rest format by the notes table's creating/updating hooks on write.
+ *  - Locally-cached 'synced' notes that no longer exist server-side (deleted on another device) are
+ *    pruned. Pending local notes (never yet pushed) are preserved.
+ *
+ * `unprocessedStrokes` is a device-local, pre-recognition artifact the server does not persist, so any
+ * existing local strokes are carried over rather than dropped on hydration.
+ */
+export async function syncNotesFromServer(): Promise<void> {
+  const serverNotes = await getSessionNotes();
+  const serverIds = new Set(serverNotes.map(n => n.id));
+
+  await db.transaction('rw', db.notes, async () => {
+    for (const serverNote of serverNotes) {
+      const local = await db.notes.get(serverNote.id);
+
+      // Never overwrite an un-pushed local edit with the (older) server copy.
+      if (local && local.syncStatus !== SYNCED) continue;
+
+      const merged: LocalNote = {
+        id: serverNote.id,
+        sessionId: serverNote.sessionId,
+        content: serverNote.content,
+        syncStatus: SYNCED,
+        lastModifiedAt: serverNote.lastModifiedAt,
+        unprocessedStrokes: local?.unprocessedStrokes,
+      };
+      await db.notes.put(merged);
+    }
+
+    // Prune notes that are synced locally but absent server-side (deleted elsewhere). Pending local
+    // notes are never pruned — they have not reached the server yet. Notes on patient-less drafts are
+    // now returned by the notes GET (their session is owner-scoped via CreatedById), so no guard.
+    const localNotes = await db.notes.toArray();
+    const staleIds = localNotes
+      .filter(n => n.syncStatus === SYNCED && !serverIds.has(n.id))
+      .map(n => n.id);
+    if (staleIds.length > 0) await db.notes.bulkDelete(staleIds);
+  });
 }
