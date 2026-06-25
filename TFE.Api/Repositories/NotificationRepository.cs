@@ -29,4 +29,14 @@ public class NotificationRepository : INotificationRepository
         _context.Notifications.Add(notification);
         return Task.CompletedTask;
     }
+
+    public async Task RemoveByPatientIdAsync(Guid patientId)
+    {
+        var notifications = await _context.Notifications
+            .Where(n => n.PatientId == patientId)
+            .ToListAsync();
+
+        // Stage the deletion only; the Service layer commits it via IUnitOfWork.
+        _context.Notifications.RemoveRange(notifications);
+    }
 }

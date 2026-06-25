@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../features/auth';
+import { getPatientTerminology } from '../../features/patients';
 import { NotificationBellContainer } from '../../features/notifications';
 import { UserMenu } from './UserMenu';
 
@@ -19,9 +20,10 @@ const mobileLinkClass = (state: { isActive: boolean }) =>
 export function Navbar() {
   const { user } = useAuth();
   const isAdmin = user?.roles?.includes('Admin') ?? false;
+  const terms = getPatientTerminology(isAdmin);
 
   const links = [
-    { to: '/', end: true, label: 'Mes patients', visible: true },
+    { to: '/', end: true, label: terms.nav_patients, visible: true },
     { to: '/archives', end: false, label: 'Archives', visible: isAdmin },
     { to: '/sessions', end: false, label: 'Mes séances', visible: isAdmin },
     { to: '/clinical-tools', end: false, label: 'Mes outils', visible: isAdmin },

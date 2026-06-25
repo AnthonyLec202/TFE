@@ -14,6 +14,7 @@ public class PatientService : IPatientService
     private readonly IPatientRepository _patientRepository;
     private readonly ICareTeamRepository _careTeamRepository;
     private readonly IAttachmentRepository _attachmentRepository;
+    private readonly INotificationRepository _notificationRepository;
     private readonly IFileStorageService _fileStorage;
     private readonly string _bucketName;
 
@@ -22,6 +23,7 @@ public class PatientService : IPatientService
         IPatientRepository patientRepository,
         ICareTeamRepository careTeamRepository,
         IAttachmentRepository attachmentRepository,
+        INotificationRepository notificationRepository,
         IFileStorageService fileStorage,
         IConfiguration configuration)
     {
@@ -29,6 +31,7 @@ public class PatientService : IPatientService
         _patientRepository = patientRepository;
         _careTeamRepository = careTeamRepository;
         _attachmentRepository = attachmentRepository;
+        _notificationRepository = notificationRepository;
         _fileStorage = fileStorage;
         _bucketName = configuration["Supabase:AttachmentsBucket"]
             ?? throw new InvalidOperationException("Supabase:AttachmentsBucket is not configured.");
@@ -126,6 +129,10 @@ public class PatientService : IPatientService
         var patient = await _patientRepository.GetByIdAsync(patientId)
                       ?? throw new KeyNotFoundException($"Patient {patientId} not found.");
 
+        // Capture the prior state so we can react to the archive *transition* (active → archived) only,
+        // not to every save of an already-archived record.
+        var isArchiveTransition = !patient.IsArchived && request.IsArchived;
+
         patient.FirstName = request.FirstName;
         patient.LastName = request.LastName;
         patient.BirthDate = request.BirthDate;
@@ -135,6 +142,14 @@ public class PatientService : IPatientService
         patient.PhoneNumber = NullIfBlank(request.PhoneNumber);
         patient.PostalAddress = NullIfBlank(request.PostalAddress);
         patient.IsArchived = request.IsArchived;
+
+        // Cascade: archiving a dossier clears every collaborator's pending notifications for it, so no
+        // feed keeps deep-linking to a now read-restricted record. Staged here and committed atomically
+        // with the patient update by the single SaveChanges in UpdateAsync (same DbContext). Server-side
+        // deletion is sufficient to clear remote feeds — every client re-derives its bell from the
+        // unread-notifications endpoint on its next fetch.
+        if (isArchiveTransition)
+            await _notificationRepository.RemoveByPatientIdAsync(patientId);
 
         var updated = await _patientRepository.UpdateAsync(patient);
         var ct = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);

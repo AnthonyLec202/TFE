@@ -214,6 +214,13 @@
             patient in the user's care team. Content is decrypted by EF Core on materialization.
             </summary>
         </member>
+        <member name="M:TFE.Api.Interfaces.IRepositories.INotificationRepository.RemoveByPatientIdAsync(System.Guid)">
+            <summary>
+            Stages removal of every notification targeting the given patient (across all recipients).
+            Used when a patient is archived so no collaborator's feed keeps pointing at a now read-restricted
+            dossier. Stages only — the Service commits via IUnitOfWork.
+            </summary>
+        </member>
         <member name="M:TFE.Api.Interfaces.IRepositories.IPostRepository.GetWallForPatientAsync(System.Guid,System.Boolean,System.String,System.Threading.CancellationToken)">
             <summary>
             Returns all posts visible to the requesting user for the given patient,

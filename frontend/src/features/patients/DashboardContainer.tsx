@@ -12,6 +12,7 @@ import { PatientsList, type PatientListItem } from './components/PatientsList';
 import { PatientSearch } from './components/PatientSearch';
 import { createPatientWithOfflineFallback } from './services/offlinePatientQueueService';
 import { upsertLocalPatient, togglePatientArchiveStatus } from './services/localPatientService';
+import { getPatientTerminology } from './utils/patientTerminology';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
 
@@ -31,6 +32,8 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   const { user, isInitialized } = useAuth();
   const isAdmin = user?.roles.includes('Admin') ?? false;
   const archivedView = mode === 'archived';
+  // Role-based wording: a psychologist (Admin) manages "patients"; a collaborator works on "dossiers".
+  const terms = getPatientTerminology(isAdmin);
 
   // Single source of truth for connectivity: the hoisted global state, persisted across navigation.
   // The header pill, the offline banner and the empty-cache message all derive from this — never from
@@ -69,9 +72,18 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   // Restrict to the current view's archive scope before any display filtering. An offline-queued
   // creation (no isArchived field) defaults to active. This scoped list — not the raw one — drives the
   // count and empty states so "Archives" reports on archived patients only.
+  //
+  // Sorting is done in-memory here, NOT via Dexie's .orderBy(): names are encrypted at rest ($enc$),
+  // so the index would order on ciphertext. By the time the live query resolves the DBCore middleware
+  // has decrypted firstName/lastName, so a JS sort here ranks on plaintext. localeCompare('fr') is
+  // mandatory so French diacritics collate naturally (e.g. 'É' next to 'E', not after 'Z').
   const scopedPatients = useMemo<PatientListItem[] | undefined>(() => {
     if (patients === undefined) return undefined;
-    return patients.filter(patient => (patient.isArchived ?? false) === archivedView);
+    return patients
+      .filter(patient => (patient.isArchived ?? false) === archivedView)
+      .sort((a, b) =>
+        a.lastName.localeCompare(b.lastName, 'fr', { sensitivity: 'base' }) ||
+        a.firstName.localeCompare(b.firstName, 'fr', { sensitivity: 'base' }));
   }, [patients, archivedView]);
 
   // Case-insensitive substring match on the precomputed "firstname lastname" key. Filtering is
@@ -161,12 +173,12 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">
-            {archivedView ? 'Archives' : isAdmin ? 'Mes patients' : 'Patients suivis'}
+            {archivedView ? 'Archives' : terms.nav_patients}
           </h1>
           <p className="text-[14.5px] text-taupe-500">
             {archivedView
               ? `${count} patient${count !== 1 ? 's' : ''} archivé${count !== 1 ? 's' : ''}`
-              : `${count} patient${count !== 1 ? 's' : ''} suivi${count !== 1 ? 's' : ''}`}
+              : terms.list_count(count)}
           </p>
         </div>
         <SyncBadge syncing={syncing} offline={!isOnline} />
@@ -197,13 +209,11 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
               />
             ) : onJoinPatient ? (
               <Card className="p-5 flex flex-col gap-3">
-                <h2 className="text-[15px] font-semibold text-ink">Rejoindre un patient</h2>
-                <p className="text-xs text-taupe-500">
-                  Utilisez un code d'invitation pour accéder au suivi d'un patient.
-                </p>
+                <h2 className="text-[15px] font-semibold text-ink">{terms.join_action}</h2>
+                <p className="text-xs text-taupe-500">{terms.join_desc}</p>
                 <Button variant="secondary" size="sm" onClick={onJoinPatient} className="w-full">
                   <UserPlus className="h-4 w-4" />
-                  Rejoindre un patient
+                  {terms.join_action}
                 </Button>
               </Card>
             ) : null}
@@ -216,7 +226,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
               <p className="text-sm text-amber-700">Hors ligne — affichage des données mises en cache.</p>
             </div>
           )}
-          {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} />}
+          {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} placeholder={terms.search_placeholder} />}
           <PatientsList
             patients={filteredPatients ?? []}
             isLoading={scopedPatients === undefined || (syncing && isEmpty)}

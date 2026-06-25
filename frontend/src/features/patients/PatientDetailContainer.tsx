@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { ArrowLeft, Loader2, LogOut, Pencil, Trash2, TriangleAlert, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { deletePatient, getPatient, removeCareTeamMember, updatePatient } from '../../services/patientService';
+import { HttpError } from '../../services/apiClient';
+import { getPatientTerminology } from './utils/patientTerminology';
 import { removeLocalPatient } from './services/localPatientService';
 import type { PatientResponse, UpdatePatientPayload } from '../../types/patient';
 import { Button } from '../../components/ui/Button';
@@ -71,7 +73,17 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
   useEffect(() => {
     getPatient(patientId)
       .then(p => { setPatient(p); })
-      .catch(() => setError('Impossible de charger ce patient.'))
+      .catch(err => {
+        // A notification can deep-link to a dossier that has since been archived (403, read-restricted
+        // for non-managers) or deleted (404). Surface a single, non-revealing message in both cases
+        // rather than the generic load error, so a stale notification link degrades gracefully without
+        // disclosing whether the record still exists.
+        if (err instanceof HttpError && (err.status === 403 || err.status === 404)) {
+          setError('Impossible de charger ce dossier. Le patient a été archivé ou supprimé par le gestionnaire.');
+        } else {
+          setError('Impossible de charger ce patient.');
+        }
+      })
       .finally(() => setLoading(false));
   }, [patientId]);
 
@@ -196,8 +208,9 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         <ArrowLeft className="h-4 w-4" />
         {/* Derive the label from the loaded patient (not location.state) so a hard reload of the
             dossier still points back to the correct list. Archived dossiers are Admin-only, so the
-            "Mes archives" branch implies Admin; the rest keeps the role-specific list label. */}
-        {patient.isArchived ? 'Mes archives' : isAdmin ? 'Mes patients' : 'Patients suivis'}
+            "Mes archives" branch implies a psychologist; otherwise the role-based terminology decides
+            between "Mes patients" (psychologist) and "Mes dossiers" (collaborator). */}
+        {patient.isArchived ? 'Mes archives' : getPatientTerminology(isAdmin).back_label_patients}
       </button>
 
       {/* Identity card */}
