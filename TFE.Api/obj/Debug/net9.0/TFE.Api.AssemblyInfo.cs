@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e446e0e0cfc6d8fdf2db321eb9c7919505249baa")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3294569de4fde0b77714b3bdc03168be7e301ad2")]
 [assembly: System.Reflection.AssemblyProductAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TFE.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

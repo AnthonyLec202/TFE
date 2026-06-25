@@ -31,6 +31,8 @@ export interface SessionWorkspaceProps {
   onDelete: () => void;
   /** Opens the on-demand "Mes Outils" side drawer. */
   onOpenTools: () => void;
+  /** Navigates to the dedicated AI clinical-report split-screen route for this session. */
+  onOpenAiReport: () => void;
   /** Tools currently associated with this session, rendered in the persistent right sidebar. */
   associatedTools: { id: string; title: string; isPending: boolean }[];
   /** Removes a tool from the active session directly from the sidebar (no drawer round-trip). */
@@ -40,7 +42,7 @@ export interface SessionWorkspaceProps {
 export function SessionWorkspace({
   session, backTo, backLabel, patientsById, editorText, onEditorTextChange, isSaving,
   inputMode, onInputModeChange, currentStrokes, onStrokesUpdate,
-  onConvertToText, isConverting, isOnline, canConvert, onEdit, onDelete, onOpenTools,
+  onConvertToText, isConverting, isOnline, canConvert, onEdit, onDelete, onOpenTools, onOpenAiReport,
   associatedTools, onUnlinkTool,
 }: SessionWorkspaceProps) {
   const convertButtonDisabled = !canConvert;
@@ -114,6 +116,9 @@ export function SessionWorkspace({
           <Button variant="danger" size="sm" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5" />
             Supprimer
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onOpenAiReport}>
+            🤖 Compte Rendu IA
           </Button>
         </div>
 

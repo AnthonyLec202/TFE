@@ -294,6 +294,7 @@ export function SessionWorkspaceContainer() {
         onEdit={handleEditOpen}
         onDelete={() => setIsConfirmDeleteOpen(true)}
         onOpenTools={() => setIsToolDrawerOpen(true)}
+        onOpenAiReport={() => navigate(`/sessions/${session.id}/report`)}
         associatedTools={(associatedTools ?? []).map(tool => ({
           id: tool.id,
           title: tool.title,

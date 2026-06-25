@@ -10,6 +10,7 @@ import { PatientDetailPage } from './pages/patients/PatientDetailPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SessionsPage } from './pages/sessions/SessionsPage';
 import { SessionWorkspacePage } from './pages/sessions/SessionWorkspacePage';
+import { AiReportPage } from './pages/sessions/AiReportPage';
 import { ClinicalToolsPage } from './pages/clinicalTools/ClinicalToolsPage';
 import { ToolDetailPage } from './pages/clinicalTools/ToolDetailPage';
 import { MainLayout } from './components/layout/MainLayout';
@@ -42,6 +43,7 @@ function App() {
                 <Route path="archives" element={<ArchivesPage />} />
                 <Route path="sessions" element={<SessionsPage />} />
                 <Route path="sessions/:sessionId" element={<SessionWorkspacePage />} />
+                <Route path="sessions/:sessionId/report" element={<AiReportPage />} />
                 <Route path="clinical-tools" element={<ClinicalToolsPage />} />
                 <Route path="clinical-tools/:id" element={<ToolDetailPage />} />
               </Route>

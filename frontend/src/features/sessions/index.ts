@@ -1,5 +1,6 @@
 export { SessionsDashboardContainer } from './SessionsDashboardContainer';
 export { SessionWorkspaceContainer } from './SessionWorkspaceContainer';
+export { AiReportContainer } from './AiReportContainer';
 export { getSessionsForPatient } from './services/localSessionService';
 export { syncSessionsBatch, updateSession, deleteSession } from './services/sessionApiService';
 export { syncSessions, syncSessionsFromServer, syncNotesFromServer } from './services/sessionSyncService';
