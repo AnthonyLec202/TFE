@@ -18,6 +18,11 @@ public class UpdateSessionRequest
     // persists server-side through the offline sync cycle.
     public bool IsClosed { get; set; }
 
+    // AI report carried on the update path so a validated/edited report persists server-side
+    // through the offline sync cycle.
+    public string? AiReport { get; set; }
+    public bool IsReportValidated { get; set; }
+
     public List<Guid> PatientIds { get; set; } = new();
 
     // Therapeutic tools associated to this session (many-to-many). Carried on the update path so a

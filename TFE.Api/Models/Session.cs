@@ -16,6 +16,14 @@ public class Session
     // participating patients' clinical history. Per-patient attendance lives in Attendances.
     public bool IsClosed { get; set; }
 
+    // AI-generated clinical report (Markdown). Nullable until a report is generated. Clinical content,
+    // so it is encrypted at rest by the EncryptedStringConverter (see ApplicationDbContext).
+    public string? AiReport { get; set; }
+
+    // True once the clinician has reviewed, corrected, and validated the AI report under their
+    // professional responsibility. Defaults to false (a freshly generated draft is unvalidated).
+    public bool IsReportValidated { get; set; }
+
     public virtual ICollection<Patient> Patients { get; set; } = new List<Patient>();
     public virtual ICollection<SessionAttendance> Attendances { get; set; } = new List<SessionAttendance>();
     public virtual ICollection<SessionNote> SessionNotes { get; set; } = new HashSet<SessionNote>();

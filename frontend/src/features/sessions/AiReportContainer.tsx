@@ -1,6 +1,8 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { getSessionById, getNoteForSession } from './services/localSessionService';
+import { getSessionById, getNoteForSession, updateSessionAiReport } from './services/localSessionService';
+import { generateAiReport } from './services/sessionApiService';
+import { runSyncCycle } from '../../core/offline/syncEngine';
 import { AiReportWorkspace } from './components/AiReportWorkspace';
 
 // Top-level container for the dedicated AI clinical-report route (/sessions/:sessionId/report).
@@ -37,7 +39,16 @@ export function AiReportContainer() {
     <AiReportWorkspace
       sessionDate={session.date}
       noteContent={note?.content ?? ''}
+      initialReport={session.aiReport ?? null}
+      initialValidated={session.isReportValidated ?? false}
       onBack={() => navigate(`/sessions/${session.id}`)}
+      // Online-only generation: the model runs on the backend. Returns the Markdown report.
+      onGenerate={() => generateAiReport(session.id)}
+      // Persist the validated report to Dexie and trigger the offline-first sync engine to push it.
+      onSave={async report => {
+        await updateSessionAiReport(session.id, report, true);
+        runSyncCycle(); // fire-and-forget: push to the server if online
+      }}
     />
   );
 }

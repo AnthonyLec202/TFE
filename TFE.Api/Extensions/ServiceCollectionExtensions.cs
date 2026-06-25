@@ -1,6 +1,8 @@
+using Microsoft.SemanticKernel;
 using Supabase;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
+using TFE.Api.Interfaces.IServices.Ai;
 using TFE.Api.Interfaces.IServices.Auth;
 using TFE.Api.Interfaces.IServices.ClinicalTools;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
@@ -9,7 +11,9 @@ using TFE.Api.Interfaces.IServices.Invitations;
 using TFE.Api.Interfaces.IServices.Notifications;
 using TFE.Api.Interfaces.IServices.Patients;
 using TFE.Api.Interfaces.IServices.Sessions;
+using TFE.Api.Options;
 using TFE.Api.Repositories;
+using TFE.Api.Services.Ai;
 using TFE.Api.Services.Auth;
 using TFE.Api.Services.ClinicalTools;
 using TFE.Api.Services.CollaborativeWall;
@@ -57,6 +61,28 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ITherapeuticToolService, TherapeuticToolService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers Semantic Kernel with the Ollama chat-completion connector and the AI report service.
+    /// Reads BaseUrl/ModelId from the "Ai" section (defaults: http://localhost:11434, llama3.2).
+    /// The Ollama chat-completion service is registered as a singleton (it wraps a pooled HTTP client);
+    /// the Kernel itself is a lightweight transient that resolves the registered AI services per use.
+    /// </summary>
+    public static IServiceCollection AddAiServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        var aiOptions = configuration.GetSection(AiOptions.SectionName).Get<AiOptions>() ?? new AiOptions();
+        services.AddSingleton(aiOptions);
+
+        // The Ollama connector is experimental; SKEXP0070 is suppressed project-wide (see .csproj).
+        services.AddOllamaChatCompletion(
+            modelId: aiOptions.ModelId,
+            endpoint: new Uri(aiOptions.BaseUrl));
+        services.AddKernel();
+
+        services.AddScoped<IAiReportService, AiReportService>();
 
         return services;
     }

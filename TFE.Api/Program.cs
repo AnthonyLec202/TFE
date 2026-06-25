@@ -121,6 +121,7 @@ builder.Services.AddCors(options =>
 
 // ── Supabase client (singleton) + Repositories & Services ────────────────────
 builder.Services.AddSupabaseClient(builder.Configuration);
+builder.Services.AddAiServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 
 // ─────────────────────────────────────────────────────────────────────────────

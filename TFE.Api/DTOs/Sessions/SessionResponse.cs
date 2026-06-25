@@ -14,6 +14,11 @@ public class SessionResponse
     public string Date { get; set; } = string.Empty;
     public string Time { get; set; } = string.Empty;
     public bool IsClosed { get; set; }
+
+    // AI report fields, decrypted on materialization like Title. Null until a report exists.
+    public string? AiReport { get; set; }
+    public bool IsReportValidated { get; set; }
+
     public List<Guid> PatientIds { get; set; } = new();
     public List<Guid> ToolIds { get; set; } = new();
     public List<SessionAttendanceResponse> Attendances { get; set; } = new();

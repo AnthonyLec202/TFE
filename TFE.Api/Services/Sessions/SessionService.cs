@@ -1,6 +1,7 @@
 using TFE.Api.DTOs.Sessions;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
+using TFE.Api.Interfaces.IServices.Ai;
 using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Models;
 
@@ -13,19 +14,22 @@ public class SessionService : ISessionService
     private readonly INoteRepository _noteRepository;
     private readonly IPatientRepository _patientRepository;
     private readonly ITherapeuticToolRepository _toolRepository;
+    private readonly IAiReportService _aiReportService;
 
     public SessionService(
         IUnitOfWork unitOfWork,
         ISessionRepository sessionRepository,
         INoteRepository noteRepository,
         IPatientRepository patientRepository,
-        ITherapeuticToolRepository toolRepository)
+        ITherapeuticToolRepository toolRepository,
+        IAiReportService aiReportService)
     {
         _unitOfWork = unitOfWork;
         _sessionRepository = sessionRepository;
         _noteRepository = noteRepository;
         _patientRepository = patientRepository;
         _toolRepository = toolRepository;
+        _aiReportService = aiReportService;
     }
 
     public async Task SyncBatchAsync(SessionSyncBatchRequest request, string userId, CancellationToken cancellationToken)
@@ -70,6 +74,8 @@ public class SessionService : ISessionService
             Date = session.Date,
             Time = session.Time,
             IsClosed = session.IsClosed,
+            AiReport = session.AiReport,
+            IsReportValidated = session.IsReportValidated,
             PatientIds = session.Patients.Select(patient => patient.Id).ToList(),
             ToolIds = session.TherapeuticTools.Select(tool => tool.Id).ToList(),
             Attendances = session.Attendances
@@ -106,6 +112,8 @@ public class SessionService : ISessionService
             session.Date = request.Date;
             session.Time = request.Time;
             session.IsClosed = request.IsClosed;
+            session.AiReport = request.AiReport;
+            session.IsReportValidated = request.IsReportValidated;
 
             // Replace the patient assignment: resolve the requested ids, then rebuild the
             // many-to-many join from the loaded (tracked) collection.
@@ -170,6 +178,19 @@ public class SessionService : ISessionService
         }
     }
 
+    public async Task<string> GenerateAiReportAsync(Guid sessionId, string userId, CancellationToken cancellationToken)
+    {
+        // RBAC: GetForUserAsync returns only notes whose session is readable by this user (owner or
+        // care-team scope). An unreadable or non-existent session therefore yields no match, which we
+        // surface as not-found — never leaking another clinician's clinical content to the model.
+        var readableNotes = await _noteRepository.GetForUserAsync(userId, cancellationToken);
+        var note = readableNotes.FirstOrDefault(n => n.SessionId == sessionId)
+            ?? throw new KeyNotFoundException($"No readable note found for session {sessionId}.");
+
+        // Content is already decrypted by the EncryptedStringConverter on materialization.
+        return await _aiReportService.GenerateReportAsync(note.Content, cancellationToken);
+    }
+
     private async Task UpsertSessionsAsync(List<SyncSessionRequest> requests, string userId, CancellationToken ct)
     {
         if (requests.Count == 0) return;
@@ -214,6 +235,8 @@ public class SessionService : ISessionService
                 session.Date = req.Date;
                 session.Time = req.Time;
                 session.IsClosed = req.IsClosed;
+                session.AiReport = req.AiReport;
+                session.IsReportValidated = req.IsReportValidated;
 
                 session.Patients.Clear();
                 foreach (var patient in linkedPatients)
@@ -232,6 +255,8 @@ public class SessionService : ISessionService
                     Date = req.Date,
                     Time = req.Time,
                     IsClosed = req.IsClosed,
+                    AiReport = req.AiReport,
+                    IsReportValidated = req.IsReportValidated,
                     // Stamp ownership on creation so the creator can always read the session back —
                     // including drafts with no patients (the care-team scope alone cannot reach those).
                     CreatedById = userId,

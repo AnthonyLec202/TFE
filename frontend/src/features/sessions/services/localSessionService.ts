@@ -114,6 +114,25 @@ export async function dissociateToolFromSession(sessionId: string, toolId: strin
   });
 }
 
+// Persists a validated AI report onto the session and re-marks it for sync, so the offline-first
+// engine pushes the report (and its validation flag) to the server on the next cycle.
+export async function updateSessionAiReport(
+  id: string,
+  aiReport: string,
+  isReportValidated: boolean,
+): Promise<void> {
+  const existing = await db.sessions.get(id);
+  if (!existing) return;
+
+  await db.sessions.put({
+    ...existing,
+    aiReport,
+    isReportValidated,
+    syncStatus: nextSyncStatusAfterEdit(existing),
+    lastModifiedAt: new Date().toISOString(),
+  });
+}
+
 export async function saveNoteLocally(note: LocalNote): Promise<void> {
   await db.notes.put(note);
 }

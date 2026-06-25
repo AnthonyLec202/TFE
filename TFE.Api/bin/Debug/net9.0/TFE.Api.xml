@@ -123,6 +123,9 @@
             The requesting user's role relative to this patient ("Admin", "Parent", "Collaborator").
             </summary>
         </member>
+        <member name="T:TFE.Api.DTOs.Sessions.AiReportResponse">
+            <summary>The freshly generated AI clinical report (Markdown), returned by the generation endpoint.</summary>
+        </member>
         <member name="T:TFE.Api.DTOs.Sessions.NoteResponse">
             <summary>
             A session note returned to the offline-first client for cross-device hydration.
@@ -172,6 +175,14 @@
             <summary>
             Emits an already-expired cookie carrying the same attributes, instructing the browser to delete
             the session cookie. Used by the logout endpoint.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddAiServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Registers Semantic Kernel with the Ollama chat-completion connector and the AI report service.
+            Reads BaseUrl/ModelId from the "Ai" section (defaults: http://localhost:11434, llama3.2).
+            The Ollama chat-completion service is registered as a singleton (it wraps a pooled HTTP client);
+            the Kernel itself is a lightweight transient that resolves the registered AI services per use.
             </summary>
         </member>
         <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddSupabaseClient(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
@@ -307,6 +318,20 @@
             ON DELETE CASCADE. Persistence is committed by the caller via IUnitOfWork.
             </summary>
         </member>
+        <member name="T:TFE.Api.Interfaces.IServices.Ai.IAiReportService">
+            <summary>
+            Generates a structured clinical report from raw session notes using the configured LLM
+            (Semantic Kernel + Ollama).
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Ai.IAiReportService.GenerateReportAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Produces a structured, Markdown-formatted clinical report from the raw session notes.
+            </summary>
+            <param name="sessionNotes">The decrypted, clinician-authored note content for the session.</param>
+            <param name="cancellationToken">Token to cancel the generation request.</param>
+            <returns>The generated report as Markdown.</returns>
+        </member>
         <member name="M:TFE.Api.Interfaces.IServices.CollaborativeWall.IFileStorageService.UploadFileAsync(Microsoft.AspNetCore.Http.IFormFile,System.String,System.Threading.CancellationToken)">
             <summary>
             Uploads <paramref name="file"/> to <paramref name="bucketName"/> and returns the relative
@@ -381,6 +406,13 @@
         <member name="M:TFE.Api.Interfaces.IServices.Sessions.ISessionService.GetNotesForUserAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Returns all session notes readable by the user, decrypted, for cross-device hydration.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Sessions.ISessionService.GenerateAiReportAsync(System.Guid,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Generates an AI clinical report from the decrypted note of the given session. Enforces RBAC:
+            the session's note must be readable by <paramref name="userId"/>. Throws
+            <see cref="T:System.Collections.Generic.KeyNotFoundException"/> when no readable note exists for the session.
             </summary>
         </member>
         <member name="T:TFE.Api.Migrations.InitialCreate">
@@ -659,6 +691,18 @@
         <member name="M:TFE.Api.Migrations.AddPatientIsArchived.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TFE.Api.Migrations.AddAiReportFields">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddAiReportFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddAiReportFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TFE.Api.Migrations.AddAiReportFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="P:TFE.Api.Models.Notification.TargetUrl">
             <summary>
             Client-side deep-link, e.g. /patients/{id}?postId={postId}&amp;commentId={commentId}.
@@ -670,6 +714,24 @@
             descriptive metadata it carries the adaptive scaffolding (down/up-grading strategies) that lets
             the clinician titrate the intervention to the patient's tolerance during an active session, and
             links to the therapy sessions in which it was deployed (many-to-many).
+            </summary>
+        </member>
+        <member name="T:TFE.Api.Options.AiOptions">
+            <summary>
+            Configuration for the local Ollama-backed AI report generation, bound from the "Ai" section of
+            appsettings.json. Defaults target a local Ollama instance running the llama3.2 model.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.Options.AiOptions.BaseUrl">
+            <summary>Base URL of the Ollama server exposing the OpenAI-compatible chat API.</summary>
+        </member>
+        <member name="P:TFE.Api.Options.AiOptions.ModelId">
+            <summary>Identifier of the Ollama model to invoke (e.g. "llama3.2").</summary>
+        </member>
+        <member name="T:TFE.Api.Services.Ai.AiReportService">
+            <summary>
+            Semantic Kernel implementation of <see cref="T:TFE.Api.Interfaces.IServices.Ai.IAiReportService"/>. Drives the locally-hosted Ollama
+            chat model registered in the kernel to turn raw session notes into a structured clinical report.
             </summary>
         </member>
         <member name="T:TFE.Api.Services.CollaborativeWall.SupabaseStorageService">

@@ -49,6 +49,10 @@ export interface LocalSession {
   title: string;
   isClosed: boolean;     // open sessions are active; closed sessions archive to patients' history
   attendances: LocalSessionAttendance[]; // per-patient outcome, populated when the session is closed
+  // AI-generated clinical report (Markdown) and its validation flag. Absent until a report is
+  // generated; non-indexed, so the store key declarations are unchanged.
+  aiReport?: string;
+  isReportValidated?: boolean;
   syncStatus: SyncStatus;
   lastModifiedAt: string; // ISO datetime string
 }
@@ -218,6 +222,17 @@ class ClinicalAppDatabase extends Dexie {
     // v10 adds the non-indexed `isArchived` flag to LocalPatientSync. Stores are unchanged (the flag
     // is filtered in memory, not indexed); existing rows backfill it on the next sync's bulkPut.
     this.version(10).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
+    });
+
+    // v11 adds the non-indexed `aiReport` + `isReportValidated` fields to LocalSession. Stores are
+    // unchanged (neither field is indexed); existing rows leave them undefined and backfill on the
+    // next sync's reconciliation (or when a report is generated locally).
+    this.version(11).stores({
       sessions: 'id, *patientIds, *toolIds, date, syncStatus',
       notes: 'id, sessionId, syncStatus',
       patients: 'id, searchableName',

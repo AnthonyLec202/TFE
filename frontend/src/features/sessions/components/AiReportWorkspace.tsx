@@ -4,54 +4,64 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { formatSessionDate } from '../utils/sessionFormatters';
 
-// Simulated latency for the mock generation call, matching the eventual backend round-trip feel.
-const MOCK_GENERATION_DELAY_MS = 2000;
-
-// Placeholder clinical summary returned by the mock generator. Replaced by a real backend response
-// in a later step — for now it exercises the full draft/validate/read-only UI flow.
-const MOCK_REPORT_CONTENT = `# Compte rendu de séance
-
-## Synthèse clinique
-Le patient se présente avec une humeur stable et une bonne implication dans les exercices proposés.
-
-## Observations
-- Engagement actif durant la séance.
-- Progression notable sur les objectifs fixés précédemment.
-- Aucune difficulté majeure relevée.
-
-## Objectifs pour la prochaine séance
-1. Poursuivre le travail sur la régulation émotionnelle.
-2. Introduire de nouveaux outils de gestion du stress.
-
-*Ce compte rendu a été généré automatiquement et doit être relu et validé par le clinicien.*`;
-
 export interface AiReportWorkspaceProps {
   /** Session date (ISO string) shown in the read-only context sub-header. */
   sessionDate: string;
   /** Read-only note content rendered in the left context column. */
   noteContent: string;
+  /** Existing AI report to hydrate the UI with (e.g. a previously validated report); null if none. */
+  initialReport: string | null;
+  /** Whether the existing report was already validated — initializes the UI directly in Phase 4. */
+  initialValidated: boolean;
   /** Returns to the session workspace. */
   onBack: () => void;
+  /** Generates a report from the session notes on the backend; resolves to the Markdown string. */
+  onGenerate: () => Promise<string>;
+  /** Persists the validated report (Dexie + sync). */
+  onSave: (reportContent: string) => Promise<void>;
 }
 
 // Presentational split-screen for AI clinical-report generation.
-// Left column: read-only session-note context. Right column: a self-contained four-phase UI state
-// machine (empty -> loading -> draft/edit -> validated/read-only) driven entirely by local state.
-// No backend, database, or offline persistence is wired up at this stage.
-export function AiReportWorkspace({ sessionDate, noteContent, onBack }: AiReportWorkspaceProps) {
-  const [reportContent, setReportContent] = useState<string | null>(null);
+// Left column: read-only session-note context. Right column: a four-phase UI state machine
+// (empty -> loading -> draft/edit -> validated/read-only). Generation and persistence are delegated
+// to the container via onGenerate/onSave; the phase transitions are driven by local state.
+export function AiReportWorkspace({
+  sessionDate, noteContent, initialReport, initialValidated, onBack, onGenerate, onSave,
+}: AiReportWorkspaceProps) {
+  const [reportContent, setReportContent] = useState<string | null>(initialReport);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isValidated, setIsValidated] = useState(false);
+  const [isValidated, setIsValidated] = useState(initialValidated);
+  const [isSaving, setIsSaving] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   // Gates the "Sauvegarder" action. Kept separate from `isValidated` so the draft phase persists
   // while the clinician ticks the acknowledgement — only clicking "Sauvegarder" commits to Phase 4.
-  const [isAcknowledged, setIsAcknowledged] = useState(false);
+  // Pre-checked when arriving on an already-validated report so editing then re-saving is frictionless.
+  const [isAcknowledged, setIsAcknowledged] = useState(initialValidated);
 
-  // Phase 1 -> 2 -> 3: mock the asynchronous generation, then drop into the editable draft.
-  const handleGenerateMock = async () => {
+  // Phase 1 -> 2 -> 3: call the backend generator, then drop into the editable draft.
+  const handleGenerate = async () => {
     setIsGenerating(true);
-    await new Promise(resolve => setTimeout(resolve, MOCK_GENERATION_DELAY_MS));
-    setReportContent(MOCK_REPORT_CONTENT);
-    setIsGenerating(false);
+    setGenerationError(null);
+    try {
+      const report = await onGenerate();
+      setReportContent(report);
+    } catch {
+      setGenerationError('La génération du compte rendu a échoué. Vérifiez votre connexion et réessayez.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Phase 3 -> 4: persist the validated report through the container, then lock to read-only.
+  const handleSave = async () => {
+    if (reportContent === null) return;
+    setIsSaving(true);
+    try {
+      await onSave(reportContent);
+      setIsValidated(true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -107,7 +117,10 @@ export function AiReportWorkspace({ sessionDate, noteContent, onBack }: AiReport
                 <p className="text-sm text-taupe-500">
                   Générez un brouillon de compte rendu clinique à partir des notes de la séance.
                 </p>
-                <Button variant="primary" size="md" onClick={handleGenerateMock}>
+                {generationError && (
+                  <p className="text-sm text-red-600">{generationError}</p>
+                )}
+                <Button variant="primary" size="md" onClick={handleGenerate}>
                   🤖 Générer le compte rendu
                 </Button>
               </div>
@@ -146,8 +159,9 @@ export function AiReportWorkspace({ sessionDate, noteContent, onBack }: AiReport
                 <Button
                   variant="primary"
                   size="md"
-                  disabled={!isAcknowledged}
-                  onClick={() => setIsValidated(true)}
+                  disabled={!isAcknowledged || isSaving}
+                  loading={isSaving}
+                  onClick={handleSave}
                 >
                   Sauvegarder
                 </Button>

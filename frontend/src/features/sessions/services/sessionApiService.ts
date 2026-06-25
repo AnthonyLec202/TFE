@@ -7,6 +7,8 @@ interface SyncSessionPayload {
   date: string;
   time: string;
   isClosed: boolean;
+  aiReport?: string;
+  isReportValidated?: boolean;
   patientIds: string[];
   toolIds: string[];
   attendances: LocalSessionAttendance[];
@@ -31,6 +33,8 @@ export interface SessionPayload {
   date: string;
   time: string;
   isClosed: boolean;
+  aiReport?: string | null;
+  isReportValidated?: boolean;
   patientIds: string[];
   toolIds: string[];
   attendances: LocalSessionAttendance[];
@@ -49,6 +53,8 @@ export interface UpdateSessionPayload {
   date: string;
   time: string;
   isClosed: boolean;
+  aiReport?: string;
+  isReportValidated?: boolean;
   patientIds: string[];
   toolIds: string[];
   attendances: LocalSessionAttendance[];
@@ -74,4 +80,16 @@ export function updateSession(id: string, payload: UpdateSessionPayload): Promis
 
 export function deleteSession(id: string): Promise<void> {
   return apiClient.delete<void>(`/api/sessions/${id}`);
+}
+
+/**
+ * Generates an AI clinical report from the session's server-side decrypted note. Online-only: the
+ * model runs on the backend (Semantic Kernel + Ollama). Returns the generated Markdown string.
+ */
+export async function generateAiReport(sessionId: string): Promise<string> {
+  const response = await apiClient.post<{ report: string }>(
+    `/api/sessions/${sessionId}/generate-ai-report`,
+    {},
+  );
+  return response.report;
 }

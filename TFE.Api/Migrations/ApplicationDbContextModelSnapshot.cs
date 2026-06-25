@@ -531,6 +531,9 @@ namespace TFE.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AiReport")
+                        .HasColumnType("text");
+
                     b.Property<string>("CreatedById")
                         .HasColumnType("text");
 
@@ -539,6 +542,9 @@ namespace TFE.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<bool>("IsClosed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsReportValidated")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Time")

@@ -241,6 +241,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .Property(p => p.Content)
             .HasConversion(encryptedStringConverter);
 
+        // AI-generated clinical report (nullable — same null-safety as Post.Content above). Clinical
+        // content derived from the encrypted note, so it is encrypted at rest as well.
+        builder.Entity<Session>()
+            .Property(s => s.AiReport)
+            .HasConversion(encryptedStringConverter);
+
         // Patient contact PII (all nullable — same null-safety as Post.Content above).
         builder.Entity<Patient>()
             .Property(p => p.Email)

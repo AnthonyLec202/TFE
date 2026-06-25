@@ -19,4 +19,11 @@ public interface ISessionService
     Task UpdateAsync(Guid id, UpdateSessionRequest request, CancellationToken cancellationToken);
 
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Generates an AI clinical report from the decrypted note of the given session. Enforces RBAC:
+    /// the session's note must be readable by <paramref name="userId"/>. Throws
+    /// <see cref="KeyNotFoundException"/> when no readable note exists for the session.
+    /// </summary>
+    Task<string> GenerateAiReportAsync(Guid sessionId, string userId, CancellationToken cancellationToken);
 }
