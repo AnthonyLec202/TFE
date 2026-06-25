@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Print page box: a clean 1cm margin and, crucially, suppression of the browser's default
+   header/footer (URL, date, page title) during window.print(). */
+@page {
+  margin: 1cm;
+}
+
 /* ── "Piste A — Clinique sereine" design tokens ──────────────────────────────
    Warm sand surfaces with a pétrole (teal) primary and terracotta accent.
    Exposed as Tailwind v4 theme variables so they generate utilities, e.g.
@@ -42,6 +48,62 @@
 .highlight-flash {
   animation: highlight-flash 2.5s ease-out forwards;
   border-radius: 1rem; /* matches Card's rounded-2xl */
+}
+
+/* ── TipTap / ProseMirror note editor ───────────────────────────────────────
+   Scoped to the session-note rich-text surface. Removes the default focus ring
+   (the Card already frames it), gives the writing surface room, and renders the
+   <mark> highlight as a warm "fluo" swatch consistent with the design tokens. */
+.session-note-editor .ProseMirror {
+  min-height: 52vh;
+  outline: none;
+  line-height: 1.65;
+}
+
+.session-note-editor .ProseMirror p {
+  margin: 0 0 0.75rem;
+}
+
+.session-note-editor .ProseMirror ul,
+.session-note-editor .ProseMirror ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.session-note-editor .ProseMirror ul { list-style: disc; }
+.session-note-editor .ProseMirror ol { list-style: decimal; }
+
+.session-note-editor .ProseMirror mark {
+  background-color: #FCEAA8;
+  border-radius: 0.2rem;
+  padding: 0.05em 0.15em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Stylus-mode read-only preview: mirrors the editor's typography so bold/italic/lists/<mark> render
+   identically whether the clinician is in keyboard or stylus mode (absolute visual parity). */
+.session-note-stylus-preview p {
+  margin: 0 0 0.75rem;
+}
+
+.session-note-stylus-preview ul,
+.session-note-stylus-preview ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.session-note-stylus-preview ul { list-style: disc; }
+.session-note-stylus-preview ol { list-style: decimal; }
+.session-note-stylus-preview strong { font-weight: 700; }
+.session-note-stylus-preview em { font-style: italic; }
+
+.session-note-stylus-preview mark {
+  background-color: #FCEAA8;
+  border-radius: 0.2rem;
+  padding: 0.05em 0.15em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 @layer base {

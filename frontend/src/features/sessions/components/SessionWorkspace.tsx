@@ -5,6 +5,8 @@ import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { formatSessionDate } from '../utils/sessionFormatters';
 import { HandwritingCanvas } from './HandwritingCanvas';
+import { SessionNoteEditor } from './SessionNoteEditor';
+import { htmlToPlainText } from '../utils/htmlContent';
 
 export type InputMode = 'keyboard' | 'stylus';
 
@@ -46,6 +48,10 @@ export function SessionWorkspace({
   associatedTools, onUnlinkTool,
 }: SessionWorkspaceProps) {
   const convertButtonDisabled = !canConvert;
+
+  // Presence guard for the stylus-mode preview: the note is TipTap HTML (an empty doc is "<p></p>"),
+  // so test the stripped text to decide whether there is any actual content to render over the canvas.
+  const handwritingPreviewText = htmlToPlainText(editorText);
 
   return (
     <div className="flex flex-col gap-6">
@@ -185,13 +191,7 @@ export function SessionWorkspace({
         {/* Editor card */}
         <Card className="overflow-hidden">
           {inputMode === 'keyboard' ? (
-            <textarea
-              value={editorText}
-              onChange={e => onEditorTextChange(e.target.value)}
-              placeholder="Commencez à saisir vos notes de séance ici…"
-              className="w-full min-h-[58vh] resize-none bg-white px-7 py-6 text-base text-ink placeholder:text-taupe-400 focus:outline-none leading-relaxed"
-              spellCheck
-            />
+            <SessionNoteEditor content={editorText} onChange={onEditorTextChange} />
           ) : (
             // Scrollable stylus surface: a tall, auto-growing canvas inside an overflow
             // container. The large bottom padding guarantees blank writing space below the
@@ -200,10 +200,13 @@ export function SessionWorkspace({
               className="min-h-[58vh] max-h-[72vh] overflow-y-auto"
               style={{ paddingBottom: '40vh' }}
             >
-              {editorText.length > 0 && (
-                <pre className="mx-7 mt-6 whitespace-pre-wrap text-base text-ink leading-relaxed font-sans">
-                  {editorText}
-                </pre>
+              {handwritingPreviewText.trim().length > 0 && (
+                // Render the existing note as rich HTML (bold/italic/<mark>) for visual parity with the
+                // keyboard editor. Content is TipTap-authored, schema-constrained HTML.
+                <div
+                  className="session-note-stylus-preview mx-7 mt-6 text-base text-ink"
+                  dangerouslySetInnerHTML={{ __html: editorText }}
+                />
               )}
               <HandwritingCanvas
                 strokes={currentStrokes}

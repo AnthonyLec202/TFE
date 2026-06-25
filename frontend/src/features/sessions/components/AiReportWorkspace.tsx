@@ -1,10 +1,19 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Loader2, Pencil, Printer, Sparkles } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { formatSessionDate } from '../utils/sessionFormatters';
 
+// DOM ids of the exportable content containers, targeted by the PDF generator.
+const REPORT_CONTENT_ELEMENT_ID = 'ai-report-content';
+const NOTES_CONTENT_ELEMENT_ID = 'session-notes-content';
+
+// Which column a print/export targets: the raw notes, the AI report, or nothing (idle).
+type ExportTarget = 'notes' | 'report';
+
 export interface AiReportWorkspaceProps {
+  /** Session id, used to name the exported PDF file. */
+  sessionId: string;
   /** Session date (ISO string) shown in the read-only context sub-header. */
   sessionDate: string;
   /** Read-only note content rendered in the left context column. */
@@ -26,7 +35,7 @@ export interface AiReportWorkspaceProps {
 // (empty -> loading -> draft/edit -> validated/read-only). Generation and persistence are delegated
 // to the container via onGenerate/onSave; the phase transitions are driven by local state.
 export function AiReportWorkspace({
-  sessionDate, noteContent, initialReport, initialValidated, onBack, onGenerate, onSave,
+  sessionId, sessionDate, noteContent, initialReport, initialValidated, onBack, onGenerate, onSave,
 }: AiReportWorkspaceProps) {
   const [reportContent, setReportContent] = useState<string | null>(initialReport);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -64,53 +73,153 @@ export function AiReportWorkspace({
     }
   };
 
+  // Native print of a single column. The target is written synchronously to a body data attribute the
+  // print: classes key off, so there is no async state round-trip (and no race) before window.print().
+  // window.print() blocks until the dialog closes, after which the attribute is removed.
+  const handlePrint = (target: ExportTarget) => {
+    document.body.setAttribute('data-print', target);
+    window.print();
+    document.body.removeAttribute('data-print');
+  };
+
+  // Client-side PDF export of a single column. Rather than rasterizing the on-screen element (which
+  // carries the app's sand background/shadows) or a manually-mounted node (which html2canvas culls out
+  // of the live React layout), we hand html2pdf a raw HTML string: it renders that in an isolated,
+  // hidden iframe, guaranteeing correct bounding boxes free of viewport interference. html2pdf is
+  // imported dynamically so its (canvas/jsPDF) bundle only loads when the clinician actually exports.
+  const handleExportPdf = async (target: ExportTarget) => {
+    const sourceId = target === 'report' ? REPORT_CONTENT_ELEMENT_ID : NOTES_CONTENT_ELEMENT_ID;
+    const source = document.getElementById(sourceId);
+    if (!source) return;
+
+    // Report content is preformatted text; preserve wrapping. Notes are already structured HTML.
+    // overflow-wrap/word-break force long tokens to wrap so nothing overflows the page width.
+    const contentStyle = target === 'report'
+      ? 'white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; line-height: 1.6;'
+      : 'overflow-wrap: break-word; word-break: break-word; line-height: 1.6;';
+
+    // Visual highlights are deliberately NOT rendered in the PDF (html2canvas mis-rasterizes inline
+    // <mark> fills). We unwrap every inline formatting tag so its text survives but the tag is
+    // destroyed, while structural block tags (<p>, <ul>, <li>, <br>) are preserved for layout. The
+    // styling intent still lives in the database notes, which the AI backend consumes.
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = source.innerHTML;
+
+    const tagsToStrip = tempDiv.querySelectorAll('mark, strong, em, u');
+    tagsToStrip.forEach(el => {
+      const parent = el.parentNode;
+      while (el.firstChild) {
+        parent?.insertBefore(el.firstChild, el);
+      }
+      parent?.removeChild(el);
+    });
+
+    const cleanHtml = tempDiv.innerHTML;
+
+    // border-box width sized to A4's printable area (210mm − 2×10mm margin ≈ 718px at 96dpi). Keeping
+    // the total element width within the page prevents html2pdf from clipping the right edge.
+    const printableHtml =
+      '<div style="box-sizing: border-box; width: 700px; background: white; color: black; padding: 40px; font-family: sans-serif; overflow-wrap: break-word; word-wrap: break-word;">' +
+      `<h2 style="font-size: 22px; font-weight: bold; margin-bottom: 16px;">Séance du ${formatSessionDate(sessionDate)}</h2>` +
+      `<div style="${contentStyle}">${cleanHtml}</div>` +
+      '</div>';
+
+    const filename = target === 'report'
+      ? `Compte_Rendu_Session_${sessionId}.pdf`
+      : `Notes_Session_${sessionId}.pdf`;
+
+    const { default: html2pdf } = await import('html2pdf.js');
+    await html2pdf()
+      .set({
+        filename,
+        margin: 10,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      })
+      .from(printableHtml)
+      .save();
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Back navigation */}
+      {/* Back navigation — irrelevant on paper. */}
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex w-fit items-center gap-1.5 text-sm text-taupe-500 transition-colors hover:text-ink"
+        className="inline-flex w-fit items-center gap-1.5 text-sm text-taupe-500 transition-colors hover:text-ink print:hidden"
       >
         <ArrowLeft className="h-4 w-4" />
         Retour à la séance
       </button>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         <Sparkles className="h-5 w-5 text-petrol-600" strokeWidth={1.85} />
-        <h1 className="font-serif font-semibold text-[26px] leading-tight tracking-[-0.015em] text-ink">
+        <h1 className="font-serif font-semibold text-[26px] leading-tight tracking-[-0.015em] text-ink print:hidden">
           Compte rendu IA
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* Left column: read-only session-note context. */}
-        <Card className="flex flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-sand-200 px-4 py-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start print:block">
+        {/* Left column: read-only session-note context. Printed/exported only when the user targets
+            the notes; otherwise hidden so the AI report prints alone. */}
+        <Card
+          className="flex flex-col overflow-hidden print:border-none print:shadow-none print:overflow-visible print:bg-white print:hidden [body[data-print=notes]_&]:print:block [body[data-print=notes]_&]:print:w-full"
+        >
+          <div className="shrink-0 border-b border-sand-200 px-4 py-3 print:hidden">
             <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
               Notes de la séance du {formatSessionDate(sessionDate)}
             </h2>
           </div>
           <div className="p-4">
-            {noteContent.length > 0 ? (
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed text-ink font-sans">
-                {noteContent}
-              </pre>
-            ) : (
-              <p className="text-sm text-taupe-400">Aucune note saisie pour cette séance.</p>
-            )}
+            {/* Print/export-only document header. */}
+            <h2 className="hidden print:block text-2xl font-bold mb-4">
+              Séance du {formatSessionDate(sessionDate)}
+            </h2>
+
+            <div id={NOTES_CONTENT_ELEMENT_ID}>
+              {noteContent.trim().length > 0 ? (
+                // The note is TipTap-authored HTML (schema-constrained: p/strong/em/mark/lists…), shown
+                // read-only here. Arbitrary variants render the <mark> fluo, bold and lists natively.
+                <div
+                  className="text-sm leading-relaxed text-ink [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_mark]:bg-[#FCEAA8] [&_mark]:rounded-sm [&_mark]:px-0.5"
+                  dangerouslySetInnerHTML={{ __html: noteContent }}
+                />
+              ) : (
+                <p className="text-sm text-taupe-400">Aucune note saisie pour cette séance.</p>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+              <Button variant="secondary" size="sm" onClick={() => handlePrint('notes')}>
+                <Printer className="h-3.5 w-3.5" />
+                Imprimer
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => handleExportPdf('notes')}>
+                <FileText className="h-3.5 w-3.5" />
+                Exporter PDF
+              </Button>
+            </div>
           </div>
         </Card>
 
-        {/* Right column: AI generation state machine. */}
-        <Card className="flex flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-sand-200 px-4 py-3">
+        {/* Right column: AI generation state machine. Printed/exported only when the user targets the
+            report; strips its card chrome for a clean document. */}
+        <Card
+          className="flex flex-col overflow-hidden print:border-none print:shadow-none print:overflow-visible print:bg-white print:hidden [body[data-print=report]_&]:print:block [body[data-print=report]_&]:print:w-full"
+        >
+          <div className="shrink-0 border-b border-sand-200 px-4 py-3 print:hidden">
             <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
               Génération du compte rendu
             </h2>
           </div>
 
           <div className="flex flex-col gap-4 p-4">
+            {/* Print/export-only document header. */}
+            <h2 className="hidden print:block text-2xl font-bold mb-4">
+              Séance du {formatSessionDate(sessionDate)}
+            </h2>
+
             {/* Phase 1: Empty */}
             {reportContent === null && !isGenerating && (
               <div className="flex flex-col gap-3">
@@ -171,22 +280,25 @@ export function AiReportWorkspace({
             {/* Phase 4: Validated (read-only) */}
             {isValidated && reportContent !== null && (
               <div className="flex flex-col gap-3">
-                <pre className="whitespace-pre-wrap rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-sm leading-relaxed text-ink font-sans">
+                <pre
+                  id={REPORT_CONTENT_ELEMENT_ID}
+                  className="whitespace-pre-wrap rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-sm leading-relaxed text-ink font-sans print:rounded-none print:border-none print:bg-white print:p-0"
+                >
                   {reportContent}
                 </pre>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => console.log('Print report')}>
+                <div className="flex flex-wrap gap-2 print:hidden">
+                  <Button variant="secondary" size="sm" onClick={() => handlePrint('report')}>
                     <Printer className="h-3.5 w-3.5" />
-                    🖨️ Imprimer
+                    Imprimer
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => console.log('Export report as PDF')}>
+                  <Button variant="secondary" size="sm" onClick={() => handleExportPdf('report')}>
                     <FileText className="h-3.5 w-3.5" />
-                    📄 Exporter PDF
+                    Exporter PDF
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => setIsValidated(false)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                    ✏️ Modifier
+                    <Edit className="h-3.5 w-3.5" />
+                    Modifier
                   </Button>
                 </div>
               </div>

@@ -37,6 +37,7 @@ export function AiReportContainer() {
 
   return (
     <AiReportWorkspace
+      sessionId={session.id}
       sessionDate={session.date}
       noteContent={note?.content ?? ''}
       initialReport={session.aiReport ?? null}

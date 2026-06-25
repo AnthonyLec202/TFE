@@ -12,18 +12,15 @@ public class AiReportService : IAiReportService
 {
     private readonly Kernel _kernel;
 
-    // Strict French system prompt. Produces a direct, unstructured clinical summary: faithful to the
-    // notes (no fabrication), length-proportional to the input, and free of predefined section headers.
+    // Strict French system prompt. The note arrives as HTML: <strong>/<mark> spans mark elements the
+    // clinician flagged as critical, which the model must prioritize. Output is plain Markdown, faithful
+    // to the note.
     private const string SystemPrompt =
-        "Tu es un assistant de rédaction clinique pour un psychologue. Ton unique tâche est de rédiger " +
-        "une synthèse professionnelle, claire et concise des notes brutes de consultation fournies.\n" +
-        "Tu dois respecter STRICTEMENT les consignes suivantes :\n" +
-        "1. Reste fidèle aux notes : n'invente AUCUN fait, AUCUN symptôme, AUCUNE émotion et AUCUNE " +
-        "étape future non mentionnée.\n" +
-        "2. Si la note est ultra-courte, ta synthèse doit l'être aussi. Ne cherche pas à l'étoffer.\n" +
-        "3. Restitue le résultat sous forme d'un court paragraphe narratif ou d'une liste à puces " +
-        "factuelle en Markdown, sans utiliser de titres de sections prédéfinis.\n" +
-        "4. Adopte un ton neutre, clinique et professionnel.";
+        "Tu es un assistant clinique. Les notes fournies sont au format HTML. Les éléments entourés par " +
+        "les balises <strong> (gras) ou <mark> (surligné) ont été explicitement sélectionnés par le " +
+        "psychologue comme des alertes cliniques majeures ou des éléments cardinaux. Tu dois accorder " +
+        "une priorité absolue à ces éléments et les placer au centre de ta synthèse. N'invente aucun " +
+        "symptôme. Renvoie le rapport final en Markdown pur (sans balises HTML).";
 
     public AiReportService(Kernel kernel)
     {

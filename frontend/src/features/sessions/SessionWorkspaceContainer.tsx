@@ -13,6 +13,7 @@ import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useNetworkStatus } from '../../core/offline/hooks/useNetworkStatus';
 import { recognizeBatch } from './services/handwritingApiService';
+import { appendRecognizedTextToHtml } from './utils/htmlContent';
 import { SessionWorkspace, type InputMode } from './components/SessionWorkspace';
 import { SessionEditModal } from './components/SessionEditModal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -172,9 +173,11 @@ export function SessionWorkspaceContainer() {
     return () => clearTimeout(timer);
   }, [editorText, note]);
 
-  // Append recognised handwriting to the current editor content.
+  // Append recognised handwriting to the current editor content. The note is TipTap HTML, so the
+  // recognised text is added as a new <p> block (HTML-escaped) — TipTap re-parses it cleanly when the
+  // user switches back to keyboard mode, rather than corrupting the markup with loose text.
   function handleTextRecognized(recognizedText: string): void {
-    setEditorText(prev => (prev.length > 0 ? `${prev} ${recognizedText}` : recognizedText));
+    setEditorText(prev => appendRecognizedTextToHtml(prev, recognizedText));
   }
 
   // Persist new strokes to Dexie so they survive a page reload before conversion.
