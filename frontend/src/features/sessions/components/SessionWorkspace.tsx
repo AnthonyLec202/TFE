@@ -107,10 +107,6 @@ export function SessionWorkspace({
       {/* Action bar: document actions on the left, editor controls on the right. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onOpenTools}>
-            <Plus className="h-3.5 w-3.5" />
-            Ajouter un outil
-          </Button>
           <Button variant="secondary" size="sm" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
             Modifier
@@ -215,11 +211,16 @@ export function SessionWorkspace({
         {/* Persistent associated-tools sidebar. Hidden on narrow viewports to preserve writing space;
             the drawer trigger remains the primary entry point there. */}
         <Card className="hidden lg:flex flex-col overflow-hidden">
-          <div className="shrink-0 flex items-center gap-2 border-b border-sand-200 px-4 py-3">
-            <Wrench className="h-3.5 w-3.5 text-petrol-600" strokeWidth={1.85} />
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
-              Outils de la séance
-            </h2>
+          <div className="shrink-0 flex items-center justify-between border-b border-sand-200 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Wrench className="h-3.5 w-3.5 text-petrol-600" strokeWidth={1.85} />
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
+                Outils de la séance
+              </h2>
+            </div>
+            <Button variant="secondary" size="sm" onClick={onOpenTools}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
           </div>
           <div className="p-3">
             {associatedTools.length === 0 ? (
@@ -233,9 +234,15 @@ export function SessionWorkspace({
                     key={tool.id}
                     className="flex items-center gap-2 rounded-lg border border-sand-200 bg-sand-50 px-3 py-2"
                   >
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                    {/* Open the tool's detail view, carrying the originating session id in router
+                        state so the detail view can offer a "back to session" return path. */}
+                    <Link
+                      to={`/clinical-tools/${tool.id}`}
+                      state={{ fromSessionId: session.id }}
+                      className="min-w-0 flex-1 truncate text-sm font-medium text-ink transition-colors hover:text-petrol-600 hover:underline"
+                    >
                       {tool.title}
-                    </span>
+                    </Link>
                     {/* Direct, on-page unlink — no need to reopen the drawer to deselect. */}
                     <button
                       type="button"

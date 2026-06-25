@@ -14,12 +14,14 @@ const AUTOSAVE_DELAY_MS = 1000;
 export interface ToolDetailContainerProps {
   toolId: string;
   onBack: () => void;
+  /** Label for the back-navigation control; varies by where the user came from (catalog vs. session). */
+  backLabel: string;
 }
 
 // Detail/edit container for a single therapeutic tool. Reads the tool from the local Dexie mirror and
 // auto-saves the clinical content (description + grading strategies) on a debounce, exactly like the
 // session-note editor — no manual Save button.
-export function ToolDetailContainer({ toolId, onBack }: ToolDetailContainerProps) {
+export function ToolDetailContainer({ toolId, onBack, backLabel }: ToolDetailContainerProps) {
   // null = resolved-but-missing, undefined = still loading. The ?? null lets us tell them apart
   // (useLiveQuery returns undefined for both the in-flight and the not-found cases otherwise).
   const tool = useLiveQuery(async () => (await getToolById(toolId)) ?? null, [toolId]);
@@ -98,7 +100,7 @@ export function ToolDetailContainer({ toolId, onBack }: ToolDetailContainerProps
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
         <p className="text-sm text-taupe-500">Cet outil est introuvable.</p>
-        <Button variant="secondary" size="sm" onClick={onBack}>Mes outils</Button>
+        <Button variant="secondary" size="sm" onClick={onBack}>{backLabel}</Button>
       </div>
     );
   }
@@ -114,6 +116,7 @@ export function ToolDetailContainer({ toolId, onBack }: ToolDetailContainerProps
       saveState={saveState}
       isOnline={isOnline}
       onBack={onBack}
+      backLabel={backLabel}
       onDescriptionChange={edit(setDescription)}
       onDownGradingStrategyChange={edit(setDownGradingStrategy)}
       onUpGradingStrategyChange={edit(setUpGradingStrategy)}

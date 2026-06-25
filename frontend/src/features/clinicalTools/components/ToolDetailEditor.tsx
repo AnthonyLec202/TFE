@@ -14,6 +14,8 @@ export interface ToolDetailEditorProps {
   /** When false, the editor is in read-only fallback mode: every field is disabled. */
   isOnline: boolean;
   onBack: () => void;
+  /** Text shown next to the back arrow; set contextually by the page (catalog vs. originating session). */
+  backLabel: string;
   onDescriptionChange: (value: string) => void;
   onDownGradingStrategyChange: (value: string) => void;
   onUpGradingStrategyChange: (value: string) => void;
@@ -28,7 +30,7 @@ const labelClass = 'text-[12.5px] font-semibold uppercase tracking-wide text-tau
 // header — they are set at creation and edited elsewhere.
 export function ToolDetailEditor({
   title, type, theme, description, downGradingStrategy, upGradingStrategy, saveState, isOnline,
-  onBack, onDescriptionChange, onDownGradingStrategyChange, onUpGradingStrategyChange,
+  onBack, backLabel, onDescriptionChange, onDownGradingStrategyChange, onUpGradingStrategyChange,
 }: ToolDetailEditorProps) {
   const readOnly = !isOnline;
 
@@ -41,7 +43,7 @@ export function ToolDetailEditor({
           className="inline-flex w-fit items-center gap-1.5 text-sm text-taupe-500 transition-colors hover:text-ink"
         >
           <ArrowLeft className="h-4 w-4" />
-          Mes outils
+          {backLabel}
         </button>
 
         <div className="flex items-center justify-between gap-4">
