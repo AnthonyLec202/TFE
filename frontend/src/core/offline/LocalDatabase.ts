@@ -96,6 +96,10 @@ export interface LocalPatientSync {
   // Archived patients are filtered out of "Mes patients" and listed under "Archives". Optional so
   // pre-v10 cached rows (and offline-queued creations) default to active.
   isArchived?: boolean;
+  // Offline mutation flag, mirroring the model sessions/notes use. Absent (undefined) means the row is
+  // in sync with the server. Set to 'pending_update' when an archive/restore toggle is made offline,
+  // so syncPatients pushes the change (PUT) on reconnect. Non-indexed (filtered in memory).
+  syncStatus?: SyncStatus;
 }
 
 /**
@@ -233,6 +237,18 @@ class ClinicalAppDatabase extends Dexie {
     // unchanged (neither field is indexed); existing rows leave them undefined and backfill on the
     // next sync's reconciliation (or when a report is generated locally).
     this.version(11).stores({
+      sessions: 'id, *patientIds, *toolIds, date, syncStatus',
+      notes: 'id, sessionId, syncStatus',
+      patients: 'id, searchableName',
+      offlinePatientQueue: 'id, queuedAt',
+      therapeuticTools: 'id, type, theme',
+    });
+
+    // v12 adds the non-indexed `syncStatus` field to LocalPatientSync, enabling offline archive/restore
+    // toggles to be flagged 'pending_update' — the same on-entity mechanism sessions and notes use.
+    // Stores are unchanged (the flag is filtered in memory, not indexed); existing rows leave it
+    // undefined (treated as synced) and backfill on the next sync's reconciliation.
+    this.version(12).stores({
       sessions: 'id, *patientIds, *toolIds, date, syncStatus',
       notes: 'id, sessionId, syncStatus',
       patients: 'id, searchableName',

@@ -1,6 +1,9 @@
-import { db, type LocalPatientSync } from '../../../core/offline/LocalDatabase';
+import { db, type LocalPatientSync, type SyncStatus } from '../../../core/offline/LocalDatabase';
 import type { PatientResponse } from '../../../types/patient';
 import { getPatients, updatePatient } from '../../../services/patientService';
+import { AuthError } from '../../../services/apiClient';
+
+const SYNCED: SyncStatus = 'synced';
 
 /** A patient match, tagged with whether it is still pending in the offline creation queue. */
 export interface PatientSearchResult extends LocalPatientSync {
@@ -27,14 +30,27 @@ function toLocalPatient(p: PatientResponse): LocalPatientSync {
 
 /**
  * Flips a patient's archived flag and persists it. Updates the local cache optimistically so the
- * reactive lists (Mes patients / Archives) react instantly, then pushes the change to the server via
- * the patient update endpoint. The existing contact fields are forwarded unchanged so the toggle
- * never wipes them. On failure the optimistic change is rolled back.
+ * reactive lists (Mes patients / Archives) react instantly. The existing contact fields are forwarded
+ * unchanged so the toggle never wipes them.
+ *
+ * Connectivity-aware, mirroring the offline-create fallback:
+ *  - Offline (`!navigator.onLine`): the server call is bypassed entirely. The row is written with
+ *    `syncStatus: 'pending_update'`, flagging it for the syncPatients push handler to PUT once
+ *    connectivity returns. The live query moves the card between the active/archived lists instantly.
+ *  - Online: the change is pushed immediately and the authoritative server record (no syncStatus →
+ *    synced) is stored. On failure the optimistic flag is rolled back and the error rethrown.
  */
 export async function togglePatientArchiveStatus(
   patient: LocalPatientSync,
   isArchived: boolean,
 ): Promise<void> {
+  if (!navigator.onLine) {
+    // Optimistic local toggle, flagged for background sync. No POST/PUT is attempted here — the
+    // patient already exists server-side, so syncPatients will replay this as an update on reconnect.
+    await db.patients.put({ ...patient, isArchived, syncStatus: 'pending_update' });
+    return;
+  }
+
   await db.patients.put({ ...patient, isArchived });
   try {
     const updated = await updatePatient(patient.id, {
@@ -50,6 +66,39 @@ export async function togglePatientArchiveStatus(
   } catch (error) {
     await db.patients.put({ ...patient }); // revert the optimistic flag
     throw error;
+  }
+}
+
+/**
+ * Pushes pending patient updates (archive/restore toggles made offline) to the server. Mirrors the
+ * update phase of syncSessions: each 'pending_update' patient is PUT, then the authoritative server
+ * record is stored locally (clearing the flag). A failure leaves the row pending for the next cycle;
+ * an AuthError is re-thrown so the engine escalates to logout rather than swallowing an expired token.
+ *
+ * Registered as a core sync push handler. These patients already exist server-side (they live in
+ * db.patients, not the offline creation queue), so they are replayed as updates (PUT) — never as new
+ * creations (POST).
+ */
+export async function syncPatients(): Promise<void> {
+  const pending = await db.patients.filter(p => p.syncStatus === 'pending_update').toArray();
+  if (pending.length === 0) return;
+
+  for (const patient of pending) {
+    try {
+      const updated = await updatePatient(patient.id, {
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        birthDate: patient.birthDate,
+        email: patient.email ?? null,
+        phoneNumber: patient.phoneNumber ?? null,
+        postalAddress: patient.postalAddress ?? null,
+        isArchived: patient.isArchived ?? false,
+      });
+      await db.patients.put(toLocalPatient(updated));
+    } catch (err) {
+      if (err instanceof AuthError) throw err;
+      console.warn('[patientSync] Failed to push a patient update — will retry later.', patient.id, err);
+    }
   }
 }
 
@@ -134,10 +183,20 @@ async function pullAndReconcilePatients(): Promise<PatientResponse[]> {
   // additive only, so patients deleted server-side would linger here and keep showing
   // up in the autocomplete. Prune the stale ids before upserting the current set.
   await db.transaction('rw', db.patients, async () => {
-    const localIds = (await db.patients.toCollection().primaryKeys()) as string[];
-    const staleIds = localIds.filter(id => !serverIds.has(id));
+    // Rows with un-pushed local changes (e.g. an offline archive/restore toggle) must survive the
+    // pull untouched — local pending always wins until syncPatients has pushed it (the same guarantee
+    // syncSessionsFromServer gives). They are neither overwritten by the older server copy nor pruned.
+    const localPatients = await db.patients.toArray();
+    const pendingIds = new Set(
+      localPatients.filter(p => p.syncStatus && p.syncStatus !== SYNCED).map(p => p.id),
+    );
+
+    const staleIds = localPatients
+      .filter(p => !serverIds.has(p.id) && !pendingIds.has(p.id))
+      .map(p => p.id);
     if (staleIds.length > 0) await db.patients.bulkDelete(staleIds);
-    await db.patients.bulkPut(mapped);
+
+    await db.patients.bulkPut(mapped.filter(p => !pendingIds.has(p.id)));
   });
 
   return patients;

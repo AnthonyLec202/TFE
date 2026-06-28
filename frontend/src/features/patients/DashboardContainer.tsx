@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { UserPlus } from 'lucide-react';
+import { Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '../auth';
 import type { CreatePatientPayload } from '../../types/patient';
 import { db } from '../../core/offline/LocalDatabase';
@@ -39,6 +39,12 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   // The header pill, the offline banner and the empty-cache message all derive from this — never from
   // a transient per-mount sync result — so returning to this page shows the correct state with no flash.
   const isOnline = useGlobalNetworkState();
+
+  // Archived dossiers are private: their collaborative wall is encrypted and can only be decrypted
+  // server-side, so a dossier is unreachable without a connection. Offline we still render the cached
+  // archive list (read-only consultation), but navigation into a dossier is blocked — see
+  // handleSelectPatient — and the cards are visually marked as locked. Active patients are unaffected.
+  const lockArchivedNavigation = archivedView && !isOnline;
 
   // Sourced directly from Dexie and updated reactively. The synced server cache is the primary
   // source; patients still pending in the offline creation queue are merged in below so they show
@@ -104,6 +110,8 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [offlineNotice, setOfflineNotice] = useState('');
+  // Explanatory message shown when an archived dossier is opened while offline (no toast system here).
+  const [accessNotice, setAccessNotice] = useState('');
 
   // Keeps the local store fresh; it never touches list state (the live query above handles display).
   // A single runSyncCycle() pushes all pending mutations and then, in its post-sync phase, pulls the
@@ -128,6 +136,22 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
     if (!isInitialized || !isOnline) return;
     reconnectAndLoad();
   }, [isInitialized, isOnline, reconnectAndLoad]);
+
+  // Once connectivity returns the dossier is reachable again, so retract the offline access notice.
+  useEffect(() => {
+    if (isOnline) setAccessNotice('');
+  }, [isOnline]);
+
+  // Connectivity guard for the Archives view. Offline, an archived dossier cannot be decrypted, so we
+  // refuse the navigation and surface the reason instead of routing to a screen that would only error.
+  // Online (and on the active view), navigation proceeds unchanged.
+  function handleSelectPatient(patientId: string): void {
+    if (lockArchivedNavigation) {
+      setAccessNotice('Consultation locale uniquement. Une connexion internet est requise pour déchiffrer et accéder au dossier privé de ce patient.');
+      return;
+    }
+    onSelectPatient(patientId);
+  }
 
   async function handleCreate() {
     setCreateError('');
@@ -226,6 +250,12 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
               <p className="text-sm text-amber-700">Hors ligne — affichage des données mises en cache.</p>
             </div>
           )}
+          {accessNotice && (
+            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <Lock className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-700">{accessNotice}</p>
+            </div>
+          )}
           {!isEmpty && <PatientSearch value={searchTerm} onChange={setSearchTerm} placeholder={terms.search_placeholder} />}
           <PatientsList
             patients={filteredPatients ?? []}
@@ -238,7 +268,8 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
                   ? 'Aucun patient archivé.'
                   : undefined
             }
-            onSelectPatient={onSelectPatient}
+            onSelectPatient={handleSelectPatient}
+            lockNavigation={lockArchivedNavigation}
             onRetry={reconnectAndLoad}
             onToggleArchive={isAdmin ? handleToggleArchive : undefined}
           />

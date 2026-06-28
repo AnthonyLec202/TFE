@@ -2,7 +2,7 @@
 // feature modules to the (feature-agnostic) core engine, which is why core/offline can stay free of
 // any feature import. Imported once for its side effects from main.tsx, before the app renders.
 import { registerSyncHandler, registerPostSyncHandler } from './core/offline/syncEngine';
-import { syncOfflinePatientQueue, syncPatientsFromServer } from './features/patients';
+import { syncOfflinePatientQueue, syncPatients, syncPatientsFromServer } from './features/patients';
 import { syncSessions, syncSessionsFromServer, syncNotesFromServer } from './features/sessions';
 import { syncTherapeuticToolsFromServer } from './features/clinicalTools';
 
@@ -10,6 +10,9 @@ import { syncTherapeuticToolsFromServer } from './features/clinicalTools';
 // referencing an offline-created patient is pushed only after that patient exists server-side
 // (preserving the relational FK link on sync).
 registerSyncHandler(syncOfflinePatientQueue);
+// Push offline archive/restore toggles (pending_update on existing patients) as PUTs. Independent of
+// the creation queue above — that drains POSTs for brand-new patients; this only updates synced ones.
+registerSyncHandler(syncPatients);
 registerSyncHandler(syncSessions);
 
 // After all pushes complete, hydrate the local patient cache from the server exactly once. The pull
