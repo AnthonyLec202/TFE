@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useAuth } from '../auth';
 import { getSessionById, getNoteForSession, updateSessionAiReport } from './services/localSessionService';
 import { generateAiReport } from './services/sessionApiService';
 import { runSyncCycle } from '../../core/offline/syncEngine';
@@ -11,6 +12,9 @@ import { AiReportWorkspace } from './components/AiReportWorkspace';
 export function AiReportContainer() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Only the practitioner (Admin) may re-run generation over an already-produced report.
+  const isAdmin = user?.roles.includes('Admin') ?? false;
 
   const session = useLiveQuery(() => getSessionById(sessionId!), [sessionId]);
   const note = useLiveQuery(
@@ -42,6 +46,7 @@ export function AiReportContainer() {
       noteContent={note?.content ?? ''}
       initialReport={session.aiReport ?? null}
       initialValidated={session.isReportValidated ?? false}
+      canRegenerate={isAdmin}
       onBack={() => navigate(`/sessions/${session.id}`)}
       // Online-only generation: the model runs on the backend. Returns the Markdown report.
       onGenerate={() => generateAiReport(session.id)}

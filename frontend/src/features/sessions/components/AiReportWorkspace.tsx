@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Edit, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Loader2, Printer, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
 import { formatSessionDate } from '../utils/sessionFormatters';
@@ -22,6 +22,8 @@ export interface AiReportWorkspaceProps {
   initialReport: string | null;
   /** Whether the existing report was already validated — initializes the UI directly in Phase 4. */
   initialValidated: boolean;
+  /** Whether the current user (administrator) may re-run AI generation over an existing report. */
+  canRegenerate: boolean;
   /** Returns to the session workspace. */
   onBack: () => void;
   /** Generates a report from the session notes on the backend; resolves to the Markdown string. */
@@ -33,9 +35,11 @@ export interface AiReportWorkspaceProps {
 // Presentational split-screen for AI clinical-report generation.
 // Left column: read-only session-note context. Right column: a four-phase UI state machine
 // (empty -> loading -> draft/edit -> validated/read-only). Generation and persistence are delegated
-// to the container via onGenerate/onSave; the phase transitions are driven by local state.
+// to the container via onGenerate/onSave; the phase transitions are driven by local state. An
+// administrator (canRegenerate) can re-run generation from the draft or validated phase, looping back
+// through loading into a fresh, unvalidated draft built from the latest notes.
 export function AiReportWorkspace({
-  sessionId, sessionDate, noteContent, initialReport, initialValidated, onBack, onGenerate, onSave,
+  sessionId, sessionDate, noteContent, initialReport, initialValidated, canRegenerate, onBack, onGenerate, onSave,
 }: AiReportWorkspaceProps) {
   const [reportContent, setReportContent] = useState<string | null>(initialReport);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -47,13 +51,18 @@ export function AiReportWorkspace({
   // Pre-checked when arriving on an already-validated report so editing then re-saving is frictionless.
   const [isAcknowledged, setIsAcknowledged] = useState(initialValidated);
 
-  // Phase 1 -> 2 -> 3: call the backend generator, then drop into the editable draft.
+  // Phase 1/3/4 -> 2 -> 3: call the backend generator, then drop into the editable draft. Used for both
+  // the initial generation and an administrator re-generation: on success it always resets to an
+  // unvalidated, unacknowledged draft so the clinician re-reviews the freshly produced content. On
+  // failure the previous state (including an existing validated report) is preserved untouched.
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGenerationError(null);
     try {
       const report = await onGenerate();
       setReportContent(report);
+      setIsValidated(false);
+      setIsAcknowledged(false);
     } catch {
       setGenerationError('La génération du compte rendu a échoué. Vérifiez votre connexion et réessayez.');
     } finally {
@@ -220,15 +229,18 @@ export function AiReportWorkspace({
               Séance du {formatSessionDate(sessionDate)}
             </h2>
 
+            {/* Generation error, surfaced above every phase so a failed (re)generation stays visible —
+                including when an already-validated report is still displayed below. */}
+            {generationError && (
+              <p className="text-sm text-red-600 print:hidden">{generationError}</p>
+            )}
+
             {/* Phase 1: Empty */}
             {reportContent === null && !isGenerating && (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-taupe-500">
                   Générez un brouillon de compte rendu clinique à partir des notes de la séance.
                 </p>
-                {generationError && (
-                  <p className="text-sm text-red-600">{generationError}</p>
-                )}
                 <Button variant="primary" size="md" onClick={handleGenerate}>
                   🤖 Générer le compte rendu
                 </Button>
@@ -265,20 +277,30 @@ export function AiReportWorkspace({
                   </span>
                 </label>
 
-                <Button
-                  variant="primary"
-                  size="md"
-                  disabled={!isAcknowledged || isSaving}
-                  loading={isSaving}
-                  onClick={handleSave}
-                >
-                  Sauvegarder
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    disabled={!isAcknowledged || isSaving}
+                    loading={isSaving}
+                    onClick={handleSave}
+                  >
+                    Sauvegarder
+                  </Button>
+                  {/* Admin-only: discard this draft and re-run generation from the latest notes. */}
+                  {canRegenerate && (
+                    <Button variant="secondary" size="md" onClick={handleGenerate}>
+                      <RefreshCw className="h-4 w-4" />
+                      Régénérer
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Phase 4: Validated (read-only) */}
-            {isValidated && reportContent !== null && (
+            {/* Phase 4: Validated (read-only). `!isGenerating` so a re-generation falls through to the
+                loading phase instead of rendering the stale validated report alongside the spinner. */}
+            {isValidated && reportContent !== null && !isGenerating && (
               <div className="flex flex-col gap-3">
                 <pre
                   id={REPORT_CONTENT_ELEMENT_ID}
@@ -300,6 +322,13 @@ export function AiReportWorkspace({
                     <Edit className="h-3.5 w-3.5" />
                     Modifier
                   </Button>
+                  {/* Admin-only: re-run AI generation from the latest notes, replacing this report. */}
+                  {canRegenerate && (
+                    <Button variant="secondary" size="sm" onClick={handleGenerate}>
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Régénérer
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

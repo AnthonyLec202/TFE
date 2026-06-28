@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useEditor, useEditorState, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
-import { Bold as BoldIcon, Highlighter, Italic as ItalicIcon } from 'lucide-react';
+import { Bold as BoldIcon, Highlighter } from 'lucide-react';
 
 export interface SessionNoteEditorProps {
   /** Note content as an HTML string (TipTap document serialized via editor.getHTML()). */
@@ -38,13 +38,15 @@ function ToolbarButton({
   );
 }
 
-// Rich-text session-note editor (TipTap). Bold/Italic come from StarterKit; Highlight emits standard
-// <mark> tags for the "fluo" effect. The clinician uses these to flag critical content, which the AI
-// report generator then prioritizes. Captures the document as an HTML string via editor.getHTML().
+// Rich-text session-note editor (TipTap). Bold comes from StarterKit (Italic is disabled — the
+// clinician only uses Bold and Highlight); Highlight emits standard <mark> tags for the "fluo" effect.
+// The clinician uses these to flag critical content, which the AI report generator then prioritizes.
+// Captures the document as an HTML string via editor.getHTML().
 export function SessionNoteEditor({ content, onChange }: SessionNoteEditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      // Disable Italic entirely (removes both the mark and its Ctrl+I keyboard shortcut).
+      StarterKit.configure({ italic: false }),
       // Default rendering serializes to <mark>; keep it so the backend prompt can detect highlights.
       Highlight,
     ],
@@ -73,7 +75,6 @@ export function SessionNoteEditor({ content, onChange }: SessionNoteEditorProps)
     editor,
     selector: ({ editor }) => ({
       isBold: editor?.isActive('bold') ?? false,
-      isItalic: editor?.isActive('italic') ?? false,
       isHighlight: editor?.isActive('highlight') ?? false,
     }),
   });
@@ -89,13 +90,6 @@ export function SessionNoteEditor({ content, onChange }: SessionNoteEditorProps)
           label="Gras"
         >
           <BoldIcon className="h-4 w-4" strokeWidth={2.25} />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          isActive={activeMarks?.isItalic ?? false}
-          label="Italique"
-        >
-          <ItalicIcon className="h-4 w-4" strokeWidth={2.25} />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHighlight().run()}

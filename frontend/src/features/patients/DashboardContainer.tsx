@@ -192,6 +192,14 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   const count = scopedPatients?.length ?? 0;
   const isEmpty = scopedPatients !== undefined && count === 0;
 
+  // Archives lit depuis le cache local et s'affiche donc hors ligne comme "Mes patients" : une liste
+  // archivée vide hors ligne relève de l'état vide normal, pas d'une erreur de chargement. On ne signale
+  // l'indisponibilité hors ligne (message + bouton Réessayer) que sur la vue active.
+  const offlineListError =
+    !isOnline && isEmpty && !archivedView
+      ? 'Impossible de charger la liste des patients : vous êtes hors ligne.'
+      : '';
+
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -245,7 +253,9 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
         )}
 
         <div className="flex flex-col gap-3">
-          {!isOnline && !isEmpty && (
+          {/* Bandeau "données en cache" masqué sur "Mes patients" (non utile pour l'utilisateur) ;
+              conservé sur Archives, où le hors ligne a un impact réel (navigation verrouillée). */}
+          {!isOnline && !isEmpty && archivedView && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
               <p className="text-sm text-amber-700">Hors ligne — affichage des données mises en cache.</p>
             </div>
@@ -260,7 +270,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
           <PatientsList
             patients={filteredPatients ?? []}
             isLoading={scopedPatients === undefined || (syncing && isEmpty)}
-            error={!isOnline && isEmpty ? 'Impossible de charger la liste des patients : vous êtes hors ligne.' : ''}
+            error={offlineListError}
             emptyMessage={
               searchTerm.trim()
                 ? 'Aucun patient ne correspond à votre recherche.'
