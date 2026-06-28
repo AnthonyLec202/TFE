@@ -19,13 +19,18 @@ import {
 export type SyncStatus = 'synced' | 'pending_create' | 'pending_update' | 'pending_delete';
 
 // Mirrors TFE.Api.Models.SessionStatus. Numeric values must stay in sync with the backend enum,
-// which (de)serializes as an integer.
-export enum SessionStatus {
-  Scheduled = 0,
-  Completed = 1,
-  PatientCancelled = 2,
-  NoShow = 3,
-}
+// which (de)serializes as an integer. Declared as a `const` object plus a derived union type rather
+// than a TS `enum`: enums emit runtime code and are therefore disallowed under the project's
+// `erasableSyntaxOnly` compiler option. This pattern keeps both the value namespace
+// (`SessionStatus.Completed`) and the `SessionStatus` type intact for every existing call site.
+export const SessionStatus = {
+  Scheduled: 0,
+  Completed: 1,
+  PatientCancelled: 2,
+  NoShow: 3,
+} as const;
+
+export type SessionStatus = (typeof SessionStatus)[keyof typeof SessionStatus];
 
 // A therapeutic tool's Type and Theme are free-form category strings (the clinician curates the
 // taxonomy on the fly). They mirror the backend's string columns and stay indexed in IndexedDB so
@@ -269,7 +274,11 @@ class ClinicalAppDatabase extends Dexie {
 
     // Synchronous assertion: throws loudly if an encrypted blob reaches the application
     // layer undecrypted, indicating either a missing active key or an uncovered read path.
-    this.notes.hook('reading', (obj: LocalNote): LocalNote => {
+    this.notes.hook('reading', (obj: LocalNote | undefined): LocalNote | undefined => {
+      // Dexie fires the reading hook on every read result, including a `notes.get(id)` lookup that
+      // matched no record and therefore yields `undefined`. There is nothing to assert in that case,
+      // so pass it through untouched rather than dereferencing a non-existent object.
+      if (!obj) return obj;
       if (
         obj.content.startsWith(ENCRYPTION_SENTINEL) ||
         (typeof obj.unprocessedStrokes === 'string' &&
@@ -298,23 +307,28 @@ class ClinicalAppDatabase extends Dexie {
     // Returns encrypted overrides for any sensitive field present in the modifications delta.
     // Dexie merges the returned object on top of the original modifications, so non-sensitive
     // fields (syncStatus, lastModifiedAt, …) are preserved unchanged.
+    //
+    // Dexie's 'updating' subscriber types the delta as the loose `Object`; declaring the parameter
+    // as `unknown` keeps the callback assignable to that overload (Object → unknown is contravariantly
+    // valid) and the delta is narrowed to a keyed record before access.
     this.notes.hook('updating', async function (
-      modifications: Record<string, unknown>,
+      modifications: unknown,
       _primKey: string,
       _obj: LocalNote,
     ): Promise<Record<string, unknown> | undefined> {
       const key = getActiveEncryptionKey();
       if (!key) return;
 
+      const modificationDelta = modifications as Record<string, unknown>;
       const encryptedOverrides: Record<string, unknown> = {};
 
-      if (typeof modifications['content'] === 'string') {
-        encryptedOverrides['content'] = await encryptString(key, modifications['content']);
+      if (typeof modificationDelta['content'] === 'string') {
+        encryptedOverrides['content'] = await encryptString(key, modificationDelta['content']);
       }
-      if (typeof modifications['unprocessedStrokes'] === 'string') {
+      if (typeof modificationDelta['unprocessedStrokes'] === 'string') {
         encryptedOverrides['unprocessedStrokes'] = await encryptString(
           key,
-          modifications['unprocessedStrokes'],
+          modificationDelta['unprocessedStrokes'],
         );
       }
 

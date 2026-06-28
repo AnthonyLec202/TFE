@@ -54,6 +54,9 @@ export function ProfileContainer() {
   }
 
   async function handleDeleteAccount() {
+    // `user` is guaranteed non-null at render (see the early return above), but control-flow
+    // narrowing does not propagate into this closure, so re-assert it here as a type guard.
+    if (!user) return;
     setDeleteError('');
     setIsDeleting(true);
     try {

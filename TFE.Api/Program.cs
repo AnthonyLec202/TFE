@@ -110,7 +110,8 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendDev", policy =>
-        policy.WithOrigins("http://localhost:5173")
+        // 5173 = Vite dev server; 4173 = Vite production preview (PWA preview testing).
+        policy.WithOrigins("http://localhost:5173", "http://localhost:4173")
               .AllowAnyHeader()
               .AllowAnyMethod()
               // SignalR negotiates with credentials mode 'include'; the browser then requires
