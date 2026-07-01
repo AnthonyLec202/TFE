@@ -6,6 +6,8 @@ export interface NotificationResponse {
   type: NotificationType;
   actorFirstName: string;
   actorLastName: string;
+  patientFirstName: string;
+  patientLastName: string;
   isRead: boolean;
   createdAt: string;
   /** Deep-link to the targeted content, e.g. /patients/{id}?postId={postId}&commentId={commentId}. */

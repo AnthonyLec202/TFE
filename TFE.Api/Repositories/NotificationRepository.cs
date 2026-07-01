@@ -17,6 +17,7 @@ public class NotificationRepository : INotificationRepository
     public Task<List<Notification>> GetUnreadForUserAsync(string userId)
         => _context.Notifications
             .Include(n => n.Actor)
+            .Include(n => n.Patient)
             .Where(n => n.UserId == userId && !n.IsRead)
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();

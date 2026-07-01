@@ -49,7 +49,7 @@ export function ResetPasswordForm({ onSubmit, loading, error }: Props) {
         minLength={8}
       />
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-taupe-400">
         Minimum 8 caractères, avec majuscule, minuscule, chiffre et caractère spécial.
       </p>
 

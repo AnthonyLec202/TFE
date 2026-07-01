@@ -42,21 +42,7 @@ public class AuthService : IAuthService
         var passwordValid = await _userRepository.CheckPasswordAsync(user, request.Password);
         if (!passwordValid) return null;
 
-        var roles = await _userRepository.GetRolesAsync(user);
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
-            double.Parse(_configuration["Jwt:ExpiresInMinutes"]!));
-        var token = GenerateJwtToken(user, roles, expiresAt.UtcDateTime);
-
-        return new AuthResponse
-        {
-            Token = token,
-            UserId = user.Id,
-            Email = user.Email!,
-            Roles = roles.ToList(),
-            ExpiresAt = expiresAt,
-            ConsentGivenAt = user.ConsentGivenAt,
-            ConsentVersion = user.ConsentVersion ?? string.Empty,
-        };
+        return await BuildAuthResponseAsync(user);
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
@@ -99,6 +85,9 @@ public class AuthService : IAuthService
             var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
             throw new InvalidOperationException($"Password reset failed: {errors}");
         }
+
+        // Intentionally does NOT establish a session: the user re-authenticates from their original
+        // tab after resetting, so no auth token/cookie is issued here.
     }
 
     public async Task ChangePasswordAsync(string userId, ChangePasswordRequest request)
@@ -128,6 +117,27 @@ public class AuthService : IAuthService
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new InvalidOperationException($"Consent update failed: {errors}");
         }
+    }
+
+    // Central factory for an authenticated session payload: resolves roles, computes the JWT expiry,
+    // and signs the token. Shared by Login and ResetPassword so both issue an identical session.
+    private async Task<AuthResponse> BuildAuthResponseAsync(ApplicationUser user)
+    {
+        var roles = await _userRepository.GetRolesAsync(user);
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
+            double.Parse(_configuration["Jwt:ExpiresInMinutes"]!));
+        var token = GenerateJwtToken(user, roles, expiresAt.UtcDateTime);
+
+        return new AuthResponse
+        {
+            Token = token,
+            UserId = user.Id,
+            Email = user.Email!,
+            Roles = roles.ToList(),
+            ExpiresAt = expiresAt,
+            ConsentGivenAt = user.ConsentGivenAt,
+            ConsentVersion = user.ConsentVersion ?? string.Empty,
+        };
     }
 
     private string GenerateJwtToken(ApplicationUser user, IEnumerable<string> roles, DateTime expiry)

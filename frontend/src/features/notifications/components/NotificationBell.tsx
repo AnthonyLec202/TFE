@@ -17,24 +17,26 @@ function resolveNotificationTitle(type: NotificationType): string {
   }
 }
 
+// Renders a person as "Firstname L." — full first name + capitalised last-name initial.
+function formatShortName(firstName: string, lastName: string): string {
+  const first = firstName?.trim() ?? '';
+  const initial = lastName?.trim().charAt(0).toUpperCase() ?? '';
+  if (first && initial) return `${first} ${initial}.`;
+  return first || initial;
+}
+
 function resolveNotificationMessage(notification: NotificationResponse): string {
-  const actorName = [notification.actorFirstName, notification.actorLastName]
-    .filter(Boolean)
-    .join(' ');
+  const author = formatShortName(notification.actorFirstName, notification.actorLastName) || 'Un membre de l’équipe';
+  const patient = formatShortName(notification.patientFirstName, notification.patientLastName);
+  const dossier = patient ? `le dossier de ${patient}` : 'un dossier patient';
 
   switch (notification.type) {
     case 'NewPost':
-      return actorName
-        ? `${actorName} a publié sur le mur.`
-        : 'Une nouvelle publication a été ajoutée.';
+      return `${author} a publié un message dans ${dossier}.`;
     case 'NewComment':
-      return actorName
-        ? `${actorName} a ajouté un commentaire.`
-        : 'Un nouveau commentaire a été ajouté.';
+      return `${author} a publié un commentaire dans ${dossier}.`;
     case 'PatientUpdated':
-      return actorName
-        ? `${actorName} a mis à jour le dossier.`
-        : 'Le dossier patient a été mis à jour.';
+      return `${author} a mis à jour ${dossier}.`;
   }
 }
 

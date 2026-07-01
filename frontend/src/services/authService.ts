@@ -19,6 +19,8 @@ export const logout = (): Promise<void> =>
 export const forgotPassword = (email: string): Promise<{ message: string }> =>
   apiClient.post<{ message: string }>('/api/auth/forgot-password', { email });
 
+// Resets the password only — it does NOT establish a session. The user re-authenticates from the
+// original tab afterwards. The server returns a plain confirmation message.
 export const resetPassword = (
   email: string,
   token: string,

@@ -124,6 +124,8 @@ public class AuthController : ControllerBase
     {
         try
         {
+            // Resets the password only — the user re-authenticates from their original tab afterwards,
+            // so no session cookie is issued here.
             await _authService.ResetPasswordAsync(request);
             return Ok(new { message = "Password has been reset successfully." });
         }

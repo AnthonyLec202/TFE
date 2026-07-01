@@ -14,6 +14,7 @@ public class NotificationService : INotificationService
     private readonly INotificationRepository _notificationRepository;
     private readonly ICareTeamRepository _careTeamRepository;
     private readonly ICommentRepository _commentRepository;
+    private readonly IPatientRepository _patientRepository;
     private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _hubContext;
 
     public NotificationService(
@@ -21,12 +22,14 @@ public class NotificationService : INotificationService
         INotificationRepository notificationRepository,
         ICareTeamRepository careTeamRepository,
         ICommentRepository commentRepository,
+        IPatientRepository patientRepository,
         IHubContext<CollaborativeWallHub, ICollaborativeWallClient> hubContext)
     {
         _unitOfWork = unitOfWork;
         _notificationRepository = notificationRepository;
         _careTeamRepository = careTeamRepository;
         _commentRepository = commentRepository;
+        _patientRepository = patientRepository;
         _hubContext = hubContext;
     }
 
@@ -56,6 +59,7 @@ public class NotificationService : INotificationService
 
         // Actor user is in the care team load (GetByPatientIdWithUsersAsync includes .User).
         var actor = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
+        var patient = await _patientRepository.GetByIdAsync(patientId);
         var targetUrl = $"/patients/{patientId}?postId={postId}";
 
         var notifications = recipients.Select(ct => new Notification
@@ -76,7 +80,7 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
 
         foreach (var notification in notifications)
-            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor));
+            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor, patient));
     }
 
     public async Task NotifyNewCommentAsync(Guid commentId)
@@ -92,6 +96,7 @@ public class NotificationService : INotificationService
         if (recipients.Count == 0) return;
 
         var actor = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
+        var patient = await _patientRepository.GetByIdAsync(patientId);
         var targetUrl = $"/patients/{patientId}?postId={comment.Post.Id}&commentId={commentId}";
 
         var notifications = recipients.Select(ct => new Notification
@@ -112,14 +117,17 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
 
         foreach (var notification in notifications)
-            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor));
+            await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor, patient));
     }
 
-    // Used for REST GET responses where the repository has eagerly loaded Notification.Actor.
-    // Used for SignalR broadcasts by passing the actor resolved from the in-memory care team load.
-    private static NotificationResponse ToResponse(Notification notification, ApplicationUser? actorOverride = null)
+    // Used for REST GET responses where the repository has eagerly loaded Notification.Actor and
+    // Notification.Patient. Used for SignalR broadcasts by passing the actor and patient resolved
+    // from the in-memory loads.
+    private static NotificationResponse ToResponse(
+        Notification notification, ApplicationUser? actorOverride = null, Patient? patientOverride = null)
     {
         var actor = actorOverride ?? notification.Actor;
+        var patient = patientOverride ?? notification.Patient;
         return new NotificationResponse
         {
             Id = notification.Id,
@@ -127,6 +135,8 @@ public class NotificationService : INotificationService
             Type = notification.Type.ToString(),
             ActorFirstName = actor?.FirstName ?? string.Empty,
             ActorLastName = actor?.LastName ?? string.Empty,
+            PatientFirstName = patient?.FirstName ?? string.Empty,
+            PatientLastName = patient?.LastName ?? string.Empty,
             IsRead = notification.IsRead,
             CreatedAt = notification.CreatedAt,
             TargetUrl = notification.TargetUrl,
