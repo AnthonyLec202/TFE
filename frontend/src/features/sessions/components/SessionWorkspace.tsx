@@ -115,16 +115,17 @@ export function SessionWorkspace({
       {/* Action bar: document actions on the left, editor controls on the right. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onEdit}>
+          <Button variant="ghost" size="sm" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
             Modifier
           </Button>
-          <Button variant="danger" size="sm" onClick={onDelete}>
+          <Button variant="dangerGhost" size="sm" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5" />
             Supprimer
           </Button>
-          <Button variant="secondary" size="sm" onClick={onOpenAiReport}>
-            🤖 Compte Rendu IA
+          <Button variant="ghost" size="sm" onClick={onOpenAiReport}>
+            <Sparkles className="h-3.5 w-3.5" />
+            Compte Rendu IA
           </Button>
         </div>
 

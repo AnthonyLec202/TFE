@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'dangerGhost';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -20,6 +20,10 @@ const variantClasses: Record<Variant, string> = {
     'text-taupe-500 hover:bg-sand-100 focus-visible:ring-sand-400',
   danger:
     'bg-red-500 text-white hover:bg-red-600 focus-visible:ring-red-500',
+  // Discreet destructive action: no fill, red text, soft red hover — for toolbar/header actions
+  // where a solid red button would be too heavy.
+  dangerGhost:
+    'text-red-600 hover:bg-red-50 focus-visible:ring-red-500',
 };
 
 const sizeClasses: Record<Size, string> = {

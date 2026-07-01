@@ -232,29 +232,29 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
         {/* Header actions */}
         <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
           <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
-            <Button variant="secondary" size="sm" onClick={() => setShowTeamModal(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowTeamModal(true)}>
               <Users className="h-3.5 w-3.5" />
               Voir membres
             </Button>
             {canInvite && (
-              <Button variant="secondary" size="sm" onClick={() => setShowInviteModal(true)}>
+              <Button variant="ghost" size="sm" onClick={() => setShowInviteModal(true)}>
                 <UserPlus className="h-3.5 w-3.5" />
                 Inviter
               </Button>
             )}
             {isAdmin ? (
               <>
-                <Button variant="secondary" size="sm" onClick={openEdit}>
+                <Button variant="ghost" size="sm" onClick={openEdit}>
                   <Pencil className="h-3.5 w-3.5" />
                   Modifier
                 </Button>
-                <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                <Button variant="dangerGhost" size="sm" onClick={() => setShowDeleteConfirm(true)}>
                   <Trash2 className="h-3.5 w-3.5" />
                   Supprimer
                 </Button>
               </>
             ) : (
-              <Button variant="secondary" size="sm" onClick={() => { setLeaveError(''); setShowLeaveConfirm(true); }}>
+              <Button variant="ghost" size="sm" onClick={() => { setLeaveError(''); setShowLeaveConfirm(true); }}>
                 <LogOut className="h-3.5 w-3.5" />
                 Quitter
               </Button>
