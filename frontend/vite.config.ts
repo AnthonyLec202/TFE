@@ -8,10 +8,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      // Silently install the updated Service Worker as soon as a new build is deployed.
-      registerType: 'autoUpdate',
+      // A freshly deployed build installs but waits; the in-app PwaUpdatePrompt applies it on the
+      // user's command (no silent mid-session reload). Pairs with useRegisterSW's needRefresh flag.
+      registerType: 'prompt',
       // Static assets copied verbatim from `public/` and added to the precache manifest.
-      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable.svg'],
       manifest: {
         name: 'NeuroPlatform',
         short_name: 'NeuroPlatform',
@@ -19,28 +20,38 @@ export default defineConfig({
         theme_color: '#1F6F6B',
         background_color: '#F7F5F1',
         display: 'standalone',
+        // French UI locale, stable app identity, and installer/store categorisation.
+        lang: 'fr',
+        dir: 'ltr',
+        id: '/',
+        categories: ['medical', 'productivity'],
         icons: [
+          // "any" icons render as authored (rounded-rect brand mark). The maskable variant is a
+          // dedicated full-bleed asset, so Android's adaptive-icon mask never crops brand content.
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
+            purpose: 'any',
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
+            purpose: 'any',
           },
           {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
+            src: 'pwa-maskable.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'maskable',
           },
         ],
       },
       workbox: {
-        // Precache the full application shell so it boots while offline.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Precache the full application shell — including the self-hosted woff2 fonts — so it
+        // boots and renders with its typefaces entirely offline, with no third-party requests.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
     }),
   ],
