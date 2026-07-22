@@ -48,7 +48,7 @@ export function ToolDetailEditor({
 
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="font-serif text-[30px] font-semibold tracking-[-0.015em] text-ink">{title}</h1>
+            <h1 className="font-serif text-[clamp(1.5rem,4.5vw,1.875rem)] font-semibold tracking-[-0.015em] text-ink">{title}</h1>
             <div className="flex flex-wrap gap-1.5">
               <span className="inline-flex items-center rounded-full bg-petrol-50 px-2.5 py-0.5 text-xs font-medium text-petrol-600">
                 {type}

@@ -25,7 +25,7 @@ export function CareTeamModal({
       className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+      <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-ink">Membres de l'équipe</h3>
           <button onClick={onClose} className="text-taupe-400 hover:text-ink" aria-label="Fermer">

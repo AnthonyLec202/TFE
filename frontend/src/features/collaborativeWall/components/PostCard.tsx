@@ -180,7 +180,7 @@ export function PostCard({
           {post.content}
         </p>
       ) : post.content ? (
-        <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+        <p className="text-sm text-slate-800 whitespace-pre-wrap break-words leading-relaxed">{post.content}</p>
       ) : null}
 
       {/* Attachments */}

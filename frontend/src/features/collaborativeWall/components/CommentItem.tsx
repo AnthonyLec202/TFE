@@ -67,7 +67,7 @@ export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onD
           {comment.content}
         </p>
       ) : comment.content ? (
-        <p className="text-sm text-slate-700 whitespace-pre-wrap">{comment.content}</p>
+        <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">{comment.content}</p>
       ) : null}
 
       {/* Attachments */}

@@ -29,7 +29,7 @@ export function ConsumeInvitationContainer({ onSuccess, onClose }: Props) {
       className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
       onClick={e => { if (e.target === e.currentTarget && !loading) handleClose(); }}
     >
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
 
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-slate-900">

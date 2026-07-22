@@ -98,7 +98,7 @@ export function SessionsDashboardContainer() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">Mes séances</h1>
+        <h1 className="font-serif font-semibold text-[clamp(1.5rem,4.5vw,1.875rem)] tracking-[-0.015em] text-ink">Mes séances</h1>
         {!isOnline && <OfflinePill />}
       </div>
 

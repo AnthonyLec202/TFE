@@ -18,7 +18,7 @@ export function WelcomeContainer() {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-petrol-600 shadow-sm mb-4">
           <Brain className="h-6 w-6 text-white" />
         </div>
-        <h1 className="font-serif text-[28px] font-semibold tracking-[-0.015em] text-ink">NeuroPlatform</h1>
+        <h1 className="font-serif text-[clamp(1.5rem,4vw,1.75rem)] font-semibold tracking-[-0.015em] text-ink">NeuroPlatform</h1>
         <p className="mt-1 text-sm text-taupe-500">Plateforme collaborative de suivi psychologique</p>
       </div>
 

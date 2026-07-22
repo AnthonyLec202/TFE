@@ -31,7 +31,7 @@ export function SessionEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-4">
-      <Card className="w-full max-w-md p-6">
+      <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
         <h2 className="text-[15px] font-semibold text-ink mb-4">Modifier la séance</h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">

@@ -36,7 +36,7 @@ export function CreatePatientForm({
         <h2 className="text-[15px] font-semibold text-ink">Nouveau patient</h2>
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Prénom"
             type="text"

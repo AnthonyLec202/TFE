@@ -12,7 +12,7 @@ export function ClinicalToolsPage() {
     <div className="flex flex-col gap-7">
       <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="font-serif text-[30px] font-semibold tracking-[-0.015em] text-ink">Mes outils</h1>
+          <h1 className="font-serif text-[clamp(1.5rem,4.5vw,1.875rem)] font-semibold tracking-[-0.015em] text-ink">Mes outils</h1>
         
         </div>
         {!isOnline && <OfflinePill />}

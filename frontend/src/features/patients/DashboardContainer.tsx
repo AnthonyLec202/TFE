@@ -204,7 +204,7 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="font-serif font-semibold text-[30px] tracking-[-0.015em] text-ink">
+          <h1 className="font-serif font-semibold text-[clamp(1.5rem,4.5vw,1.875rem)] tracking-[-0.015em] text-ink">
             {archivedView ? 'Archives' : terms.nav_patients}
           </h1>
           <p className="text-[14.5px] text-taupe-500">

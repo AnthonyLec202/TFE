@@ -142,7 +142,7 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
   }
 
   return (
-    <div className="mx-8 my-6 flex flex-col gap-2">
+    <div className="mx-3 sm:mx-8 my-6 flex flex-col gap-2">
       <p className="text-xs text-taupe-400">
         Écrivez avec votre stylet — faites défiler avec le doigt ou la molette. Cliquez sur{' '}
         <strong>Convertir en texte</strong> pour envoyer les tracés à la reconnaissance.

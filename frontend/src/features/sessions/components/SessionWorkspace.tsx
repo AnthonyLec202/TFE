@@ -67,7 +67,7 @@ export function SessionWorkspace({
       {/* Page header: title + meta on the left, save status pill on the right. */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1 min-w-0">
-          <h1 className="font-serif font-semibold text-[26px] leading-tight tracking-[-0.015em] text-ink break-words">
+          <h1 className="font-serif font-semibold text-[clamp(1.375rem,3.5vw,1.625rem)] leading-tight tracking-[-0.015em] text-ink break-words">
             {session.title}
           </h1>
           <p className="text-[14.5px] text-taupe-500">

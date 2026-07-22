@@ -79,7 +79,7 @@ export function ConsentBumpModal() {
       aria-modal="true"
       aria-labelledby="consent-modal-title"
     >
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-slate-200">
           <h1
@@ -95,7 +95,7 @@ export function ConsentBumpModal() {
         </div>
 
         {/* Scrollable policy body */}
-        <div className="px-6 py-4 overflow-y-auto max-h-80 bg-slate-50 text-sm text-slate-700 leading-relaxed whitespace-pre-line border-b border-slate-200">
+        <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0 bg-slate-50 text-sm text-slate-700 leading-relaxed whitespace-pre-line border-b border-slate-200">
           {PRIVACY_POLICY_TEXT}
         </div>
 

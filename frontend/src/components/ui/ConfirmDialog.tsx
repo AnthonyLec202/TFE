@@ -26,7 +26,7 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <Card className="w-full max-w-sm p-6 flex flex-col gap-4">
+      <Card className="w-full max-w-sm p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
         <div className="flex flex-col gap-1">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500">{message}</p>

@@ -164,7 +164,7 @@ export function AiReportWorkspace({
 
       <div className="flex items-center gap-2 print:hidden">
         <Sparkles className="h-5 w-5 text-petrol-600" strokeWidth={1.85} />
-        <h1 className="font-serif font-semibold text-[26px] leading-tight tracking-[-0.015em] text-ink print:hidden">
+        <h1 className="font-serif font-semibold text-[clamp(1.375rem,3.5vw,1.625rem)] leading-tight tracking-[-0.015em] text-ink print:hidden">
           Compte rendu IA
         </h1>
       </div>
@@ -304,7 +304,7 @@ export function AiReportWorkspace({
               <div className="flex flex-col gap-3">
                 <pre
                   id={REPORT_CONTENT_ELEMENT_ID}
-                  className="whitespace-pre-wrap rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-sm leading-relaxed text-ink font-sans print:rounded-none print:border-none print:bg-white print:p-0"
+                  className="whitespace-pre-wrap break-words rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-sm leading-relaxed text-ink font-sans print:rounded-none print:border-none print:bg-white print:p-0"
                 >
                   {reportContent}
                 </pre>

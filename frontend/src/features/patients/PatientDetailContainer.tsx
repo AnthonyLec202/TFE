@@ -307,7 +307,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget) setShowEdit(false); }}
         >
-          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-md p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-ink">Modifier le dossier</h3>
               <button onClick={() => setShowEdit(false)} className="text-taupe-400 hover:text-ink" aria-label="Fermer">
@@ -316,7 +316,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
             </div>
 
             <form onSubmit={handleUpdate} className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   label="Prénom"
                   type="text"
@@ -388,7 +388,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget && !deleting) setShowDeleteConfirm(false); }}
         >
-          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
                 <TriangleAlert className="h-6 w-6 text-red-500" />
@@ -439,7 +439,7 @@ export function PatientDetailContainer({ patientId, onNavigateBack }: Props) {
           className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4"
           onClick={e => { if (e.target === e.currentTarget && !leaving) setShowLeaveConfirm(false); }}
         >
-          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5">
+          <div className="bg-white rounded-2xl border border-sand-200 shadow-xl w-full max-w-sm p-6 flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
                 <LogOut className="h-6 w-6 text-amber-500" />
