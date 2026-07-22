@@ -5,8 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- SKEXP0070: the Semantic Kernel Ollama connector is shipped as experimental. -->
-    <NoWarn>$(NoWarn);1591;SKEXP0070</NoWarn>
+    <!-- SKEXP0070: the Semantic Kernel Ollama connector is shipped as experimental.
+         SKEXP0001: IChatClient.AsChatCompletionService adapter is shipped as experimental. -->
+    <NoWarn>$(NoWarn);1591;SKEXP0070;SKEXP0001</NoWarn>
     <UserSecretsId>66b9742f-84ce-41e7-b267-348cccb8b29e</UserSecretsId>
   </PropertyGroup>
 

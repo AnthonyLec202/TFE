@@ -292,3 +292,11 @@ C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\OpenAI.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\System.ClientModel.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\System.Memory.Data.dll
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Debug\net9.0\System.Numerics.Tensors.dll
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\appsettings.Development.json
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\appsettings.json
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.staticwebassets.endpoints.json
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.deps.json
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.runtimeconfig.json
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.dll
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.pdb
+C:\Users\antho\AppData\Local\Temp\tfe_build_check\TFE.Api.xml

@@ -1,4 +1,7 @@
+using Microsoft.Extensions.AI;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using OllamaSharp;
 using Supabase;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
@@ -76,10 +79,35 @@ public static class ServiceCollectionExtensions
         var aiOptions = configuration.GetSection(AiOptions.SectionName).Get<AiOptions>() ?? new AiOptions();
         services.AddSingleton(aiOptions);
 
-        // The Ollama connector is experimental; SKEXP0070 is suppressed project-wide (see .csproj).
-        services.AddOllamaChatCompletion(
-            modelId: aiOptions.ModelId,
-            endpoint: new Uri(aiOptions.BaseUrl));
+        // Ollama report generation on a local model routinely exceeds HttpClient's default 100-second
+        // timeout, surfacing as a TaskCanceledException. The AddOllamaChatCompletion(modelId, endpoint)
+        // and (modelId, httpClient) overloads do not reliably propagate a custom timeout — they can
+        // build their own OllamaApiClient with a default-configured HttpClient. To guarantee the
+        // 5-minute timeout is the one actually used by the chat pipeline, we own the whole chain:
+        //   1. a named HttpClient carries the timeout and base address,
+        //   2. an OllamaApiClient is built explicitly from that HttpClient (never the Uri overload),
+        //   3. that instance is adapted into the IChatCompletionService that Semantic Kernel resolves.
+        services.AddHttpClient("OllamaClient", client =>
+        {
+            client.BaseAddress = new Uri(aiOptions.BaseUrl);
+            client.Timeout = TimeSpan.FromMinutes(5);
+        });
+
+        services.AddSingleton<IOllamaApiClient>(sp =>
+        {
+            var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("OllamaClient");
+            // Explicit HttpClient constructor only — the OllamaApiClient(Uri) overload would create a
+            // fresh default-timeout HttpClient and discard the 5-minute timeout configured above.
+            return new OllamaApiClient(httpClient, aiOptions.ModelId);
+        });
+
+        // Adapt the OllamaApiClient (which implements IChatClient) into the chat-completion abstraction
+        // Semantic Kernel consumes, instead of AddOllamaChatCompletion(...) which would rebuild its own
+        // client. SKEXP0070 (Ollama connector) and SKEXP0001 (AsChatCompletionService) are suppressed
+        // project-wide (see .csproj).
+        services.AddSingleton<IChatCompletionService>(sp =>
+            ((IChatClient)sp.GetRequiredService<IOllamaApiClient>()).AsChatCompletionService(sp));
+
         services.AddKernel();
 
         services.AddScoped<IAiReportService, AiReportService>();

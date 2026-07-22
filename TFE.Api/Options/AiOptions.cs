@@ -13,4 +13,10 @@ public class AiOptions
 
     /// <summary>Identifier of the Ollama model to invoke (e.g. "llama3.2").</summary>
     public string ModelId { get; set; } = "llama3.2";
+
+    /// <summary>
+    /// Sampling temperature for report generation. Kept low so the model stays faithful to the
+    /// source notes (non-hallucination guardrail) rather than producing creative, invented content.
+    /// </summary>
+    public float Temperature { get; set; } = 0.15f;
 }
