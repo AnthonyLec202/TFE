@@ -1,6 +1,12 @@
-import { useEffect, useState, type SubmitEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_HINT,
+  validatePassword,
+  validatePasswordConfirmation,
+} from '../../auth';
 
 interface Props {
   onSubmit: (currentPassword: string, newPassword: string) => void;
@@ -13,31 +19,49 @@ export function ChangePasswordForm({ onSubmit, loading, error, success }: Props)
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [validationError, setValidationError] = useState('');
+  // Per-field messages for the password formatting rules. Populated when the user leaves a field
+  // (onBlur) and kept in sync afterwards (onChange) so the message clears as soon as the value
+  // becomes valid.
+  const [newPasswordError, setNewPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
 
-  // Clear the fields once the change has succeeded.
-  useEffect(() => {
-    if (success) {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-  }, [success]);
+  // NOTE: The fields are not cleared here on success. Instead, the parent container remounts this
+  // form (via a changing `key`) once the change succeeds, which resets all local state — avoiding a
+  // setState-in-effect that would trigger cascading renders.
+
+  function handleNewPasswordChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setNewPassword(value);
+    // Re-validate live only once a message is already shown, so we never flag a field the user is
+    // still typing into for the first time.
+    if (newPasswordError) setNewPasswordError(validatePassword(value) ?? '');
+    if (confirmError) setConfirmError(validatePasswordConfirmation(value, confirmPassword) ?? '');
+  }
+
+  function handleConfirmChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setConfirmPassword(value);
+    if (confirmError) setConfirmError(validatePasswordConfirmation(newPassword, value) ?? '');
+  }
 
   function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      setValidationError('Les mots de passe ne correspondent pas.');
+    const passwordMessage = validatePassword(newPassword);
+    const confirmMessage = validatePasswordConfirmation(newPassword, confirmPassword);
+    if (passwordMessage || confirmMessage) {
+      setNewPasswordError(passwordMessage ?? '');
+      setConfirmError(confirmMessage ?? '');
       return;
     }
-    setValidationError('');
+    setNewPasswordError('');
+    setConfirmError('');
     onSubmit(currentPassword, newPassword);
   }
 
-  const displayError = validationError || error;
+  const displayError = error;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <Input
         label="Mot de passe actuel"
         type="password"
@@ -52,25 +76,31 @@ export function ChangePasswordForm({ onSubmit, loading, error, success }: Props)
         type="password"
         placeholder="••••••••"
         value={newPassword}
-        onChange={e => setNewPassword(e.target.value)}
+        onChange={handleNewPasswordChange}
+        onBlur={() => {
+          setNewPasswordError(validatePassword(newPassword) ?? '');
+          if (confirmPassword) setConfirmError(validatePasswordConfirmation(newPassword, confirmPassword) ?? '');
+        }}
         required
         autoComplete="new-password"
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
+        error={newPasswordError}
       />
+      {!newPasswordError && (
+        <p className="-mt-2 text-xs text-slate-400">{PASSWORD_POLICY_HINT}</p>
+      )}
       <Input
         label="Confirmer le nouveau mot de passe"
         type="password"
         placeholder="••••••••"
         value={confirmPassword}
-        onChange={e => setConfirmPassword(e.target.value)}
+        onChange={handleConfirmChange}
+        onBlur={() => setConfirmError(validatePasswordConfirmation(newPassword, confirmPassword) ?? '')}
         required
         autoComplete="new-password"
-        minLength={8}
+        minLength={PASSWORD_MIN_LENGTH}
+        error={confirmError}
       />
-
-      <p className="text-xs text-slate-400">
-        Minimum 8 caractères, avec majuscule, minuscule, chiffre et caractère spécial.
-      </p>
 
       {displayError && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

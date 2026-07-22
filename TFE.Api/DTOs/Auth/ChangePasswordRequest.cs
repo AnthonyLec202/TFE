@@ -7,9 +7,9 @@ public class ChangePasswordRequest
     [Required(ErrorMessage = "Current password is required.")]
     public string CurrentPassword { get; set; } = string.Empty;
 
+    // The password policy (minimum length) is enforced centrally by ASP.NET Core Identity — see the
+    // IdentityOptions configuration in Program.cs. The DTO only guards presence, so the policy lives
+    // in a single place. Identity rejections surface as a 400 via the service layer.
     [Required(ErrorMessage = "New password is required.")]
-    [RegularExpression(
-        @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$",
-        ErrorMessage = "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit, and a special character.")]
     public string NewPassword { get; set; } = string.Empty;
 }

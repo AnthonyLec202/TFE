@@ -8,7 +8,8 @@ public class LoginRequest
     [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string Email { get; set; } = string.Empty;
 
+    // No length rule here: login only authenticates credentials, so it must accept any password the
+    // policy allows. Enforcing a length would pre-reject valid credentials and leak the policy.
     [Required(ErrorMessage = "Password is required.")]
-    [MinLength(8, ErrorMessage = "Password must be at least 8 characters long.")]
     public string Password { get; set; } = string.Empty;
 }

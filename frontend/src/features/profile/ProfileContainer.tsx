@@ -29,6 +29,9 @@ export function ProfileContainer() {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState(false);
+  // Bumped on a successful change to remount ChangePasswordForm, which resets its fields without a
+  // setState-in-effect inside the form.
+  const [pwFormKey, setPwFormKey] = useState(0);
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isConsentRevokeOpen, setIsConsentRevokeOpen] = useState(false);
@@ -46,6 +49,7 @@ export function ProfileContainer() {
     try {
       await changePassword(currentPassword, newPassword);
       setPwSuccess(true);
+      setPwFormKey(key => key + 1);
     } catch (err) {
       setPwError(err instanceof Error ? err.message : 'Une erreur est survenue.');
     } finally {
@@ -120,6 +124,7 @@ export function ProfileContainer() {
       <Card className="p-5 flex flex-col gap-4">
         <h2 className="text-sm font-semibold text-slate-700">Changer le mot de passe</h2>
         <ChangePasswordForm
+          key={pwFormKey}
           onSubmit={handleChangePassword}
           loading={pwLoading}
           error={pwError}

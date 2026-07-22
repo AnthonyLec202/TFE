@@ -2,6 +2,13 @@ import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import type { ConsumeTokenRequest } from '../../../types/auth';
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_HINT,
+  validatePassword,
+  validatePasswordConfirmation,
+} from '../utils/passwordValidation';
+import { validateEmail } from '../utils/emailValidation';
 
 interface Props {
   initialCode: string;
@@ -23,17 +30,49 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [validationError, setValidationError] = useState('');
+  // Per-field messages for the password formatting rules. Populated when the user leaves a field
+  // (onBlur) and kept in sync afterwards (onChange) so the message clears as soon as the value
+  // becomes valid.
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   function setField(field: keyof ConsumeTokenRequest) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm(prev => ({ ...prev, [field]: e.target.value }));
   }
 
+  function handleEmailChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setForm(prev => ({ ...prev, email: value }));
+    if (emailError) setEmailError(validateEmail(value) ?? '');
+  }
+
+  function handlePasswordChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setForm(prev => ({ ...prev, password: value }));
+    // Re-validate live only once a message is already shown, so we never flag a field the user is
+    // still typing into for the first time.
+    if (passwordError) setPasswordError(validatePassword(value) ?? '');
+    if (confirmError) setConfirmError(validatePasswordConfirmation(value, confirmPassword) ?? '');
+  }
+
+  function handleConfirmChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    setConfirmPassword(value);
+    if (confirmError) setConfirmError(validatePasswordConfirmation(form.password, value) ?? '');
+  }
+
   function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
 
-    if (form.password !== confirmPassword) {
-      setValidationError('Les mots de passe ne correspondent pas.');
+    const emailMessage = validateEmail(form.email);
+    const passwordMessage = validatePassword(form.password);
+    const confirmMessage = validatePasswordConfirmation(form.password, confirmPassword);
+    if (emailMessage || passwordMessage || confirmMessage) {
+      setEmailError(emailMessage ?? '');
+      setPasswordError(passwordMessage ?? '');
+      setConfirmError(confirmMessage ?? '');
       return;
     }
     if (!form.consent) {
@@ -48,7 +87,7 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
   const displayError = validationError || error;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Input
           label="Prénom"
@@ -76,9 +115,11 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
         type="email"
         placeholder="prenom.nom@exemple.com"
         value={form.email}
-        onChange={setField('email')}
+        onChange={handleEmailChange}
+        onBlur={() => setEmailError(validateEmail(form.email) ?? '')}
         required
         autoComplete="email"
+        error={emailError}
       />
 
       <Input
@@ -86,21 +127,31 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
         type="password"
         placeholder="••••••••"
         value={form.password}
-        onChange={setField('password')}
+        onChange={handlePasswordChange}
+        onBlur={() => {
+          setPasswordError(validatePassword(form.password) ?? '');
+          if (confirmPassword) setConfirmError(validatePasswordConfirmation(form.password, confirmPassword) ?? '');
+        }}
         required
         autoComplete="new-password"
-        minLength={6}
+        minLength={PASSWORD_MIN_LENGTH}
+        error={passwordError}
       />
+      {!passwordError && (
+        <p className="-mt-2 text-xs text-slate-400">{PASSWORD_POLICY_HINT}</p>
+      )}
 
       <Input
         label="Confirmer le mot de passe"
         type="password"
         placeholder="••••••••"
         value={confirmPassword}
-        onChange={e => setConfirmPassword(e.target.value)}
+        onChange={handleConfirmChange}
+        onBlur={() => setConfirmError(validatePasswordConfirmation(form.password, confirmPassword) ?? '')}
         required
         autoComplete="new-password"
-        minLength={6}
+        minLength={PASSWORD_MIN_LENGTH}
+        error={confirmError}
       />
 
       <label className="flex items-start gap-2.5 text-xs text-slate-500 leading-relaxed cursor-pointer">
@@ -121,7 +172,19 @@ export function EnrollmentForm({ initialCode, onSubmit, loading, error }: Props)
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{displayError}</p>
       )}
 
-      <Button type="submit" loading={loading} disabled={!form.consent} className="w-full mt-1">
+      <Button
+        type="submit"
+        loading={loading}
+        disabled={
+          !form.consent ||
+          !form.firstName.trim() ||
+          !form.lastName.trim() ||
+          !form.email.trim() ||
+          !form.password ||
+          !confirmPassword
+        }
+        className="w-full mt-1"
+      >
         Créer mon compte
       </Button>
     </form>

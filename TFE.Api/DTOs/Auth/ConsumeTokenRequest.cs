@@ -8,8 +8,9 @@ public class ConsumeTokenRequest
     [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string Email { get; set; } = string.Empty;
 
+    // Password policy (minimum length) is enforced centrally by ASP.NET Core Identity — see the
+    // IdentityOptions configuration in Program.cs. The DTO only guards presence.
     [Required(ErrorMessage = "Password is required.")]
-    [MinLength(8, ErrorMessage = "Password must be at least 8 characters long.")]
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "First name is required.")]
