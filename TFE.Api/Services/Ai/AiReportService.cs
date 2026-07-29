@@ -25,6 +25,11 @@ public partial class AiReportService : IAiReportService
     /// </summary>
     public const string EmptyNotesMessage = "_Aucun contenu clinique n'a été fourni._";
 
+    // ⚠ MIRRORED CLIENT-SIDE in frontend/src/features/sessions/utils/aiReportPrompt.ts.
+    // The same report can be produced here or by the clinician's local Ollama runtime (offline
+    // path), and both must yield a comparable document. Any change to this prompt, to
+    // EmptyNotesMessage, or to HasExploitableContent must be applied there as well.
+    //
     // Strict French system prompt for the Qwen (qwen2.5) neuropsychology writing assistant.
     // Notes arrive as HTML/Markdown; <strong>/<b>/**…** mark bold and <mark> marks highlight — the model
     // prioritizes and preserves these. Empty input yields the EmptyNotesMessage sentinel, never

@@ -24,10 +24,21 @@ export interface AiReportWorkspaceProps {
   initialValidated: boolean;
   /** Whether the current user (administrator) may re-run AI generation over an existing report. */
   canRegenerate: boolean;
+  /**
+   * Whether a local AI engine answered the availability probe; null while it is still in flight.
+   * Labels which engine will run — it never gates the action, since the container falls back to the
+   * server whenever the local one turns out to be unreachable.
+   */
+  isLocalEngineAvailable: boolean | null;
   /** Returns to the session workspace. */
   onBack: () => void;
-  /** Generates a report from the session notes on the backend; resolves to the Markdown string. */
-  onGenerate: () => Promise<string>;
+  /**
+   * Generates a report from the session notes; resolves to the Markdown string. `onProgress` is
+   * called with the FULL text produced so far (an absolute value, not a delta) so generation can be
+   * rendered as it streams; it is called with an empty string to discard a partial result.
+   * A rejection carries a message already written for the clinician.
+   */
+  onGenerate: (onProgress: (textSoFar: string) => void) => Promise<string>;
   /** Persists the validated report (Dexie + sync). */
   onSave: (reportContent: string) => Promise<void>;
 }
@@ -39,10 +50,15 @@ export interface AiReportWorkspaceProps {
 // administrator (canRegenerate) can re-run generation from the draft or validated phase, looping back
 // through loading into a fresh, unvalidated draft built from the latest notes.
 export function AiReportWorkspace({
-  sessionId, sessionDate, noteContent, initialReport, initialValidated, canRegenerate, onBack, onGenerate, onSave,
+  sessionId, sessionDate, noteContent, initialReport, initialValidated, canRegenerate,
+  isLocalEngineAvailable, onBack, onGenerate, onSave,
 }: AiReportWorkspaceProps) {
   const [reportContent, setReportContent] = useState<string | null>(initialReport);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Text produced so far by an in-flight generation, shown live during Phase 2. Updated at the
+  // engine's coalesced rate (~10 Hz), never per token — a per-token setState here would saturate the
+  // main thread for the whole generation and starve the collaborative wall's socket keep-alive.
+  const [streamingText, setStreamingText] = useState('');
   const [isValidated, setIsValidated] = useState(initialValidated);
   const [isSaving, setIsSaving] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -58,15 +74,23 @@ export function AiReportWorkspace({
   const handleGenerate = async () => {
     setIsGenerating(true);
     setGenerationError(null);
+    setStreamingText('');
     try {
-      const report = await onGenerate();
+      const report = await onGenerate(setStreamingText);
       setReportContent(report);
       setIsValidated(false);
       setIsAcknowledged(false);
-    } catch {
-      setGenerationError('La génération du compte rendu a échoué. Vérifiez votre connexion et réessayez.');
+    } catch (error) {
+      // The container writes failure messages for the clinician (which engine failed, what to do),
+      // so its text is used verbatim when present.
+      setGenerationError(
+        error instanceof Error && error.message
+          ? error.message
+          : 'La génération du compte rendu a échoué. Vérifiez votre connexion et réessayez.',
+      );
     } finally {
       setIsGenerating(false);
+      setStreamingText('');
     }
   };
 
@@ -244,15 +268,35 @@ export function AiReportWorkspace({
                 <Button variant="primary" size="md" onClick={handleGenerate}>
                   🤖 Générer le compte rendu
                 </Button>
+                {/* Tells the clinician which engine will run — and, when it is the local one, that
+                    generation will keep working without a connection. */}
+                {isLocalEngineAvailable !== null && (
+                  <p className="text-[13px] leading-snug text-taupe-400">
+                    {isLocalEngineAvailable
+                      ? "Moteur d'IA local détecté : la génération fonctionnera même sans connexion."
+                      : "Aucun moteur d'IA local détecté : la génération utilisera le serveur et nécessite une connexion."}
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Phase 2: Loading */}
+            {/* Phase 2: Loading. Streams the report as it is produced; falls back to a bare spinner
+                until the first batch arrives, or when the engine returns nothing incrementally. */}
             {isGenerating && (
-              <Button variant="primary" size="md" disabled>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyse clinique en cours...
-              </Button>
+              <div className="flex flex-col gap-3">
+                <Button variant="primary" size="md" disabled>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analyse clinique en cours...
+                </Button>
+                {streamingText.length > 0 && (
+                  <pre
+                    aria-live="polite"
+                    className="max-h-[48vh] overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-sand-200 bg-sand-50 px-3.5 py-3 text-sm leading-relaxed text-taupe-600 font-sans"
+                  >
+                    {streamingText}
+                  </pre>
+                )}
+              </div>
             )}
 
             {/* Phase 3: Draft / Edit mode */}
