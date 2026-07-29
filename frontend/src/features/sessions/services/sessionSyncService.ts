@@ -1,8 +1,47 @@
 import { db, type SyncStatus, type LocalNote, type LocalSession } from '../../../core/offline/LocalDatabase';
+import {
+  encryptNote,
+  encryptSession,
+  decryptNotes,
+  decryptSessions,
+} from '../../../core/offline/recordEncryption';
 import { AuthError, HttpError } from '../../../services/apiClient';
 import { syncSessionsBatch, updateSession, deleteSession, getSessions, getSessionNotes } from './sessionApiService';
 
 const SYNCED: SyncStatus = 'synced';
+
+/**
+ * Clears a session's pending flag only if the row has not been rewritten since the snapshot the push
+ * was built from.
+ *
+ * The payload sent to the server is a snapshot taken at the top of the cycle. A local mutation that
+ * lands while that request is in flight — notably a long-running AI report generation — bumps
+ * lastModifiedAt. Marking such a row synced would strand changes the server never received, and the
+ * hydration phase later in the same cycle, seeing syncStatus === 'synced', would overwrite them with
+ * the older server copy. On a mismatch the row simply stays pending and the next cycle pushes it.
+ *
+ * Patches syncStatus alone rather than writing the snapshot back, so a concurrent edit to any other
+ * field survives too.
+ *
+ * Reads the row raw, on purpose: only lastModifiedAt is compared and it is never encrypted. Nothing
+ * here may decrypt — this runs inside a transaction, which cannot survive an await on WebCrypto.
+ */
+async function markSessionSyncedIfUnchanged(snapshot: LocalSession): Promise<void> {
+  await db.transaction('rw', db.sessions, async () => {
+    const current = await db.sessions.get(snapshot.id);
+    if (!current || current.lastModifiedAt !== snapshot.lastModifiedAt) return;
+    await db.sessions.update(snapshot.id, { syncStatus: SYNCED });
+  });
+}
+
+/** Note-table counterpart of {@link markSessionSyncedIfUnchanged}, guarding concurrent note edits. */
+async function markNoteSyncedIfUnchanged(snapshot: LocalNote): Promise<void> {
+  await db.transaction('rw', db.notes, async () => {
+    const current = await db.notes.get(snapshot.id);
+    if (!current || current.lastModifiedAt !== snapshot.lastModifiedAt) return;
+    await db.notes.update(snapshot.id, { syncStatus: SYNCED });
+  });
+}
 
 /**
  * Pushes all pending local session changes to the server: deletions, then updates, then creates +
@@ -12,15 +51,20 @@ const SYNCED: SyncStatus = 'synced';
  * pushed once that patient exists server-side.
  */
 export async function syncSessions(): Promise<void> {
-  const pendingSessions = await db.sessions.filter(s => s.syncStatus !== 'synced').toArray();
+  // Decrypted immediately: these rows become the request payloads below, and the server stores and
+  // returns cleartext. Pushing the at-rest ciphertext would corrupt the server copy irrecoverably.
+  // syncStatus and lastModifiedAt are not encrypted, so filtering before decrypting is safe.
+  const pendingSessions = await decryptSessions(
+    await db.sessions.filter(s => s.syncStatus !== 'synced').toArray(),
+  );
 
-  // Read pending notes in isolation. The DBCore decryption middleware already neutralises a single
-  // corrupted note, but a catastrophic read failure on the notes table must not abort the session
-  // push (and, since this whole handler would otherwise throw, fail the entire sync cycle for
-  // unrelated tables like patients). On failure we log and proceed with an empty note set.
+  // Read pending notes in isolation. decryptNotes already neutralises a single corrupted note, but a
+  // catastrophic read failure on the notes table must not abort the session push (and, since this
+  // whole handler would otherwise throw, fail the entire sync cycle for unrelated tables like
+  // patients). On failure we log and proceed with an empty note set.
   let pendingNotes: LocalNote[] = [];
   try {
-    pendingNotes = await db.notes.filter(n => n.syncStatus !== 'synced').toArray();
+    pendingNotes = await decryptNotes(await db.notes.filter(n => n.syncStatus !== 'synced').toArray());
   } catch (error) {
     console.error('[sessionSync] Failed to read pending notes — pushing sessions without them this cycle.', error);
   }
@@ -69,7 +113,7 @@ export async function syncSessions(): Promise<void> {
         toolIds: session.toolIds,
         attendances: session.attendances,
       });
-      await db.sessions.update(session.id, { syncStatus: SYNCED });
+      await markSessionSyncedIfUnchanged(session);
     } catch (err) {
       if (err instanceof AuthError) throw err;
       console.warn('[sessionSync] Failed to update a session — will retry later.', session.id, err);
@@ -108,12 +152,12 @@ export async function syncSessions(): Promise<void> {
     try {
       await syncSessionsBatch(payload);
 
-      await db.transaction('rw', db.sessions, db.notes, async () => {
-        if (creates.length > 0)
-          await db.sessions.bulkPut(creates.map(s => ({ ...s, syncStatus: SYNCED })));
-        if (notesToSync.length > 0)
-          await db.notes.bulkPut(notesToSync.map(n => ({ ...n, syncStatus: SYNCED })));
-      });
+      // Per-row compare-and-swap rather than a bulkPut of the snapshots. Writing the snapshots back
+      // wholesale would revert every field a concurrent edit touched during the push, not just
+      // syncStatus. A row that moved on stays pending and is re-pushed next cycle — the batch
+      // endpoint upserts, so a repeated push is idempotent.
+      for (const session of creates) await markSessionSyncedIfUnchanged(session);
+      for (const note of notesToSync) await markNoteSyncedIfUnchanged(note);
     } catch (err) {
       if (err instanceof AuthError) throw err;
       console.warn('[sessionSync] Failed to push the create/notes batch — will retry later.', err);
@@ -141,28 +185,40 @@ export async function syncSessionsFromServer(): Promise<void> {
   const serverSessions = await getSessions();
   const serverIds = new Set(serverSessions.map(s => s.id));
 
+  // Merge and encrypt every candidate BEFORE opening the transaction. WebCrypto returns a native
+  // promise, and awaiting one inside a Dexie transaction lets IndexedDB commit it mid-flight. The
+  // local rows read here are only inspected on cleartext fields (syncStatus, lastModifiedAt), so
+  // they need no decryption.
+  const candidates: LocalSession[] = [];
+  for (const serverSession of serverSessions) {
+    const local = await db.sessions.get(serverSession.id);
+
+    // Never overwrite an un-pushed local mutation with the (older) server copy.
+    if (local && local.syncStatus !== SYNCED) continue;
+
+    candidates.push(await encryptSession({
+      id: serverSession.id,
+      title: serverSession.title,
+      date: serverSession.date,
+      time: serverSession.time,
+      patientIds: serverSession.patientIds,
+      toolIds: serverSession.toolIds,
+      isClosed: serverSession.isClosed,
+      attendances: serverSession.attendances,
+      aiReport: serverSession.aiReport ?? undefined,
+      isReportValidated: serverSession.isReportValidated,
+      syncStatus: SYNCED,
+      lastModifiedAt: local?.lastModifiedAt ?? new Date().toISOString(),
+    }));
+  }
+
   await db.transaction('rw', db.sessions, async () => {
-    for (const serverSession of serverSessions) {
-      const local = await db.sessions.get(serverSession.id);
-
-      // Never overwrite an un-pushed local mutation with the (older) server copy.
-      if (local && local.syncStatus !== SYNCED) continue;
-
-      const merged: LocalSession = {
-        id: serverSession.id,
-        title: serverSession.title,
-        date: serverSession.date,
-        time: serverSession.time,
-        patientIds: serverSession.patientIds,
-        toolIds: serverSession.toolIds,
-        isClosed: serverSession.isClosed,
-        attendances: serverSession.attendances,
-        aiReport: serverSession.aiReport ?? undefined,
-        isReportValidated: serverSession.isReportValidated,
-        syncStatus: SYNCED,
-        lastModifiedAt: local?.lastModifiedAt ?? new Date().toISOString(),
-      };
-      await db.sessions.put(merged);
+    for (const candidate of candidates) {
+      // Re-check under the transaction: a local mutation may have landed while we were encrypting,
+      // and it must still win over the server copy.
+      const current = await db.sessions.get(candidate.id);
+      if (current && current.syncStatus !== SYNCED) continue;
+      await db.sessions.put(candidate);
     }
 
     // Prune sessions that are synced locally but absent server-side (deleted elsewhere). Pending local
@@ -186,8 +242,8 @@ export async function syncSessionsFromServer(): Promise<void> {
  *  - A note with unsynced local changes (syncStatus !== 'synced') is left untouched: a local pending
  *    edit always wins over the server copy until it is pushed, so cross-device pull never clobbers
  *    in-progress work.
- *  - Otherwise the server record is upserted as 'synced'. The plaintext `content` is re-encrypted to
- *    the `$enc$` at-rest format by the notes table's creating/updating hooks on write.
+ *  - Otherwise the server record is upserted as 'synced'. The plaintext `content` returned by the
+ *    server is encrypted to the `$enc$` at-rest format before it is written.
  *  - Locally-cached 'synced' notes that no longer exist server-side (deleted on another device) are
  *    pruned. Pending local notes (never yet pushed) are preserved.
  *
@@ -198,22 +254,33 @@ export async function syncNotesFromServer(): Promise<void> {
   const serverNotes = await getSessionNotes();
   const serverIds = new Set(serverNotes.map(n => n.id));
 
+  // Merged and encrypted ahead of the transaction, for the same reason as syncSessionsFromServer.
+  const candidates: LocalNote[] = [];
+  for (const serverNote of serverNotes) {
+    const local = await db.notes.get(serverNote.id);
+
+    // Never overwrite an un-pushed local edit with the (older) server copy.
+    if (local && local.syncStatus !== SYNCED) continue;
+
+    // `content` arrives from the server as cleartext and is encrypted here. `unprocessedStrokes` is
+    // carried over straight from the raw local row, so it is already ciphertext — encryptNote's
+    // sentinel guard leaves it untouched rather than encrypting it a second time.
+    candidates.push(await encryptNote({
+      id: serverNote.id,
+      sessionId: serverNote.sessionId,
+      content: serverNote.content,
+      syncStatus: SYNCED,
+      lastModifiedAt: serverNote.lastModifiedAt,
+      unprocessedStrokes: local?.unprocessedStrokes,
+    }));
+  }
+
   await db.transaction('rw', db.notes, async () => {
-    for (const serverNote of serverNotes) {
-      const local = await db.notes.get(serverNote.id);
-
-      // Never overwrite an un-pushed local edit with the (older) server copy.
-      if (local && local.syncStatus !== SYNCED) continue;
-
-      const merged: LocalNote = {
-        id: serverNote.id,
-        sessionId: serverNote.sessionId,
-        content: serverNote.content,
-        syncStatus: SYNCED,
-        lastModifiedAt: serverNote.lastModifiedAt,
-        unprocessedStrokes: local?.unprocessedStrokes,
-      };
-      await db.notes.put(merged);
+    for (const candidate of candidates) {
+      // Re-check under the transaction: a local edit may have landed while we were encrypting.
+      const current = await db.notes.get(candidate.id);
+      if (current && current.syncStatus !== SYNCED) continue;
+      await db.notes.put(candidate);
     }
 
     // Prune notes that are synced locally but absent server-side (deleted elsewhere). Pending local

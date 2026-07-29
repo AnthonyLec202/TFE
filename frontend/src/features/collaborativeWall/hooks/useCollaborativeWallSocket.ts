@@ -45,6 +45,17 @@ export function useCollaborativeWallSocket(
     connection.on('ReceiveUpdatedComment',(comment: CommentResponse) => callbacksRef.current.onCommentUpdated(comment));
     connection.on('ReceiveDeletedComment',(postId: string, commentId: string) => callbacksRef.current.onCommentDeleted(postId, commentId));
 
+    // Groups are keyed by connection id, and withAutomaticReconnect() recovers with a NEW connection
+    // id — the membership established by the initial JoinWallGroup is gone server-side. Without this
+    // re-join the socket reports Connected while silently delivering no wall event at all, which is
+    // indistinguishable from an idle wall. No equivalent is needed for the personal notification
+    // group: the hub re-adds it in OnConnectedAsync, which runs again for every new connection.
+    connection.onreconnected(() => {
+      connection.invoke('JoinWallGroup', patientId).catch(err => {
+        console.warn('[CollaborativeWallSocket] Failed to rejoin the wall group after reconnect — real-time updates are stale.', err);
+      });
+    });
+
     // Retain the start promise so cleanup can wait for negotiation to settle before stopping.
     // Stopping a connection mid-negotiation makes SignalR log "The connection was stopped during
     // negotiation" — notably on React StrictMode's mount → unmount → mount in development.

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "tHe8PlRsanQ=",
+  "dgSpecHash": "VFp4fYf1HBw=",
   "success": true,
-  "projectFilePath": "C:\\Users\\antho\\Desktop\\TFE\\TFE.Api\\TFE.Api.csproj",
+  "projectFilePath": "c:\\Users\\antho\\Desktop\\TFE\\TFE.Api\\TFE.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\antho\\.nuget\\packages\\azure.ai.openai\\2.5.0-beta.1\\azure.ai.openai.2.5.0-beta.1.nupkg.sha512",
     "C:\\Users\\antho\\.nuget\\packages\\azure.core\\1.49.0\\azure.core.1.49.0.nupkg.sha512",

@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "l6JqVSmYMVvxM0lTm3T3w/EHJGNOFlD4XSpN8RzVcaU=",
+  "Source": "TFE.Api",
+  "BasePath": "_content/TFE.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

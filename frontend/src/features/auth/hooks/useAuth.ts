@@ -12,6 +12,7 @@ import {
   setActiveEncryptionKey,
   clearActiveEncryptionKey,
 } from '../../../core/offline/cryptoService';
+import { encryptLegacyRecordsAtRest } from '../../../core/offline/recordEncryption';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -25,6 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const key = await deriveEncryptionKey(nextUser.userId);
       setActiveEncryptionKey(key);
+      // Fire-and-forget: encrypts any row still stored in cleartext by an earlier build, now that a
+      // key exists. Not awaited — it must never delay the session becoming usable, and it patches
+      // only the encrypted fields, so a sync cycle starting alongside it cannot be disturbed.
+      void encryptLegacyRecordsAtRest();
     } catch (err) {
       console.error('[Auth] Encryption key derivation failed.', err);
     }

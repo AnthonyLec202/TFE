@@ -26,8 +26,9 @@ public static class AuthCookieExtensions
     private static CookieOptions BuildCookieOptions(DateTimeOffset expiresAt) => new()
     {
         HttpOnly = true,                  // unreadable by document.cookie / JS — the core XSS mitigation
-        Secure = true,                    // HTTPS only (http://localhost is treated as a secure context)
-        SameSite = SameSiteMode.Strict,   // never sent on cross-site requests (CSRF hardening)
+        Secure = true,                    // mandatory: browsers reject SameSite=None without Secure
+        SameSite = SameSiteMode.None,     // the SPA (localhost) and the API (Azure) are different sites,
+                                          // so the cookie must be allowed on cross-site requests
         Path = "/",
         IsEssential = true,               // exempt from the cookie consent policy (strictly necessary)
         Expires = expiresAt,

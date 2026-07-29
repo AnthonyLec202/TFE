@@ -1,5 +1,12 @@
 import { db } from '../../../core/offline/LocalDatabase';
 import type { LocalNote, LocalPatientSync, LocalSession, LocalSessionAttendance, SyncStatus } from '../../../core/offline/LocalDatabase';
+import {
+  encryptNote,
+  encryptSession,
+  decryptNote,
+  decryptSession,
+  decryptSessions,
+} from '../../../core/offline/recordEncryption';
 
 export interface SessionEditableFields {
   title: string;
@@ -9,33 +16,37 @@ export interface SessionEditableFields {
 }
 
 export async function createSession(session: LocalSession): Promise<void> {
-  await db.sessions.put(session);
+  await db.sessions.put(await encryptSession(session));
 }
 
 export async function getSessionById(sessionId: string): Promise<LocalSession | undefined> {
   const session = await db.sessions.get(sessionId);
   // A tombstoned (pending_delete) session is treated as already gone.
   if (!session || session.syncStatus === 'pending_delete') return undefined;
-  return session;
+  return decryptSession(session);
 }
 
 export async function getAllSessions(): Promise<LocalSession[]> {
   const sessions = await db.sessions.orderBy('date').reverse().toArray();
   // The general dashboard shows only ACTIVE work: exclude closed sessions (archived to the
   // patients' history) and any awaiting server-side deletion so they vanish immediately.
-  return sessions.filter(s => !s.isClosed && s.syncStatus !== 'pending_delete');
+  // Filter before decrypting so no discarded row pays for a WebCrypto call.
+  return decryptSessions(sessions.filter(s => !s.isClosed && s.syncStatus !== 'pending_delete'));
 }
 
 export async function updateSessionLocally(id: string, changes: SessionEditableFields): Promise<void> {
   const existing = await db.sessions.get(id);
   if (!existing) return;
 
-  await db.sessions.put({
-    ...existing,
+  // Decrypt then re-encrypt rather than carrying the stored ciphertext through: the round trip keeps
+  // the "decrypt what you read, encrypt what you write" rule uniform across every mutator here,
+  // instead of each one having to reason about which fields it happens to touch.
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     ...changes,
     syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function deleteSessionLocally(id: string): Promise<void> {
@@ -52,17 +63,17 @@ export async function deleteSessionLocally(id: string): Promise<void> {
   }
 
   // Tombstone: keep the row marked for deletion so the SyncEngine issues a server-side DELETE.
-  await db.sessions.put({
-    ...existing,
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     syncStatus: 'pending_delete',
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function getSessionsForPatient(patientId: string): Promise<LocalSession[]> {
   const sessions = await db.sessions.where('patientIds').equals(patientId).toArray();
   // A patient's history holds any closed session; exclude tombstoned ones.
-  return sessions.filter(s => s.isClosed && s.syncStatus !== 'pending_delete');
+  return decryptSessions(sessions.filter(s => s.isClosed && s.syncStatus !== 'pending_delete'));
 }
 
 // Close a session with its per-patient attendance outcomes, archiving it to the patients' history.
@@ -70,13 +81,13 @@ export async function closeSessionLocally(id: string, attendances: LocalSessionA
   const existing = await db.sessions.get(id);
   if (!existing) return;
 
-  await db.sessions.put({
-    ...existing,
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     isClosed: true,
     attendances,
     syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 // Re-marks a session for sync after a local mutation, preserving a not-yet-synced pending_create so
@@ -93,12 +104,12 @@ export async function associateToolToSession(sessionId: string, toolId: string):
   const existing = await db.sessions.get(sessionId);
   if (!existing || existing.toolIds.includes(toolId)) return;
 
-  await db.sessions.put({
-    ...existing,
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     toolIds: [...existing.toolIds, toolId],
     syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 // Removes a tool association from a session (idempotent).
@@ -106,12 +117,12 @@ export async function dissociateToolFromSession(sessionId: string, toolId: strin
   const existing = await db.sessions.get(sessionId);
   if (!existing || !existing.toolIds.includes(toolId)) return;
 
-  await db.sessions.put({
-    ...existing,
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     toolIds: existing.toolIds.filter(id => id !== toolId),
     syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 // Persists a validated AI report onto the session and re-marks it for sync, so the offline-first
@@ -124,21 +135,21 @@ export async function updateSessionAiReport(
   const existing = await db.sessions.get(id);
   if (!existing) return;
 
-  await db.sessions.put({
-    ...existing,
+  await db.sessions.put(await encryptSession({
+    ...(await decryptSession(existing)),
     aiReport,
     isReportValidated,
     syncStatus: nextSyncStatusAfterEdit(existing),
     lastModifiedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function saveNoteLocally(note: LocalNote): Promise<void> {
-  await db.notes.put(note);
+  await db.notes.put(await encryptNote(note));
 }
 
 export async function getNoteForSession(sessionId: string): Promise<LocalNote | undefined> {
-  return db.notes.where('sessionId').equals(sessionId).first();
+  return decryptNote(await db.notes.where('sessionId').equals(sessionId).first());
 }
 
 // All patients known locally: the synced server cache PLUS any still pending in the offline creation

@@ -52,6 +52,18 @@ export default defineConfig({
         // Precache the full application shell — including the self-hosted woff2 fonts — so it
         // boots and renders with its typefaces entirely offline, with no third-party requests.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            // The local LLM runtime (Ollama) must never be routed through a caching strategy, and
+            // this rule is declared first so no later, broader pattern can claim it. Two ways a
+            // cached handler breaks it: cache.put() with a POST Request throws a TypeError, and any
+            // handler that clones the response to store it buffers the streamed NDJSON, destroying
+            // incremental delivery. NetworkOnly makes the pass-through explicit rather than relying
+            // on the absence of a matching route.
+            urlPattern: ({ url }) => url.port === '11434',
+            handler: 'NetworkOnly',
+          },
+        ],
       },
     }),
   ],

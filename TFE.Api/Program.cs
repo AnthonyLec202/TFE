@@ -118,16 +118,23 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
+// Origins come from the "Cors" section so the same build serves the Vite dev server locally and the
+// deployed frontend in production, with no code change between environments.
+var corsOptions = builder.Configuration.GetSection(FrontendCorsOptions.SectionName)
+    .Get<FrontendCorsOptions>() ?? new FrontendCorsOptions();
+corsOptions.Validate();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("FrontendDev", policy =>
-        // 5173 = Vite dev server; 4173 = Vite production preview (PWA preview testing).
-        policy.WithOrigins("http://localhost:5173", "http://localhost:4173")
+    options.AddPolicy(FrontendCorsOptions.PolicyName, policy =>
+        // SetIsOriginAllowed rather than WithOrigins: the predicate covers the exact allow-list and
+        // the optional deployment-preview patterns in one place (see FrontendCorsOptions).
+        policy.SetIsOriginAllowed(corsOptions.IsOriginAllowed)
               .AllowAnyHeader()
               .AllowAnyMethod()
               // SignalR negotiates with credentials mode 'include'; the browser then requires
               // the response to carry 'Access-Control-Allow-Credentials: true'. Valid here
-              // because the origin is explicit (AllowCredentials is incompatible with AllowAnyOrigin).
+              // because origins are explicit (AllowCredentials is incompatible with AllowAnyOrigin).
               .AllowCredentials());
 });
 
@@ -160,7 +167,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("FrontendDev");
+app.UseCors(FrontendCorsOptions.PolicyName);
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
