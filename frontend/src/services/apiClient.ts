@@ -1,4 +1,7 @@
-export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5043';
+// Optional chaining on `import.meta.env`: Vite substitutes the whole expression at build time, so
+// this is a no-op in the bundle, but it lets these modules also be loaded by a plain Node runtime
+// (test harnesses) where `import.meta` carries no `env`.
+export const API_BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:5043';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 

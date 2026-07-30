@@ -19,6 +19,19 @@
             </summary>
             <param name="id">The ID of the user to delete.</param>
         </member>
+        <member name="T:TFE.Api.Controllers.Sessions.HandwritingController">
+            <summary>
+            Server-side proxy to the handwriting recognition provider. The provider's application and HMAC
+            keys stay in this API's configuration and never reach the browser.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Controllers.Sessions.HandwritingController.Recognize(TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest,System.Threading.CancellationToken)">
+            <summary>
+            Transcribes captured strokes. Rate-limited per user: every call is billed against a metered
+            third-party quota, which the client can no longer be trusted to bound now that the credentials
+            live here.
+            </summary>
+        </member>
         <member name="T:TFE.Api.Data.Converters.EncryptedStringConverter">
              <summary>
              EF Core ValueConverter that transparently encrypts/decrypts string columns using
@@ -99,6 +112,52 @@
             File validation (size, MIME type) is enforced in the service layer.
             </summary>
         </member>
+        <member name="T:TFE.Api.DTOs.Handwriting.StrokePointRequest">
+            <summary>
+            A single sampled pointer position within a stroke, in canvas pixel coordinates.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Handwriting.StrokePointRequest.T">
+            <summary>
+            Milliseconds since the page's time origin. The recognizer uses the temporal spacing between
+            points (writing speed, pen lifts) as a recognition signal, so it is captured rather than
+            discarded.
+            </summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest">
+             <summary>
+             Handwriting captured on the client, submitted for recognition.
+            
+             The payload is the client's own capture format — an array of strokes, each an array of sampled
+             points. Mapping it to the recognition provider's wire format is the service layer's job, so the
+             provider stays swappable without touching the API contract or the frontend.
+             </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest.Strokes">
+            <summary>Strokes in capture order; each is the ordered list of points of one pen-down/pen-up.</summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest.Width">
+            <summary>
+            Width in pixels of the surface the strokes were captured on. Forwarded to the recognizer as
+            the writing-area dimension: coordinates falling outside the declared area degrade recognition,
+            so this must be the real canvas size, not a fixed constant.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest.Height">
+            <summary>Height in pixels of the capture surface. The canvas grows as the clinician writes,
+            so this is whatever it had reached at submission time.</summary>
+        </member>
+        <member name="T:TFE.Api.DTOs.Handwriting.RecognizeHandwritingResponse">
+            <summary>
+            The transcription of a submitted set of strokes.
+            </summary>
+        </member>
+        <member name="P:TFE.Api.DTOs.Handwriting.RecognizeHandwritingResponse.Text">
+            <summary>
+            Recognized plain text. Empty when the strokes carried no legible content — a legitimate
+            outcome (a scribble, a crossed-out word), not an error.
+            </summary>
+        </member>
         <member name="P:TFE.Api.DTOs.Notifications.NotificationResponse.Type">
             <summary>Serialised from <see cref="T:TFE.Api.Models.NotificationType"/> — string value, e.g. "NewPost".</summary>
         </member>
@@ -175,6 +234,13 @@
             <summary>
             Emits an already-expired cookie carrying the same attributes, instructing the browser to delete
             the session cookie. Used by the logout endpoint.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddHandwritingServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Registers the handwriting recognition proxy: the provider credentials (bound from the
+            "Handwriting" section) and a named HttpClient carrying a timeout suited to a recognition
+            round-trip, which is slower than a plain API call but far quicker than an LLM generation.
             </summary>
         </member>
         <member name="M:TFE.Api.Extensions.ServiceCollectionExtensions.AddAiServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
@@ -363,6 +429,26 @@
             (graceful migration of legacy plaintext records).
             Throws <see cref="T:System.InvalidOperationException"/> if authentication or decryption fails.
             </summary>
+        </member>
+        <member name="T:TFE.Api.Interfaces.IServices.Handwriting.IHandwritingRecognitionService">
+             <summary>
+             Transcribes pen strokes captured on a client into text.
+            
+             Exists as a server-side service — rather than a direct browser call — because the recognition
+             provider is authenticated with a metered application key and an HMAC signing key. Signing in the
+             browser would require shipping both in the JavaScript bundle, where anyone could extract them and
+             spend the quota. Here they stay in server configuration.
+             </summary>
+        </member>
+        <member name="M:TFE.Api.Interfaces.IServices.Handwriting.IHandwritingRecognitionService.RecognizeAsync(TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest,System.Threading.CancellationToken)">
+            <summary>
+            Recognizes the submitted strokes.
+            </summary>
+            <param name="request">Strokes in capture order, with the dimensions of the capture surface.</param>
+            <param name="cancellationToken">Token to cancel the upstream recognition call.</param>
+            <returns>The transcription; empty text when nothing legible was found.</returns>
+            <exception cref="T:System.InvalidOperationException">The recognition provider is not configured.</exception>
+            <exception cref="T:System.Net.Http.HttpRequestException">The provider rejected the request or was unreachable.</exception>
         </member>
         <member name="M:TFE.Api.Interfaces.IServices.Invitations.IInvitationService.JoinPatientAsync(System.String,System.String)">
             <summary>
@@ -781,6 +867,36 @@
             trace CORS error in the browser: no origin at all, and a trailing slash (a URL, not an origin).
             </summary>
         </member>
+        <member name="T:TFE.Api.Options.HandwritingOptions">
+             <summary>
+             Credentials and settings for the MyScript handwriting recognition service, bound from the
+             "Handwriting" section.
+            
+             ApplicationKey and HmacKey are secrets and are deliberately left empty in appsettings.json —
+             supply them per environment (Azure application settings: Handwriting__ApplicationKey,
+             Handwriting__HmacKey). They must never reach the browser bundle: the HMAC key exists to prove a
+             request originates from this server, so publishing it would defeat its only purpose.
+             </summary>
+        </member>
+        <member name="P:TFE.Api.Options.HandwritingOptions.BatchUrl">
+            <summary>MyScript iink REST endpoint for one-shot (non-interactive) recognition.</summary>
+        </member>
+        <member name="P:TFE.Api.Options.HandwritingOptions.ApplicationKey">
+            <summary>MyScript application key. Empty disables the feature (the endpoint answers 503).</summary>
+        </member>
+        <member name="P:TFE.Api.Options.HandwritingOptions.HmacKey">
+            <summary>MyScript HMAC signing key, paired with the application key.</summary>
+        </member>
+        <member name="P:TFE.Api.Options.HandwritingOptions.Language">
+            <summary>Recognition language tag passed to the provider.</summary>
+        </member>
+        <member name="P:TFE.Api.Options.HandwritingOptions.MaxPoints">
+            <summary>
+            Upper bound on the number of points accepted in one request. A generation is billed per call,
+            and an unbounded payload is both a cost and a memory risk; a full page of handwriting is on
+            the order of a few thousand points, so this leaves ample headroom.
+            </summary>
+        </member>
         <member name="T:TFE.Api.Services.Ai.AiReportService">
             <summary>
             Semantic Kernel implementation of <see cref="T:TFE.Api.Interfaces.IServices.Ai.IAiReportService"/>. Drives the locally-hosted Ollama
@@ -844,6 +960,39 @@
              This service must be registered as Singleton. EF Core caches the model (and the
              EncryptedStringConverter that captures this service) for the application lifetime.
              A Scoped registration would be disposed while the model persists.
+             </summary>
+        </member>
+        <member name="T:TFE.Api.Services.Handwriting.HandwritingRecognitionService">
+             <summary>
+             MyScript-backed implementation of <see cref="T:TFE.Api.Interfaces.IServices.Handwriting.IHandwritingRecognitionService"/>.
+            
+             Owns the whole provider contract — wire format, HMAC signature, JIIX parsing — so the client only
+             ever sees its own capture format and a plain string back. Swapping providers touches this file
+             alone.
+             </summary>
+        </member>
+        <member name="F:TFE.Api.Services.Handwriting.HandwritingRecognitionService.HttpClientName">
+            <summary>Named client registered in ServiceCollectionExtensions with the provider timeout.</summary>
+        </member>
+        <member name="M:TFE.Api.Services.Handwriting.HandwritingRecognitionService.BuildProviderPayload(TFE.Api.DTOs.Handwriting.RecognizeHandwritingRequest,System.Collections.Generic.List{System.Collections.Generic.List{TFE.Api.DTOs.Handwriting.StrokePointRequest}})">
+            <summary>
+            Maps the client's capture format to MyScript's, transposing each stroke's points into the
+            parallel x/y/t arrays the provider expects.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Services.Handwriting.HandwritingRecognitionService.ComputeHmac(System.String,System.String,System.String)">
+            <summary>
+            MyScript authenticates a request with HMAC-SHA512 over the exact body, keyed by the
+            concatenation of the application key and the HMAC key, hex-encoded lowercase.
+            </summary>
+        </member>
+        <member name="M:TFE.Api.Services.Handwriting.HandwritingRecognitionService.ExtractLabel(System.String)">
+             <summary>
+             Pulls the transcription out of a JIIX document.
+            
+             A missing or non-string "label" is treated as "nothing legible" rather than an error: the
+             provider legitimately returns an empty result for a scribble, and a shape change on their side
+             should degrade to an empty note rather than an exception the clinician cannot act on.
              </summary>
         </member>
         <member name="T:TFE.Api.Validators.CollaborativeWall.AttachmentValidator">

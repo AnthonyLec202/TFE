@@ -14,14 +14,15 @@
  *     application into offline mode.
  */
 
-export const OLLAMA_BASE = import.meta.env.VITE_OLLAMA_URL ?? 'http://127.0.0.1:11434';
+// Optional chaining: see the note in apiClient.ts — a no-op once Vite substitutes the expression.
+export const OLLAMA_BASE = import.meta.env?.VITE_OLLAMA_URL ?? 'http://127.0.0.1:11434';
 
 /**
  * `127.0.0.1` rather than `localhost` by default: Ollama binds IPv4 by default, while `localhost`
  * may resolve to `::1` first on some systems, and the two spellings are not treated identically by
  * every browser's local-network policy.
  */
-export const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL ?? 'qwen2.5:7b';
+export const OLLAMA_MODEL = import.meta.env?.VITE_OLLAMA_MODEL ?? 'qwen2.5:7b';
 
 /** Why a call to the local runtime failed — drives the guidance shown to the clinician. */
 export type OllamaFailureKind =

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-
-interface StrokePoint {
-  x: number;
-  y: number;
-  t: number;
-}
+import type { Stroke, StrokePoint } from '../types/handwriting';
 
 interface HandwritingCanvasProps {
-  strokes: any[];
-  onStrokesUpdate: (newStrokes: any[]) => void;
+  strokes: Stroke[];
+  onStrokesUpdate: (newStrokes: Stroke[]) => void;
+  /**
+   * Reports the pixel dimensions of the writing surface whenever they change. The recognizer needs
+   * the real capture area: strokes falling outside the area it is told about are recognized poorly,
+   * and this canvas grows without bound as the clinician writes.
+   */
+  onSurfaceResize: (width: number, height: number) => void;
 }
 
 const STROKE_COLOR = '#1e293b';
@@ -20,12 +21,19 @@ const INITIAL_CANVAS_HEIGHT = 900;
 const GROWTH_THRESHOLD = 250; // px from the bottom that triggers a height increase
 const GROWTH_INCREMENT = 600; // px appended each time the writer nears the bottom
 
-export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanvasProps) {
+export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }: HandwritingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const currentPointsRef = useRef<StrokePoint[]>([]);
   const isDrawingRef = useRef(false);
   const strokesRef = useRef(strokes);
   const [canvasHeight, setCanvasHeight] = useState(INITIAL_CANVAS_HEIGHT);
+  // Ref-stabilised so the ResizeObserver effect below never re-subscribes on a parent re-render.
+  // Assigned in an effect rather than during render: a ref write during render is not a legal
+  // side effect, and the observer only reads it from a callback that runs after commit anyway.
+  const onSurfaceResizeRef = useRef(onSurfaceResize);
+  useEffect(() => {
+    onSurfaceResizeRef.current = onSurfaceResize;
+  });
 
   // Repaint every committed stroke (plus the in-progress one) onto the bitmap.
   // Called after any bitmap resize, which would otherwise wipe previously drawn ink.
@@ -49,6 +57,7 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
     };
 
     for (const stroke of strokesRef.current) {
+      // Guarded: strokes may come from a persisted payload written by an earlier build.
       if (Array.isArray(stroke)) drawStroke(stroke);
     }
     if (isDrawingRef.current) drawStroke(currentPointsRef.current);
@@ -63,6 +72,9 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate }: HandwritingCanva
     const sync = () => {
       canvas.width = canvas.clientWidth;
       canvas.height = canvas.clientHeight;
+      // Stroke coordinates are relative to this bitmap, so the recognizer must be told the same
+      // dimensions — including after each growth step.
+      onSurfaceResizeRef.current(canvas.width, canvas.height);
       redraw();
     };
     sync();

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -115,6 +116,26 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             }));
+
+    // Handwriting recognition is billed per call against a third-party quota. Now that the provider
+    // credentials live on the server rather than in the browser, the client can no longer be trusted
+    // to bound usage — so the endpoint does. Partitioned by authenticated user (the endpoint requires
+    // authentication), not by IP, so several clinicians behind one practice NAT do not share a budget.
+    options.AddPolicy("HandwritingPolicy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User.Identity?.Name
+                ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                // A conversion covers a page of handwriting, so a clinician needs a handful per
+                // session, not dozens per minute.
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            }));
 });
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
@@ -141,6 +162,7 @@ builder.Services.AddCors(options =>
 // ── Supabase client (singleton) + Repositories & Services ────────────────────
 builder.Services.AddSupabaseClient(builder.Configuration);
 builder.Services.AddAiServices(builder.Configuration);
+builder.Services.AddHandwritingServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 
 // ─────────────────────────────────────────────────────────────────────────────

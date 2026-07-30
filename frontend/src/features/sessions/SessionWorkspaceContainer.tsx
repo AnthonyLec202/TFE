@@ -12,21 +12,15 @@ import { ClinicalToolsContainer, getToolsByIds } from '../clinicalTools';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useNetworkStatus } from '../../core/offline/hooks/useNetworkStatus';
-import { recognizeBatch } from './services/handwritingApiService';
-import { appendRecognizedTextToHtml } from './utils/htmlContent';
+import { HandwritingRecognitionError } from './services/handwritingApiService';
+import { convertPendingStrokes } from './services/pendingStrokesService';
+import type { Stroke } from './types/handwriting';
+import { parsePendingStrokes, serializePendingStrokes } from './utils/pendingStrokes';
 import { SessionWorkspace, type InputMode } from './components/SessionWorkspace';
 import { SessionEditModal } from './components/SessionEditModal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Drawer } from '../../components/ui/Drawer';
 
-function parseStrokes(raw: string | undefined): any[] {
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
 
 export function SessionWorkspaceContainer() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -64,9 +58,13 @@ export function SessionWorkspaceContainer() {
   const [editorText, setEditorText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>('keyboard');
-  const [currentStrokes, setCurrentStrokes] = useState<any[]>([]);
+  const [currentStrokes, setCurrentStrokes] = useState<Stroke[]>([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [conversionError, setConversionError] = useState<string | null>(null);
   const autoCreateAttemptedRef = useRef(false);
+  // Live pixel dimensions of the writing surface, reported by the canvas. Sent with the strokes so
+  // the recognizer is told the real capture area rather than a fixed constant.
+  const surfaceSizeRef = useRef({ width: 0, height: 0 });
 
   // ── Edit / delete state ──────────────────────────────────────────────────
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -147,7 +145,7 @@ export function SessionWorkspaceContainer() {
   // Keyed on note identity to avoid overwriting in-progress edits on the same session.
   useEffect(() => {
     setEditorText(note?.content ?? '');
-    setCurrentStrokes(parseStrokes(note?.unprocessedStrokes));
+    setCurrentStrokes(parsePendingStrokes(note?.unprocessedStrokes).strokes);
     setIsSaving(false);
     autoCreateAttemptedRef.current = false;
   }, [note?.id]);
@@ -160,8 +158,12 @@ export function SessionWorkspaceContainer() {
     }
     setIsSaving(true);
     const timer = setTimeout(async () => {
+      // Re-read before writing. `note` was captured when this effect ran; a stroke committed since
+      // then has already been persisted, and spreading the stale record would erase it. useLiveQuery
+      // does refresh `note`, but asynchronously — the timer can fire first.
+      const current = (await getNoteForSession(sessionId!)) ?? note;
       const updated: LocalNote = {
-        ...note,
+        ...current,
         content: editorText,
         syncStatus: 'pending_update',
         lastModifiedAt: new Date().toISOString(),
@@ -171,43 +173,61 @@ export function SessionWorkspaceContainer() {
       runSyncCycle(); // fire-and-forget: attempt immediate sync if online
     }, 1000);
     return () => clearTimeout(timer);
-  }, [editorText, note]);
-
-  // Append recognised handwriting to the current editor content. The note is TipTap HTML, so the
-  // recognised text is added as a new <p> block (HTML-escaped) — TipTap re-parses it cleanly when the
-  // user switches back to keyboard mode, rather than corrupting the markup with loose text.
-  function handleTextRecognized(recognizedText: string): void {
-    setEditorText(prev => appendRecognizedTextToHtml(prev, recognizedText));
-  }
+  }, [editorText, note, sessionId]);
 
   // Persist new strokes to Dexie so they survive a page reload before conversion.
-  function handleStrokesUpdate(newStrokes: any[]): void {
+  async function handleStrokesUpdate(newStrokes: Stroke[]): Promise<void> {
     setCurrentStrokes(newStrokes);
+    setConversionError(null);
     if (!note) return;
-    saveNoteLocally({
-      ...note,
-      unprocessedStrokes: JSON.stringify(newStrokes),
+    // Same re-read as the autosave, for the mirror-image reason: a debounced text save may have
+    // landed since `note` was rendered, and spreading the stale record would revert it.
+    const current = (await getNoteForSession(sessionId!)) ?? note;
+    await saveNoteLocally({
+      ...current,
+      // The capture surface travels with the strokes: a retry launched later from the dashboard has
+      // no canvas to ask for it, and the recognizer segments lines against that area.
+      unprocessedStrokes: serializePendingStrokes({ strokes: newStrokes, ...surfaceSizeRef.current }),
       syncStatus: 'pending_update',
       lastModifiedAt: new Date().toISOString(),
     });
   }
 
+  function handleSurfaceResize(width: number, height: number): void {
+    surfaceSizeRef.current = { width, height };
+  }
+
   async function handleConvertToText(): Promise<void> {
-    if (!isOnline || currentStrokes.length === 0 || isConverting || !note) return;
+    if (currentStrokes.length === 0 || isConverting || !note) return;
     setIsConverting(true);
+    setConversionError(null);
     try {
-      const result = await recognizeBatch(JSON.stringify(currentStrokes));
-      handleTextRecognized(result);
-      // Clear strokes both in state and in Dexie atomically.
+      // Same service the dashboard retry uses, so there is one conversion path rather than two that
+      // can drift. `editorText` is passed as the base because the editor debounces its saves by a
+      // second: the stored content can lag what is on screen, and appending to the stored copy would
+      // silently drop the last keystrokes.
+      const outcome = await convertPendingStrokes(sessionId!, editorText);
+
+      // Nothing legible: keep the strokes so the clinician can retry or rewrite, rather than clearing
+      // the canvas and appending an empty paragraph.
+      if (outcome.status === 'empty') {
+        setConversionError("Aucun texte n'a pu être reconnu dans ce tracé. Vos tracés sont conservés.");
+        return;
+      }
+      if (outcome.status === 'none') return;
+
+      // Mirror the persisted result into the editor. Without this the autosave effect would see
+      // `editorText` still holding the pre-conversion text and write it back over the transcription.
+      setEditorText(outcome.content);
       setCurrentStrokes([]);
-      saveNoteLocally({
-        ...note,
-        unprocessedStrokes: '[]',
-        syncStatus: 'pending_update',
-        lastModifiedAt: new Date().toISOString(),
-      });
-    } catch {
-      // Conversion failed silently — strokes remain so the user can retry.
+    } catch (error) {
+      // Surfaced, never swallowed: a silent failure here is indistinguishable from an inert button.
+      // The service writes these messages for the clinician, so they are shown verbatim.
+      setConversionError(
+        error instanceof HandwritingRecognitionError
+          ? error.message
+          : 'La reconnaissance a échoué. Vos tracés sont conservés : vous pouvez réessayer.',
+      );
     } finally {
       setIsConverting(false);
     }
@@ -290,8 +310,10 @@ export function SessionWorkspaceContainer() {
         onInputModeChange={setInputMode}
         currentStrokes={currentStrokes}
         onStrokesUpdate={handleStrokesUpdate}
+        onSurfaceResize={handleSurfaceResize}
         onConvertToText={handleConvertToText}
         isConverting={isConverting}
+        conversionError={conversionError}
         isOnline={isOnline}
         canConvert={canConvert}
         onEdit={handleEditOpen}

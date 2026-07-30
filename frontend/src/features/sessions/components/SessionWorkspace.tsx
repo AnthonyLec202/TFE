@@ -7,6 +7,7 @@ import { formatSessionDate } from '../utils/sessionFormatters';
 import { HandwritingCanvas } from './HandwritingCanvas';
 import { SessionNoteEditor } from './SessionNoteEditor';
 import { htmlToPlainText } from '../utils/htmlContent';
+import type { Stroke } from '../types/handwriting';
 
 export type InputMode = 'keyboard' | 'stylus';
 
@@ -23,10 +24,14 @@ export interface SessionWorkspaceProps {
   isSaving: boolean;
   inputMode: InputMode;
   onInputModeChange: (mode: InputMode) => void;
-  currentStrokes: any[];
-  onStrokesUpdate: (strokes: any[]) => void;
+  currentStrokes: Stroke[];
+  onStrokesUpdate: (strokes: Stroke[]) => void;
+  /** Reports the writing surface's pixel dimensions, forwarded to the recognizer with the strokes. */
+  onSurfaceResize: (width: number, height: number) => void;
   onConvertToText: () => void;
   isConverting: boolean;
+  /** Failure (or "nothing recognized") message from the last conversion; null when there is none. */
+  conversionError: string | null;
   isOnline: boolean;
   canConvert: boolean;
   onEdit: () => void;
@@ -43,8 +48,9 @@ export interface SessionWorkspaceProps {
 
 export function SessionWorkspace({
   session, backTo, backLabel, patientsById, editorText, onEditorTextChange, isSaving,
-  inputMode, onInputModeChange, currentStrokes, onStrokesUpdate,
-  onConvertToText, isConverting, isOnline, canConvert, onEdit, onDelete, onOpenTools, onOpenAiReport,
+  inputMode, onInputModeChange, currentStrokes, onStrokesUpdate, onSurfaceResize,
+  onConvertToText, isConverting, conversionError, isOnline, canConvert,
+  onEdit, onDelete, onOpenTools, onOpenAiReport,
   associatedTools, onUnlinkTool,
 }: SessionWorkspaceProps) {
   const convertButtonDisabled = !canConvert;
@@ -201,6 +207,14 @@ export function SessionWorkspace({
               className="min-h-[58vh] max-h-[72vh] overflow-y-auto"
               style={{ paddingBottom: '40vh' }}
             >
+              {/* Conversion outcome. Shown above the canvas so it is visible without scrolling, and
+                  kept until the next stroke or conversion: a failure that says nothing is
+                  indistinguishable from a button that does nothing. */}
+              {conversionError && (
+                <p role="status" aria-live="polite" className="mx-3 sm:mx-8 mt-6 text-sm text-red-600">
+                  {conversionError}
+                </p>
+              )}
               {handwritingPreviewText.trim().length > 0 && (
                 // Render the existing note as rich HTML (bold/italic/<mark>) for visual parity with the
                 // keyboard editor. Content is TipTap-authored, schema-constrained HTML.
@@ -212,6 +226,7 @@ export function SessionWorkspace({
               <HandwritingCanvas
                 strokes={currentStrokes}
                 onStrokesUpdate={onStrokesUpdate}
+                onSurfaceResize={onSurfaceResize}
               />
             </div>
           )}

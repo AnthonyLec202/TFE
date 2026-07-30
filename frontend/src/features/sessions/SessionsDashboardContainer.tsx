@@ -11,6 +11,7 @@ import {
   isInWeekOf, isInMonthOf,
 } from './utils/sessionDateUtils';
 import { CreateSessionContainer } from './CreateSessionContainer';
+import { PendingStrokesContainer } from './PendingStrokesContainer';
 import { SessionsDashboard, type SessionGroup } from './components/SessionsDashboard';
 import { SessionFilters, type SessionTimeframe } from './components/SessionFilters';
 
@@ -108,6 +109,9 @@ export function SessionsDashboardContainer() {
         </div>
 
         <div className="lg:col-span-2 flex flex-col gap-4">
+          {/* Renders only when handwriting is awaiting transcription, so it stays invisible in the
+              normal case and unmissable when it matters. */}
+          <PendingStrokesContainer />
           <SessionFilters
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
