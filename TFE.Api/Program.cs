@@ -119,8 +119,11 @@ builder.Services.AddRateLimiter(options =>
 
     // Handwriting recognition is billed per call against a third-party quota. Now that the provider
     // credentials live on the server rather than in the browser, the client can no longer be trusted
-    // to bound usage — so the endpoint does. Partitioned by authenticated user (the endpoint requires
-    // authentication), not by IP, so several clinicians behind one practice NAT do not share a budget.
+    // to bound usage — so the endpoint does. The partition key is the authenticated principal, the IP
+    // being only a fallback: this deployment serves a single clinician, so the point is not to divide
+    // a budget between users but to keep an unauthenticated caller sharing their address (CGNAT,
+    // public Wi-Fi) from consuming it. This requires UseRateLimiter to run after UseAuthentication —
+    // see the pipeline order below.
     options.AddPolicy("HandwritingPolicy", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.User.Identity?.Name
@@ -190,9 +193,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsOptions.PolicyName);
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// After authentication, and deliberately so. A rate-limiting policy that partitions on the caller's
+// identity reads HttpContext.User, which is populated by UseAuthentication; placed any earlier, every
+// such partition key silently falls through to the IP address and the per-user quota becomes a
+// per-address one. Do not move this line back up the pipeline.
+app.UseRateLimiter();
 app.MapControllers();
 
 // Anonymous liveness probe for the client's global network-reachability poll. Deliberately trivial
