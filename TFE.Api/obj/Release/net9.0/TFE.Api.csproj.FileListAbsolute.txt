@@ -175,3 +175,9 @@ C:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\appsettings.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\TFE.Api.deps.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\TFE.Api.runtimeconfig.json
 C:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\TFE.Api.staticwebassets.endpoints.json
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\web.config
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\appsettings.Development.json
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\appsettings.json
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\TFE.Api.deps.json
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\TFE.Api.runtimeconfig.json
+c:\Users\antho\Desktop\TFE\TFE.Api\bin\Release\net9.0\publish\publish\TFE.Api.staticwebassets.endpoints.json

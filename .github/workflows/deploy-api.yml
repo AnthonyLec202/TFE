@@ -1,0 +1,98 @@
+name: Deploy API to Azure
+
+# The frontend deploys itself on push (Vercel watches this repository); the API did not, and that
+# asymmetry is what shipped a frontend calling an endpoint its backend did not yet expose. This
+# workflow closes the gap: one push, both tiers.
+
+on:
+  push:
+    branches: [main]
+    # Frontend-only pushes must not redeploy the API — Vercel already handles those.
+    paths:
+      - 'TFE.Api/**'
+      - 'TFE.sln'
+      - '.github/workflows/deploy-api.yml'
+  # Lets a deployment be replayed from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+# Two overlapping deployments would race to overwrite the same wwwroot. Queue instead, and never
+# cancel one in flight: a half-uploaded App Service is worse than a redundant deployment.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+env:
+  # App Service *name*, not its hostname. Verify it in the portal if the deployment step 404s.
+  AZURE_WEBAPP_NAME: api-psychology-tfe
+  API_BASE_URL: https://api-psychology-tfe-cqfrh8a6dbf4b2fu.belgiumcentral-01.azurewebsites.net
+  DOTNET_VERSION: '9.0.x'
+  PUBLISH_DIR: ${{ github.workspace }}/publish
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # TFE.Api/bin and TFE.Api/obj are tracked by git, and the committed project.assets.json and
+      # *.nuget.g.props carry absolute Windows paths from the development machine. Deleting them
+      # forces a restore that is correct for this runner, and keeps the build hermetic: what ships
+      # is built here, never a stale artifact that rode along in the checkout.
+      - name: Discard committed build output
+        run: rm -rf TFE.Api/bin TFE.Api/obj
+
+      - name: Restore
+        run: dotnet restore TFE.Api/TFE.Api.csproj
+
+      - name: Build
+        run: dotnet build TFE.Api/TFE.Api.csproj -c Release --no-restore
+
+      - name: Publish
+        run: dotnet publish TFE.Api/TFE.Api.csproj -c Release --no-build -o "${{ env.PUBLISH_DIR }}"
+
+      # Fails the job before deploying if the artifact is missing the code that was just committed,
+      # rather than letting a silently empty publish overwrite a working API.
+      - name: Verify artifact
+        run: |
+          test -f "${{ env.PUBLISH_DIR }}/TFE.Api.dll" || { echo "::error::TFE.Api.dll absent du publish"; exit 1; }
+          ls -la "${{ env.PUBLISH_DIR }}/TFE.Api.dll"
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.PUBLISH_DIR }}
+
+      # A green deployment step only means the files were uploaded. It says nothing about whether the
+      # host actually started — Program.cs throws at startup on an empty Cors allow-list, which would
+      # surface here as a platform 5xx rather than a routed response. Polling until the API answers
+      # turns that silent outage into a failed job.
+      #
+      # 401 is the success signal: the route exists and enforces [Authorize]. 429 is accepted too —
+      # the rate limiter can only reject a request whose endpoint was matched, so it equally proves
+      # the controller is deployed. 404 means the build predates the endpoint; 5xx means the app is
+      # down.
+      - name: Smoke test the deployed endpoint
+        run: |
+          for attempt in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+              -X POST -H 'Content-Type: application/json' -d '{}' \
+              "${{ env.API_BASE_URL }}/api/handwriting/recognize" || echo 000)
+            echo "attempt ${attempt}: HTTP ${code}"
+            case "${code}" in
+              401|429) echo "API en ligne, endpoint de reconnaissance présent."; exit 0 ;;
+              404)     echo "::error::Route absente du build déployé."; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "::error::L'API n'a pas répondu correctement après le déploiement (dernier code: ${code})."
+          exit 1
