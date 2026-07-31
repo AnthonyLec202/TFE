@@ -6,7 +6,11 @@ namespace TFE.Api.Data;
 
 public static class DbInitializer
 {
-    private const string AdminEmail = "admin@neuroplatform.com";
+    /// <summary>
+    /// Address used for the very first administrator when none is configured. Only ever read on a
+    /// database that has no administrator at all — it does NOT identify the account afterwards.
+    /// </summary>
+    private const string DefaultAdminEmail = "admin@neuroplatform.com";
     private const string AdminRole = "Admin";
 
     public static async Task SeedAsync(IServiceProvider serviceProvider)
@@ -22,8 +26,8 @@ public static class DbInitializer
             await context.Database.MigrateAsync();
             Console.WriteLine("[Seed] Migrations OK.");
 
-            // Seed the therapeutic tool library. Runs before the admin block (which returns early when
-            // the admin already exists) so the catalog is provisioned on every startup, idempotently.
+            // Seed the therapeutic tool library. Runs before the admin block (which returns early as
+            // soon as any administrator exists) so the catalog is provisioned on every startup, idempotently.
             await SeedTherapeuticToolsAsync(context);
 
             // Ensure the Admin role exists
@@ -39,21 +43,23 @@ public static class DbInitializer
                 Console.WriteLine("[Seed] Role 'Admin' created.");
             }
 
-            // Update name if admin exists but was created before FirstName/LastName were added
-            var existingAdmin = await userManager.FindByEmailAsync(AdminEmail);
-            if (existingAdmin is not null)
+            // Bootstrap gate. An administrator is seeded only when the installation has none at all,
+            // and membership of the Admin ROLE is what decides that — never a hardcoded address.
+            //
+            // Keying the check on an e-mail conflated the seed with the account's identity: renaming
+            // the administrator in the database made the lookup miss, so the next restart recreated
+            // the very account that had just been renamed, using Admin:InitialPassword. That resurrected
+            // a known address with a known password on a production instance. Role membership is
+            // invariant under a rename, so the administrator's e-mail is now free to change at any time.
+            //
+            // The legacy FirstName/LastName back-fill that used to live here is gone with it: it was a
+            // one-off patch for accounts predating the AddUserFullName migration, it can no longer be
+            // targeted reliably once the address is mutable, and empty names already degrade gracefully
+            // (see the author fallbacks in WallService).
+            var existingAdmins = await userManager.GetUsersInRoleAsync(AdminRole);
+            if (existingAdmins.Count > 0)
             {
-                if (string.IsNullOrEmpty(existingAdmin.FirstName) || string.IsNullOrEmpty(existingAdmin.LastName))
-                {
-                    existingAdmin.FirstName = "Admin";
-                    existingAdmin.LastName = "NeuroPlatform";
-                    await userManager.UpdateAsync(existingAdmin);
-                    Console.WriteLine("[Seed] Admin user name patched.");
-                }
-                else
-                {
-                    Console.WriteLine("[Seed] Admin user already exists — skipping.");
-                }
+                Console.WriteLine($"[Seed] {existingAdmins.Count} administrator(s) already present — skipping bootstrap.");
                 return;
             }
 
@@ -64,11 +70,17 @@ public static class DbInitializer
                 throw new InvalidOperationException(
                     "Admin:InitialPassword is not configured. Set it via user-secrets before first run.");
 
-            Console.WriteLine("[Seed] Creating admin user...");
+            // Configurable so a fresh installation need not bootstrap on a well-known address. Existing
+            // installations never reach this line — the role check above has already returned.
+            var adminEmail = configuration["Admin:Email"];
+            if (string.IsNullOrWhiteSpace(adminEmail))
+                adminEmail = DefaultAdminEmail;
+
+            Console.WriteLine("[Seed] No administrator found — creating the bootstrap admin user...");
             var admin = new ApplicationUser
             {
-                UserName = AdminEmail,
-                Email = AdminEmail,
+                UserName = adminEmail,
+                Email = adminEmail,
                 EmailConfirmed = true,
                 FirstName = "Admin",
                 LastName = "NeuroPlatform"
