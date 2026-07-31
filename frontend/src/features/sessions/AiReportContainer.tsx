@@ -3,11 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useAuth } from '../auth';
 import { getSessionById, getNoteForSession, updateSessionAiReport } from './services/localSessionService';
-import { generateAiReport } from './services/sessionApiService';
 import { generateReportLocally, type LocalGenerationHandle } from './services/localAiReportService';
 import { reportOllamaOutcome } from './services/ollamaAvailability';
 import { useOllamaAvailability } from './hooks/useOllamaAvailability';
-import { OllamaError, describeUnreachable } from '../../services/ollamaClient';
+import { OllamaError } from '../../services/ollamaClient';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { AiReportWorkspace } from './components/AiReportWorkspace';
 
@@ -21,8 +20,9 @@ export function AiReportContainer() {
   // Only the practitioner (Admin) may re-run generation over an already-produced report.
   const isAdmin = user?.roles.includes('Admin') ?? false;
 
-  // null while the first probe is in flight. Drives the engine label only — never gates the button,
-  // because the probe can be wrong and the fallback covers every failure anyway.
+  // null while the first probe is in flight. Drives the engine label only — it still never gates the
+  // button: a probe false-negative would lock the clinician out of a runtime that actually works, and
+  // a failed generation now surfaces its own actionable diagnosis instead.
   const ollamaAvailability = useOllamaAvailability();
 
   const session = useLiveQuery(() => getSessionById(sessionId!), [sessionId]);
@@ -56,18 +56,20 @@ export function AiReportContainer() {
   const noteContent = note?.content ?? '';
 
   /**
-   * Local model first, server second.
+   * Local model only — there is deliberately no server-side fallback.
    *
-   * The local engine is preferred because it works with no network — the whole point of moving
-   * generation client-side. But the browser may refuse to reach the loopback interface at all
-   * (mixed content or Private Network Access on an HTTPS deployment), and that refusal is
-   * indistinguishable from Ollama simply not being installed. Rather than gate the feature on a
-   * capability we cannot reliably detect, we attempt locally and fall back to the backend, which
-   * still runs the same model server-side.
+   * Generation is a strictly on-device capability: the clinical note is the most sensitive payload
+   * the application handles, and confining inference to the clinician's own machine means it never
+   * leaves it. Falling back to a remote engine would silently undo that guarantee at the exact moment
+   * the clinician is least likely to notice — when the local runtime is down.
    *
-   * Only an `unreachable` failure falls back. An HTTP or protocol error means the local runtime DID
-   * answer, so the notes already reached it and the problem is a configuration one the clinician
-   * should see rather than have papered over by a silent second attempt.
+   * Every failure therefore surfaces. `OllamaError.hint` is populated for all three failure kinds by
+   * `toOllamaError`, so it is already the most precise guidance available: the environment-level
+   * diagnosis for `unreachable` (Ollama stopped, or its OLLAMA_ORIGINS not naming this origin), and
+   * the specific cause for an `http`/`protocol` failure, where the runtime did answer.
+   *
+   * A partial result from a failed generation is left on screen, matching the pre-existing behaviour
+   * for surfaced errors — only the removed fallback path had a reason to discard it.
    */
   const handleGenerate = async (onProgress: (partial: string) => void): Promise<string> => {
     generationRef.current?.cancel();
@@ -80,32 +82,13 @@ export function AiReportContainer() {
       reportOllamaOutcome(true);
       return report;
     } catch (error) {
-      const isUnreachable = error instanceof OllamaError && error.kind === 'unreachable';
-      if (error instanceof OllamaError) reportOllamaOutcome(!isUnreachable);
+      if (!(error instanceof OllamaError)) throw error;
 
-      // A local runtime that answered with an error had the notes and rejected them: surface its
-      // guidance rather than papering over a configuration problem with a silent second attempt.
-      if (error instanceof OllamaError && !isUnreachable) {
-        throw new Error(error.hint || "La génération sur le moteur d'IA local a échoué.", { cause: error });
-      }
-      if (!isUnreachable) throw error;
+      // Only 'unreachable' proves the runtime is down; an http/protocol failure means it answered,
+      // so the availability state stays true and the UI keeps labelling the engine as present.
+      reportOllamaOutcome(error.kind !== 'unreachable');
 
-      console.info('[AiReport] Local model unreachable — falling back to server-side generation.', error);
-      // Clears any partial text the failed attempt produced, so the server result never lands
-      // appended to a truncated local one.
-      onProgress('');
-
-      try {
-        return await generateAiReport(session.id);
-      } catch (fallbackError) {
-        // Both engines are out. Lead with the local diagnosis, which is the actionable one — the
-        // clinician can start Ollama, but not the backend.
-        console.warn('[AiReport] Server-side generation also failed.', fallbackError);
-        throw new Error(
-          `${describeUnreachable()} La génération sur le serveur a également échoué : vérifiez votre connexion.`,
-          { cause: fallbackError },
-        );
-      }
+      throw new Error(error.hint || "La génération sur le moteur d'IA local a échoué.", { cause: error });
     } finally {
       generationRef.current = null;
     }

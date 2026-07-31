@@ -1,13 +1,14 @@
 /**
  * Feature-local access to the clinician's own Ollama runtime, for generating a clinical report
- * without the network. Owns the worker lifecycle; the prompt and the empty-note guard live in
- * `utils/aiReportPrompt.ts` alongside their server-side mirror.
+ * without the network. This is the ONLY generation path: there is no server-side engine, so a
+ * clinical note never leaves the clinician's machine. Owns the worker lifecycle; the prompt and the
+ * empty-note guard live in `utils/aiReportPrompt.ts`.
  */
 import { OLLAMA_BASE, OLLAMA_MODEL, OllamaError, describeUnreachable } from '../../../services/ollamaClient';
 import { AI_REPORT_SYSTEM_PROMPT, EMPTY_NOTES_MESSAGE, hasExploitableContent } from '../utils/aiReportPrompt';
 import type { OllamaStreamRequest, OllamaStreamResponse } from './ollamaStreamWorker';
 
-/** Matches AiOptions.Temperature server-side: low, so the model stays faithful to the notes. */
+/** Low on purpose: the model must stay faithful to the notes rather than invent content. */
 const TEMPERATURE = 0.15;
 
 export interface LocalGenerationHandle {

@@ -1,23 +1,22 @@
 /**
- * Prompt and input guards for client-side clinical-report generation.
+ * Prompt and input guards for clinical-report generation.
  *
- * ⚠ These MUST stay aligned with `TFE.Api/Services/Ai/AiReportService.cs`. The same report can be
- * produced locally (Ollama in the browser, offline-capable) or on the server (Semantic Kernel), and
- * a clinician must not get a materially different document depending on which path ran. When you
- * change the prompt or the empty-note rule on one side, change it on the other.
+ * This is now the single definition. Generation is local-only: the server-side counterpart
+ * (Semantic Kernel + Ollama) was removed so that a clinical note is never sent to a remote model,
+ * and with it the parity requirement this file used to carry.
  *
- * Duplication is deliberate: fetching the prompt from the API would make offline generation depend
- * on the network, which is the entire point of running the model locally.
+ * The prompt is bundled rather than fetched from the API on purpose: retrieving it over the network
+ * would make offline generation depend on connectivity, which is the entire point of running the
+ * model locally.
  */
 
 /**
- * Returned when the notes carry no clinically exploitable content. Byte-identical to
- * `AiReportService.EmptyNotesMessage`, and to the sentinel the prompt instructs the model to emit,
- * so the short-circuit path and the model path yield the same result.
+ * Returned when the notes carry no clinically exploitable content. Byte-identical to the sentinel the
+ * prompt instructs the model to emit, so the short-circuit path and the model path yield the same
+ * result.
  */
 export const EMPTY_NOTES_MESSAGE = "_Aucun contenu clinique n'a été fourni._";
 
-/** Mirror of `AiReportService.SystemPrompt`. */
 export const AI_REPORT_SYSTEM_PROMPT = `# RÔLE
 Tu es un assistant expert en rédaction neuropsychologique, spécialisé dans la
 pédiatrie. Ta mission est de convertir les notes de travail brutes d'un
@@ -117,7 +116,7 @@ Sortie :
 
 /**
  * True when the note holds at least one non-whitespace character once HTML tags and non-breaking
- * spaces are removed. Mirror of `AiReportService.HasExploitableContent`.
+ * spaces are removed.
  *
  * Notes are TipTap-authored HTML, so a note made only of empty markup ("<p><br></p>") or of
  * `&nbsp;` must read as empty. Defence in depth: even with the prompt instruction, a 7B model can

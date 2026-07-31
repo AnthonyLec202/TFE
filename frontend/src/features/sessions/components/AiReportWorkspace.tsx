@@ -26,8 +26,9 @@ export interface AiReportWorkspaceProps {
   canRegenerate: boolean;
   /**
    * Whether a local AI engine answered the availability probe; null while it is still in flight.
-   * Labels which engine will run — it never gates the action, since the container falls back to the
-   * server whenever the local one turns out to be unreachable.
+   * Generation is local-only, so this reports whether the feature is usable right now. It is
+   * advisory and never gates the action: the probe can produce a false negative, and blocking on it
+   * would lock the clinician out of a runtime that actually works.
    */
   isLocalEngineAvailable: boolean | null;
   /** Returns to the session workspace. */
@@ -268,13 +269,14 @@ export function AiReportWorkspace({
                 <Button variant="primary" size="md" onClick={handleGenerate}>
                   🤖 Générer le compte rendu
                 </Button>
-                {/* Tells the clinician which engine will run — and, when it is the local one, that
-                    generation will keep working without a connection. */}
+                {/* Generation is local-only: state whether the on-device engine is ready, and give
+                    the actionable next step when it is not. The button stays enabled either way —
+                    the probe is advisory, and an attempt yields a precise diagnosis. */}
                 {isLocalEngineAvailable !== null && (
                   <p className="text-[13px] leading-snug text-taupe-400">
                     {isLocalEngineAvailable
                       ? "Moteur d'IA local détecté : la génération fonctionnera même sans connexion."
-                      : "Aucun moteur d'IA local détecté : la génération utilisera le serveur et nécessite une connexion."}
+                      : "Aucun moteur d'IA local détecté : démarrez Ollama sur votre machine pour activer la génération. Les notes ne quittent jamais votre poste."}
                   </p>
                 )}
               </div>

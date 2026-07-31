@@ -65,23 +65,6 @@ public class SessionSyncController : ControllerBase
         }
     }
 
-    // Generates an AI clinical report from the session's decrypted note. RBAC is enforced in the
-    // service (the note must be readable by the caller); the [Authorize(Roles = "Admin")] guard on
-    // the controller already restricts the endpoint to clinicians.
-    [HttpPost("{sessionId:guid}/generate-ai-report")]
-    public async Task<IActionResult> GenerateAiReport(Guid sessionId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var report = await _sessionService.GenerateAiReportAsync(sessionId, CurrentUserId, cancellationToken);
-            return Ok(new AiReportResponse { Report = report });
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
-
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteSession(Guid id, CancellationToken cancellationToken)
     {

@@ -1,7 +1,6 @@
 using TFE.Api.DTOs.Sessions;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
-using TFE.Api.Interfaces.IServices.Ai;
 using TFE.Api.Interfaces.IServices.Sessions;
 using TFE.Api.Models;
 
@@ -14,22 +13,19 @@ public class SessionService : ISessionService
     private readonly INoteRepository _noteRepository;
     private readonly IPatientRepository _patientRepository;
     private readonly ITherapeuticToolRepository _toolRepository;
-    private readonly IAiReportService _aiReportService;
 
     public SessionService(
         IUnitOfWork unitOfWork,
         ISessionRepository sessionRepository,
         INoteRepository noteRepository,
         IPatientRepository patientRepository,
-        ITherapeuticToolRepository toolRepository,
-        IAiReportService aiReportService)
+        ITherapeuticToolRepository toolRepository)
     {
         _unitOfWork = unitOfWork;
         _sessionRepository = sessionRepository;
         _noteRepository = noteRepository;
         _patientRepository = patientRepository;
         _toolRepository = toolRepository;
-        _aiReportService = aiReportService;
     }
 
     public async Task SyncBatchAsync(SessionSyncBatchRequest request, string userId, CancellationToken cancellationToken)
@@ -176,19 +172,6 @@ public class SessionService : ISessionService
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
-    }
-
-    public async Task<string> GenerateAiReportAsync(Guid sessionId, string userId, CancellationToken cancellationToken)
-    {
-        // RBAC: GetForUserAsync returns only notes whose session is readable by this user (owner or
-        // care-team scope). An unreadable or non-existent session therefore yields no match, which we
-        // surface as not-found — never leaking another clinician's clinical content to the model.
-        var readableNotes = await _noteRepository.GetForUserAsync(userId, cancellationToken);
-        var note = readableNotes.FirstOrDefault(n => n.SessionId == sessionId)
-            ?? throw new KeyNotFoundException($"No readable note found for session {sessionId}.");
-
-        // Content is already decrypted by the EncryptedStringConverter on materialization.
-        return await _aiReportService.GenerateReportAsync(note.Content, cancellationToken);
     }
 
     private async Task UpsertSessionsAsync(List<SyncSessionRequest> requests, string userId, CancellationToken ct)
