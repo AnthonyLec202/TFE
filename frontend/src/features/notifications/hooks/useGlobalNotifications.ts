@@ -36,8 +36,10 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
   useEffect(() => {
     if (!isInitialized || !isAuthenticated) return;
 
-    // Cookie auth: the same-site HttpOnly session cookie rides the negotiate request and the
-    // WebSocket upgrade automatically (withCredentials), so no access_token query param is needed.
+    // Cookie auth: the first-party HttpOnly session cookie rides the negotiate request and the
+    // transport automatically (withCredentials), so no access_token query param is needed. The
+    // transport itself is negotiated — WebSocket in development, Server-Sent Events in production,
+    // where the same-origin proxy that makes the cookie first-party cannot tunnel an upgrade.
     const connection: HubConnection = new HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/collaborative-wall`, {
         withCredentials: true,

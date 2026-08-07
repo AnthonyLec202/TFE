@@ -27,8 +27,10 @@ export function useCollaborativeWallSocket(
   useEffect(() => {
     if (!isInitialized || !isAuthenticated) return;
 
-    // Cookie auth: the same-site HttpOnly session cookie is sent automatically on the negotiate
-    // request and WebSocket upgrade (withCredentials); no access_token query param is exposed to JS.
+    // Cookie auth: the first-party HttpOnly session cookie is sent automatically on the negotiate
+    // request and on the negotiated transport (withCredentials); no access_token query param is
+    // exposed to JS. Production runs over Server-Sent Events rather than a WebSocket — the
+    // same-origin proxy that makes the cookie first-party cannot tunnel an upgrade.
     const connection: HubConnection = new HubConnectionBuilder()
       .withUrl(`${API_BASE}/hubs/collaborative-wall`, {
         withCredentials: true,

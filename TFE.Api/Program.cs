@@ -81,8 +81,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         // The JWT is delivered exclusively in an HttpOnly cookie (F-02), so it is unreadable by
         // JavaScript and never travels in an Authorization header or query string. Extract it from
-        // the cookie for every request — including the SignalR handshake, whose WebSocket upgrade
-        // carries the same-site cookie automatically when the client connects with credentials.
+        // the cookie for every request — including the SignalR handshake, which carries the cookie
+        // automatically when the client connects with credentials, whatever transport it negotiates
+        // (WebSocket locally, Server-Sent Events through the production proxy).
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>

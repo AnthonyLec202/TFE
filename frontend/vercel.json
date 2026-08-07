@@ -4,9 +4,29 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api-psychology-tfe-cqfrh8a6dbf4b2fu.belgiumcentral-01.azurewebsites.net/api/:path*"
+    },
+    {
+      "source": "/hubs/:path*",
+      "destination": "https://api-psychology-tfe-cqfrh8a6dbf4b2fu.belgiumcentral-01.azurewebsites.net/hubs/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://api-psychology-tfe-cqfrh8a6dbf4b2fu.belgiumcentral-01.azurewebsites.net/health"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
+    {
+      "source": "/hubs/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    },
     {
       "source": "/sw.js",
       "headers": [
