@@ -114,7 +114,7 @@ export function ProfileContainer() {
           />
           <span className="text-sm text-slate-600">
             J'accepte les Conditions d'Utilisation et je consens expressément au traitement de mes
-            données personnelles et de santé dans le cadre du suivi neuropsychologique,
+            données personnelles et de santé dans le cadre du suivi psychologique,
             conformément à la Politique de Confidentialité.
           </span>
         </label>
@@ -156,6 +156,7 @@ export function ProfileContainer() {
         title="Supprimer le compte"
         message="Votre compte et vos données seront définitivement supprimés. Cette action est irréversible."
         confirmLabel="Supprimer"
+        cancelLabel="Annuler"
         loading={isDeleting}
         onConfirm={handleDeleteAccount}
         onCancel={() => setIsConfirmDeleteOpen(false)}

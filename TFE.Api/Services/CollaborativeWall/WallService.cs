@@ -67,28 +67,6 @@ public class WallService : IWallService
         return careTeams.ToDictionary(ct => ct.UserId);
     }
 
-    private static string ResolveRole(CareTeam ct) => ct switch
-    {
-        { CustomRoleName: "Neuropsychologue" } => "Admin",
-        { Role: RelationshipType.Parent }      => "Parent",
-        _                                      => "Collaborator"
-    };
-
-    // Maps a CareTeam entry to a human-readable French label for display in the feed
-    private static string LabelForCareTeam(CareTeam? ct) => ct switch
-    {
-        { CustomRoleName: "Neuropsychologue" }                   => "Psychologue",
-        { Role: RelationshipType.Parent }                        => "Parent",
-        { Role: RelationshipType.Teacher }                       => "Enseignant(e)",
-        { Role: RelationshipType.SpeechTherapist }               => "Logopède",
-        { Role: RelationshipType.PsychomotorTherapist }          => "Psychomotricien(ne)",
-        { Role: RelationshipType.Ergotherapist }                 => "Ergothérapeute",
-        { Role: RelationshipType.Doctor }                        => "Docteur",
-        { CustomRoleName: { Length: > 0 } customName }          => customName,
-        not null                                                 => "Collaborateur",
-        _                                                        => "Collaborateur"
-    };
-
     // ── Wall (Posts + Comments) ───────────────────────────────────────────────
 
     public async Task<IEnumerable<PostResponse>> GetWallAsync(Guid patientId, string currentUserId)
@@ -96,7 +74,7 @@ public class WallService : IWallService
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
-        var isAdmin = ResolveRole(ct) == "Admin";
+        var isAdmin = CareTeamRoleResolver.IsAdmin(ct);
 
         // RBAC cascade: an archived patient's wall is readable only by the managing psychologist
         // (Admin). Other roles are denied even with care-team membership, blocking direct API fetches.
@@ -128,7 +106,7 @@ public class WallService : IWallService
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
-        var excludedRoles = ResolveRole(ct) == "Admin"
+        var excludedRoles = CareTeamRoleResolver.IsAdmin(ct)
             ? request.ExcludedRoles
             : Array.Empty<string>();
 
@@ -163,7 +141,7 @@ public class WallService : IWallService
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
-        var excludedRoles = ResolveRole(ct) == "Admin"
+        var excludedRoles = CareTeamRoleResolver.IsAdmin(ct)
             ? request.ExcludedRoles
             : Array.Empty<string>();
 
@@ -234,7 +212,7 @@ public class WallService : IWallService
 
         var ct = await GetCareTeamEntryAsync(currentUserId, post.PatientId);
         post.Content = request.Content;
-        if (ct is not null && ResolveRole(ct) == "Admin")
+        if (CareTeamRoleResolver.IsAdmin(ct))
             post.ExcludedRoles = request.ExcludedRoles;
 
         post.UpdatedAt = DateTime.UtcNow;
@@ -416,7 +394,7 @@ public class WallService : IWallService
         var ct = await GetCareTeamEntryAsync(currentUserId, patientId)
                  ?? throw new UnauthorizedAccessException("Not a member of this patient's care team.");
 
-        if (ResolveRole(ct) == "Admin") return;
+        if (CareTeamRoleResolver.IsAdmin(ct)) return;
 
         // Null createdById means the original author's account was deleted — only admins may act.
         if (entityCreatedById is null || entityCreatedById != currentUserId)
@@ -466,7 +444,7 @@ public class WallService : IWallService
             CreatedById = post.CreatedById,
             AuthorFirstName = postAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.FirstName) ? authorCt!.User!.FirstName : "Utilisateur"),
             AuthorLastName = postAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.LastName) ? authorCt!.User!.LastName : "Inconnu"),
-            AuthorRole = postAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
+            AuthorRole = postAuthorDeleted ? string.Empty : CareTeamRoleLabels.ForCareTeam(authorCt),
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             Comments = post.Comments.Select(c => ToCommentResponse(c, careTeamMap, signedUrls)).ToList(),
@@ -490,7 +468,7 @@ public class WallService : IWallService
             CreatedById = comment.CreatedById,
             AuthorFirstName = commentAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.FirstName) ? authorCt!.User!.FirstName : "Utilisateur"),
             AuthorLastName = commentAuthorDeleted ? string.Empty : (!string.IsNullOrWhiteSpace(authorCt?.User?.LastName) ? authorCt!.User!.LastName : "Inconnu"),
-            AuthorRole = commentAuthorDeleted ? string.Empty : LabelForCareTeam(authorCt),
+            AuthorRole = commentAuthorDeleted ? string.Empty : CareTeamRoleLabels.ForCareTeam(authorCt),
             CreatedAt = comment.CreatedAt,
             UpdatedAt = comment.UpdatedAt,
             Attachments = comment.Attachments.Select(a => ToAttachmentResponse(a, signedUrls)).ToList(),

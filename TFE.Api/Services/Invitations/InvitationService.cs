@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.Invitations;
 using TFE.Api.Models;
@@ -8,13 +9,16 @@ namespace TFE.Api.Services.Invitations;
 
 public class InvitationService : IInvitationService
 {
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IEnrollmentTokenRepository _tokenRepository;
     private readonly ICareTeamRepository _careTeamRepository;
 
     public InvitationService(
+        IUnitOfWork unitOfWork,
         IEnrollmentTokenRepository tokenRepository,
         ICareTeamRepository careTeamRepository)
     {
+        _unitOfWork = unitOfWork;
         _tokenRepository = tokenRepository;
         _careTeamRepository = careTeamRepository;
     }
@@ -42,8 +46,24 @@ public class InvitationService : IInvitationService
             Role = token.RoleTarget
         };
 
-        await _careTeamRepository.CreateAsync(careTeam);
-        await _tokenRepository.MarkAsUsedAsync(token);
+        // Joining the care team and burning the code must land together. Previously the repository
+        // committed the membership on its own, before MarkAsUsedAsync ran: a failure between the two
+        // left the user joined while the code stayed unused — a still-redeemable invitation. The
+        // transaction makes that window impossible.
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _careTeamRepository.AddAsync(careTeam);
+            await _unitOfWork.SaveChangesAsync();
+            await _tokenRepository.MarkAsUsedAsync(token);
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     private static string HashToken(string token)

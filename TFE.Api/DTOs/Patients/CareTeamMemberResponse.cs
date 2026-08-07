@@ -18,7 +18,8 @@ public class CareTeamMemberResponse
     [Required] public string Role { get; set; } = string.Empty;
 
     /// <summary>
-    /// Human-readable relationship label (e.g. "Neuropsychologue", "Enseignant"), for display only.
+    /// Human-readable French relationship label (e.g. "Psychologue", "Enseignant(e)"), for display
+    /// only. Produced by CareTeamRoleLabels — never branch on it, use Role for that.
     /// </summary>
     [Required] public string Relationship { get; set; } = string.Empty;
 }

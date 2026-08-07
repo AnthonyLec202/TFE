@@ -16,8 +16,10 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  // French defaults: the whole interface is French, so an omitted label must not leak English into a
+  // dialog. Call sites that pass their own label still win.
+  confirmLabel = 'Confirmer',
+  cancelLabel = 'Annuler',
   loading = false,
   onConfirm,
   onCancel,

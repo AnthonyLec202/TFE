@@ -68,14 +68,17 @@ public class PatientService : IPatientService
             UserId = currentUserId,
             PatientId = patientId,
             Role = RelationshipType.Other,
-            CustomRoleName = "Neuropsychologue"
+            CustomRoleName = CareTeamRoleResolver.ManagingPsychologistRoleName
         };
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try
         {
             await _patientRepository.CreateAsync(patient);
-            await _careTeamRepository.CreateAsync(careTeam);
+            await _careTeamRepository.AddAsync(careTeam);
+            // The care-team membership is only staged by the repository; without this the dossier
+            // would commit with no members and its creator would lose access to it.
+            await _unitOfWork.SaveChangesAsync();
 
             await transaction.CommitAsync();
             return ToResponse(patient, careTeam);
@@ -116,7 +119,7 @@ public class PatientService : IPatientService
         // RBAC: an archived dossier is visible only to the managing psychologist (Admin). Any other
         // role (parent, teacher, …) is denied even with a valid care-team membership, blocking direct
         // URL/API access to an archived record.
-        if (patient.IsArchived && ResolveUserRole(careTeamEntry) != "Admin")
+        if (patient.IsArchived && !CareTeamRoleResolver.IsAdmin(careTeamEntry))
             throw new UnauthorizedAccessException("This patient record is archived and read-restricted.");
 
         return ToResponse(patient, careTeamEntry);
@@ -203,7 +206,7 @@ public class PatientService : IPatientService
 
         // The patient's administrator (the neuropsychologist) anchors the record and must not be
         // removed — doing so would orphan the patient.
-        if (ResolveUserRole(membership) == "Admin")
+        if (CareTeamRoleResolver.IsAdmin(membership))
             throw new InvalidOperationException("The patient's administrator cannot be removed from the care team.");
 
         _careTeamRepository.Remove(membership);
@@ -215,7 +218,7 @@ public class PatientService : IPatientService
         var membership = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId)
             ?? throw new KeyNotFoundException($"Care-team member {userId} not found for patient {patientId}.");
 
-        if (ResolveUserRole(membership) == "Admin")
+        if (CareTeamRoleResolver.IsAdmin(membership))
             throw new InvalidOperationException("The patient's administrator cannot leave the care team.");
 
         _careTeamRepository.Remove(membership);
@@ -224,8 +227,10 @@ public class PatientService : IPatientService
 
     private async Task EnsureAdminAsync(string userId, Guid patientId)
     {
+        // No explicit null guard: a missing membership resolves to Collaborator, so a non-member is
+        // rejected by the same check as a wrongly-roled member (see CareTeamRoleResolver.Resolve).
         var ct = await _careTeamRepository.GetForUserAndPatientAsync(userId, patientId);
-        if (ct is null || ResolveUserRole(ct) != "Admin")
+        if (!CareTeamRoleResolver.IsAdmin(ct))
             throw new UnauthorizedAccessException("Only the patient's administrator can perform this action.");
     }
 
@@ -239,19 +244,11 @@ public class PatientService : IPatientService
         FirstName = patient.FirstName,
         LastName = patient.LastName,
         BirthDate = patient.BirthDate,
-        UserRole = ResolveUserRole(ct),
+        UserRole = CareTeamRoleResolver.Resolve(ct),
         Email = patient.Email,
         PhoneNumber = patient.PhoneNumber,
         PostalAddress = patient.PostalAddress,
         IsArchived = patient.IsArchived,
-    };
-
-    private static string ResolveUserRole(CareTeam? ct) => ct switch
-    {
-        { CustomRoleName: "Neuropsychologue" } => "Admin",
-        { Role: RelationshipType.Parent }      => "Parent",
-        not null                               => "Collaborator",
-        _                                      => "Collaborator"
     };
 
     private static CareTeamMemberResponse ToMemberResponse(CareTeam ct) => new()
@@ -259,12 +256,9 @@ public class PatientService : IPatientService
         UserId = ct.UserId,
         FirstName = ct.User?.FirstName ?? string.Empty,
         LastName = ct.User?.LastName ?? string.Empty,
-        Role = ResolveUserRole(ct),
-        Relationship = ResolveRelationshipLabel(ct),
+        // Role is the authorization contract, Relationship is display copy. They are deliberately
+        // resolved by two different helpers and must never be swapped: a label is not a permission.
+        Role = CareTeamRoleResolver.Resolve(ct),
+        Relationship = CareTeamRoleLabels.ForCareTeam(ct),
     };
-
-    // Display-only relationship label: an explicit custom name takes precedence, otherwise the
-    // RelationshipType enum name.
-    private static string ResolveRelationshipLabel(CareTeam ct) =>
-        !string.IsNullOrWhiteSpace(ct.CustomRoleName) ? ct.CustomRoleName! : ct.Role.ToString();
 }

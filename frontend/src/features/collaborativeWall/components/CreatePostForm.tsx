@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Paperclip, Send, X } from 'lucide-react';
-import type { PatientUserRole } from '../../../types/patient';
+import { RELATIONSHIP_ROLES, type PatientUserRole } from '../../../types/patient';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
-import { SPECIFIC_ROLES, pillClass, whitelistToBlacklist } from '../utils/wallUtils';
+import { pillClass, whitelistToBlacklist } from '../utils/wallUtils';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -93,7 +93,7 @@ export function CreatePostForm({ userRole, onSubmit, loading, error }: CreatePos
               <button type="button" onClick={() => setVisibleToRoles([])} className={pillClass(visibleToRoles.length === 0, true)}>
                 TOUS
               </button>
-              {SPECIFIC_ROLES.map(({ value, label }) => (
+              {RELATIONSHIP_ROLES.map(({ value, label }) => (
                 <button
                   type="button"
                   key={value}

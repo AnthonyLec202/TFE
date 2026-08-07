@@ -14,11 +14,10 @@ public class CareTeamRepository : ICareTeamRepository
         _context = context;
     }
 
-    public async Task<CareTeam> CreateAsync(CareTeam careTeam)
+    public Task AddAsync(CareTeam careTeam)
     {
         _context.CareTeams.Add(careTeam);
-        await _context.SaveChangesAsync();
-        return careTeam;
+        return Task.CompletedTask;
     }
 
     public Task<bool> IsUserInCareTeamAsync(string userId, Guid patientId)

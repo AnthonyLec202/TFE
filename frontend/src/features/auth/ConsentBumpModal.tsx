@@ -11,13 +11,13 @@ const PRIVACY_POLICY_TEXT = `
 Politique de Confidentialité & Conditions d'Utilisation — Version ${REQUIRED_CONSENT_VERSION}
 
 1. Responsable du traitement
-L'application est éditée dans le cadre d'un projet académique de suivi neuropsychologique. Les données collectées sont traitées sous la responsabilité de l'équipe soignante désignée pour chaque patient.
+L'application est éditée dans le cadre d'un projet académique de suivi psychologique. Les données collectées sont traitées sous la responsabilité de l'équipe soignante désignée pour chaque patient.
 
 2. Données traitées
 Sont collectées et traitées : les données d'identification (nom, prénom, adresse e-mail), les notes cliniques de séance, les données de présence aux séances, ainsi que les publications du mur collaboratif. Ces données sont classifiées comme données de santé au sens du RGPD (Art. 9).
 
 3. Finalité du traitement
-Les données sont traitées exclusivement dans le but d'assurer le suivi neuropsychologique des patients et de faciliter la collaboration entre membres de l'équipe soignante.
+Les données sont traitées exclusivement dans le but d'assurer le suivi psychologique des patients et de faciliter la collaboration entre membres de l'équipe soignante.
 
 4. Base légale
 Le traitement repose sur le consentement explicite de l'utilisateur (Art. 6(1)(a) et Art. 9(2)(a) RGPD), recueilli lors de l'inscription et lors de toute mise à jour significative de la présente politique.
@@ -111,7 +111,7 @@ export function ConsentBumpModal() {
             <span className="text-sm text-slate-700">
               J'ai lu et j'accepte les nouvelles Conditions d'Utilisation et je
               consens expressément au traitement de mes données personnelles et
-              de santé dans le cadre du suivi neuropsychologique, conformément
+              de santé dans le cadre du suivi psychologique, conformément
               à la Politique de Confidentialité.
             </span>
           </label>

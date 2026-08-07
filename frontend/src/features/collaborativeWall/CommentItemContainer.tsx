@@ -21,6 +21,7 @@ export function CommentItemContainer({
   comment, patientId, postId, currentUserId, userRole, readOnly = false, onUpdated, onDeleted,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isPurged = comment.content === PURGED_CONTENT;
   const canEdit = !readOnly && canModify(comment.createdAt, comment.createdById, currentUserId, userRole) && !isPurged;
@@ -37,11 +38,14 @@ export function CommentItemContainer({
   }
 
   async function handleDelete() {
+    setDeleting(true);
     try {
       await deleteComment(patientId, postId, comment.id);
       onDeleted(comment.id);
     } catch {
       // no error UI for delete — matches original behaviour
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -54,6 +58,7 @@ export function CommentItemContainer({
       onSave={handleSave}
       onDelete={handleDelete}
       saving={saving}
+      deleting={deleting}
     />
   );
 }

@@ -1,16 +1,7 @@
 import { useState } from 'react';
 import { Check, ClipboardCopy, X } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
-import type { InvitationResponse } from '../../../types/patient';
-
-const ROLE_OPTIONS = [
-  { value: 'Parent',          label: 'Parent' },
-  { value: 'Teacher',         label: 'Enseignant(e)' },
-  { value: 'SpeechTherapist', label: 'Logopède' },
-  { value: 'Doctor',          label: 'Docteur' },
-  { value: 'Ergotherapist',   label: 'Ergothérapeute' },
-  { value: 'Other',           label: 'Autre' },
-];
+import { RELATIONSHIP_ROLES, type InvitationResponse } from '../../../types/patient';
 
 interface Props {
   isOpen: boolean;
@@ -61,7 +52,7 @@ export function InvitationModal({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="" disabled>Sélectionner un rôle…</option>
-                {ROLE_OPTIONS.map(o => (
+                {RELATIONSHIP_ROLES.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>

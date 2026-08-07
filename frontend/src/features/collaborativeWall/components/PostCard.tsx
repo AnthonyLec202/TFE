@@ -3,8 +3,9 @@ import { ChevronDown, ChevronUp, Download, FileText, MessageSquare, Paperclip, P
 import type { PostResponse } from '../../../types/wall';
 import { Button } from '../../../components/ui/Button';
 import { Card } from '../../../components/ui/Card';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
+import { RELATIONSHIP_ROLES } from '../../../types/patient';
 import {
-  SPECIFIC_ROLES,
   blacklistToWhitelist, metaLabel, pillClass, whitelistToBlacklist,
 } from '../utils/wallUtils';
 
@@ -20,6 +21,7 @@ export interface PostCardProps {
   onSavePost: (content: string, excludedRoles: string[]) => Promise<void>;
   onDeletePost: () => Promise<void>;
   saving: boolean;
+  deleting: boolean;
   // Comment thread
   commentCount: number;
   commentItems: ReactNode;
@@ -27,11 +29,28 @@ export interface PostCardProps {
   submittingComment: boolean;
 }
 
+// Spells out everything the cascade destroys. Deleting a post also deletes its comments, every
+// attachment of both, and the underlying files in storage — none of it recoverable, so the dialog
+// names it rather than saying "this post" and letting the rest come as a surprise.
+function buildDeleteMessage(commentCount: number, attachmentCount: number): string {
+  const casualties: string[] = [];
+  if (commentCount > 0) {
+    casualties.push(commentCount === 1 ? 'son commentaire' : `ses ${commentCount} commentaires`);
+  }
+  if (attachmentCount > 0) {
+    casualties.push(attachmentCount === 1 ? 'sa pièce jointe' : `ses ${attachmentCount} pièces jointes`);
+  }
+
+  const collateral = casualties.length > 0 ? `, avec ${casualties.join(' et ')},` : '';
+  return `Cette publication${collateral} sera définitivement supprimée. Cette action est irréversible.`;
+}
+
 export function PostCard({
   post, canEdit, canDelete, isPurged, isAdmin, readOnly = false,
-  onSavePost, onDeletePost, saving,
+  onSavePost, onDeletePost, saving, deleting,
   commentCount, commentItems, onAddComment, submittingComment,
 }: PostCardProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [visibleToRoles, setVisibleToRoles] = useState<string[]>(() => blacklistToWhitelist(post.excludedRoles));
@@ -84,6 +103,14 @@ export function PostCard({
     }
   }
 
+  async function handleConfirmDelete() {
+    await onDeletePost();
+    // The container swallows delete failures, so this resolves either way. On success the card has
+    // already unmounted and this is a no-op; on failure it closes the dialog instead of leaving it
+    // stuck open with a spinner.
+    setConfirmingDelete(false);
+  }
+
   async function handleAddCommentSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     if ((!commentInput || !commentInput.trim()) && commentFiles.length === 0) return;
@@ -97,7 +124,7 @@ export function PostCard({
   }
 
   const visibleByLabels = blacklistToWhitelist(post.excludedRoles)
-    .map(v => SPECIFIC_ROLES.find(r => r.value === v)?.label ?? v);
+    .map(v => RELATIONSHIP_ROLES.find(r => r.value === v)?.label ?? v);
 
   return (
     <Card id={`post-${post.id}`} className="p-5 flex flex-col gap-4">
@@ -115,7 +142,11 @@ export function PostCard({
               </button>
             )}
             {canDelete && (
-              <button onClick={onDeletePost} className="text-slate-400 hover:text-red-500 transition-colors">
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="text-slate-400 hover:text-red-500 transition-colors"
+                aria-label="Supprimer la publication"
+              >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             )}
@@ -157,7 +188,7 @@ export function PostCard({
                 <button type="button" onClick={() => setVisibleToRoles([])} className={pillClass(visibleToRoles.length === 0, true)}>
                   TOUS
                 </button>
-                {SPECIFIC_ROLES.map(({ value, label }) => (
+                {RELATIONSHIP_ROLES.map(({ value, label }) => (
                   <button
                     type="button"
                     key={value}
@@ -296,6 +327,17 @@ export function PostCard({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Supprimer la publication ?"
+        message={buildDeleteMessage(commentCount, post.attachments?.length ?? 0)}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </Card>
   );
 }

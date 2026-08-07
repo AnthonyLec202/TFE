@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Download, FileText, Pencil, Trash2 } from 'lucide-react';
 import type { CommentResponse } from '../../../types/wall';
 import { Button } from '../../../components/ui/Button';
+import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { metaLabel } from '../utils/wallUtils';
 
 export interface CommentItemProps {
@@ -12,9 +13,24 @@ export interface CommentItemProps {
   onSave: (content: string) => Promise<void>;
   onDelete: () => Promise<void>;
   saving: boolean;
+  deleting: boolean;
 }
 
-export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onDelete, saving }: CommentItemProps) {
+// A comment's own attachments are cascade-deleted with it, files included. Named explicitly so the
+// dialog never understates what is lost.
+function buildDeleteMessage(attachmentCount: number): string {
+  const collateral = attachmentCount === 0
+    ? ''
+    : attachmentCount === 1
+      ? ', avec sa pièce jointe,'
+      : `, avec ses ${attachmentCount} pièces jointes,`;
+  return `Ce commentaire${collateral} sera définitivement supprimé. Cette action est irréversible.`;
+}
+
+export function CommentItem({
+  comment, isPurged, canEdit, canDelete, onSave, onDelete, saving, deleting,
+}: CommentItemProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
 
@@ -26,6 +42,13 @@ export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onD
     } catch {
       // container propagates on error — edit form stays open
     }
+  }
+
+  async function handleConfirmDelete() {
+    await onDelete();
+    // Mirrors PostCard: the container swallows delete failures, so closing here covers the error
+    // path without affecting the success path, where the comment has already unmounted.
+    setConfirmingDelete(false);
   }
 
   return (
@@ -42,7 +65,11 @@ export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onD
               </button>
             )}
             {canDelete && (
-              <button onClick={onDelete} className="text-slate-300 hover:text-red-500 transition-colors">
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="text-slate-300 hover:text-red-500 transition-colors"
+                aria-label="Supprimer le commentaire"
+              >
                 <Trash2 className="h-3 w-3" />
               </button>
             )}
@@ -104,6 +131,17 @@ export function CommentItem({ comment, isPurged, canEdit, canDelete, onSave, onD
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Supprimer le commentaire ?"
+        message={buildDeleteMessage(comment.attachments?.length ?? 0)}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </div>
   );
 }

@@ -22,6 +22,7 @@ export function PostCardContainer({
   post, patientId, currentUserId, userRole, readOnly = false, onUpdated, onDeleted, onCommentAdded,
 }: Props) {
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [comments, setComments] = useState<CommentResponse[]>(post.comments);
   const [submittingComment, setSubmittingComment] = useState(false);
 
@@ -50,11 +51,14 @@ export function PostCardContainer({
   }
 
   async function handleDeletePost() {
+    setDeleting(true);
     try {
       await deletePost(patientId, post.id);
       onDeleted(post.id);
     } catch {
       // no error UI for delete — matches original behaviour
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -105,6 +109,7 @@ export function PostCardContainer({
       onSavePost={handleSavePost}
       onDeletePost={handleDeletePost}
       saving={saving}
+      deleting={deleting}
       commentCount={comments.length}
       commentItems={commentItems}
       onAddComment={handleAddComment}

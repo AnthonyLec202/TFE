@@ -1,5 +1,29 @@
 export type PatientUserRole = 'Admin' | 'Parent' | 'Collaborator';
 
+/**
+ * The relationship a care-team member has to the patient — the single list shared by the invitation
+ * dropdown and the collaborative wall's visibility selector.
+ *
+ * `value` is an API contract, not a display string: these are the backend `RelationshipType` enum
+ * member names, persisted verbatim inside `Post.excludedRoles` (a text[] column) and compared there at
+ * read time. Translating a `value` would orphan the exclusion list of every existing post. Only
+ * `label` may be edited — it mirrors `CareTeamRoleLabels.ForRelationship` on the backend, and the two
+ * must be changed together.
+ *
+ * Ordered to match the enum declaration so both sides read the same way.
+ */
+export const RELATIONSHIP_ROLES = [
+  { value: 'Parent',               label: 'Parent' },
+  { value: 'Teacher',              label: 'Enseignant(e)' },
+  { value: 'SpeechTherapist',      label: 'Logopède' },
+  { value: 'PsychomotorTherapist', label: 'Psychomotricien(ne)' },
+  { value: 'Ergotherapist',        label: 'Ergothérapeute' },
+  { value: 'Doctor',               label: 'Docteur' },
+  { value: 'Other',                label: 'Autre' },
+] as const;
+
+export type RelationshipRoleValue = (typeof RELATIONSHIP_ROLES)[number]['value'];
+
 export interface PatientResponse {
   id: string;
   firstName: string;
@@ -43,5 +67,5 @@ export interface CareTeamMemberResponse {
   firstName: string;
   lastName: string;
   role: PatientUserRole;   // 'Admin' | 'Parent' | 'Collaborator'
-  relationship: string;    // display-only label (e.g. "Neuropsychologue", "Teacher")
+  relationship: string;    // display-only French label (e.g. "Psychologue", "Enseignant(e)")
 }

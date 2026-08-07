@@ -12,7 +12,7 @@ namespace TFE.Api.Services.Auth;
 public class EnrollmentService : IEnrollmentService
 {
     // Bump this constant whenever the privacy policy / terms of use are materially updated.
-    private const string CurrentConsentVersion = "v1.0";
+    private const string CurrentConsentVersion = "v1.1";
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEnrollmentTokenRepository _tokenRepository;
@@ -81,7 +81,11 @@ public class EnrollmentService : IEnrollmentService
                 Role = enrollmentToken.RoleTarget
             };
 
-            await _careTeamRepository.CreateAsync(careTeam);
+            await _careTeamRepository.AddAsync(careTeam);
+            // Explicit rather than relying on MarkAsUsedAsync's own SaveChanges to flush this row too
+            // (both repositories share the scoped DbContext). Same number of round-trips as before,
+            // without the hidden dependency on another repository's internals.
+            await _unitOfWork.SaveChangesAsync();
 
             // Step 5: invalidate the token so it cannot be reused
             await _tokenRepository.MarkAsUsedAsync(enrollmentToken);
@@ -102,8 +106,21 @@ public class EnrollmentService : IEnrollmentService
     public async Task<InvitationResponse> GenerateInvitationAsync(
         Guid patientId, string roleTarget, string currentUserId)
     {
-        if (!await _careTeamRepository.IsUserInCareTeamAsync(currentUserId, patientId))
-            throw new UnauthorizedAccessException("You are not a member of this patient's care team.");
+        // Fetch the membership rather than a boolean: the same row answers both "is a member" and
+        // "which role", so authorization costs one query instead of two.
+        var membership = await _careTeamRepository.GetForUserAndPatientAsync(currentUserId, patientId)
+            ?? throw new UnauthorizedAccessException("You are not a member of this patient's care team.");
+
+        // Server-side enforcement of the rule the UI already expresses (canInvite). Until now this
+        // endpoint required care-team membership alone, so any collaborator — teacher, doctor, or a
+        // member added as "Other" — could mint a valid code for an arbitrary roleTarget, including one
+        // that grants Parent rights. The client-side gate restricted the button, never the endpoint.
+        //
+        // Parents may invite, and may issue Parent codes in turn: a patient legitimately has two
+        // parents, and either can bring collaborators into the dossier.
+        if (!CareTeamRoleResolver.IsAdmin(membership) && !CareTeamRoleResolver.IsParent(membership))
+            throw new UnauthorizedAccessException(
+                "Only the patient's administrator or a parent can issue an invitation.");
 
         if (!Enum.TryParse<RelationshipType>(roleTarget, ignoreCase: true, out var role))
             throw new ArgumentException($"Invalid role target: '{roleTarget}'.");

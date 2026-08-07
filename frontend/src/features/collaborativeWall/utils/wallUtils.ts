@@ -1,17 +1,10 @@
-import type { PatientUserRole } from '../../../types/patient';
+import { RELATIONSHIP_ROLES, type PatientUserRole } from '../../../types/patient';
 
 export const PURGED_CONTENT = 'Compte supprimé - Contenu invisible';
 
-export const SPECIFIC_ROLES = [
-  { value: 'Parent',          label: 'Parent' },
-  { value: 'Teacher',         label: 'Enseignant(e)' },
-  { value: 'SpeechTherapist', label: 'Logopède' },
-  { value: 'Doctor',          label: 'Docteur' },
-  { value: 'Ergotherapist',   label: 'Ergothérapeute' },
-  { value: 'Other',           label: 'Autre' },
-];
-
-export const ALL_SPECIFIC_ROLE_VALUES = SPECIFIC_ROLES.map(r => r.value);
+// The visibility selector covers every relationship role, so it derives from the shared list rather
+// than repeating it. Adding a role there makes it restrictable here with no further change.
+export const ALL_SPECIFIC_ROLE_VALUES: readonly string[] = RELATIONSHIP_ROLES.map(r => r.value);
 
 // Visible-by (whitelist) → ExcludedRoles (blacklist) for the API
 export function whitelistToBlacklist(visibleRoles: string[]): string[] {
