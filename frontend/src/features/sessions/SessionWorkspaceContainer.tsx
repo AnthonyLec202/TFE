@@ -75,6 +75,9 @@ export function SessionWorkspaceContainer() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Clearing the canvas destroys handwriting that recognition never saw, and undo only walks back one
+  // stroke at a time — so it is confirmed, like a deletion.
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
   // ── Therapeutic tool association ───────────────────────────────────────────
   // The set of tools linked to this session, derived live from the session row, plus the ids whose
@@ -197,6 +200,18 @@ export function SessionWorkspaceContainer() {
     surfaceSizeRef.current = { width, height };
   }
 
+  // Stroke corrections. Both route through handleStrokesUpdate so the shortened set is persisted the
+  // same way a new stroke is — otherwise a reload would resurrect what the clinician just removed.
+  function handleUndoStroke(): void {
+    if (currentStrokes.length === 0) return;
+    void handleStrokesUpdate(currentStrokes.slice(0, -1));
+  }
+
+  function handleConfirmClearStrokes(): void {
+    setIsConfirmClearOpen(false);
+    void handleStrokesUpdate([]);
+  }
+
   async function handleConvertToText(): Promise<void> {
     if (currentStrokes.length === 0 || isConverting || !note) return;
     setIsConverting(true);
@@ -311,6 +326,8 @@ export function SessionWorkspaceContainer() {
         currentStrokes={currentStrokes}
         onStrokesUpdate={handleStrokesUpdate}
         onSurfaceResize={handleSurfaceResize}
+        onUndoStroke={handleUndoStroke}
+        onClearStrokes={() => setIsConfirmClearOpen(true)}
         onConvertToText={handleConvertToText}
         isConverting={isConverting}
         conversionError={conversionError}
@@ -362,6 +379,15 @@ export function SessionWorkspaceContainer() {
           onClose={() => setIsEditOpen(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={isConfirmClearOpen}
+        title="Effacer les tracés"
+        message="Tous les tracés manuscrits non convertis de cette séance seront supprimés. Cette action est irréversible."
+        confirmLabel="Effacer"
+        onConfirm={handleConfirmClearStrokes}
+        onCancel={() => setIsConfirmClearOpen(false)}
+      />
 
       <ConfirmDialog
         open={isConfirmDeleteOpen}

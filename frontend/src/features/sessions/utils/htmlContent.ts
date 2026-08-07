@@ -10,16 +10,24 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
- * Appends OCR-recognized text to the existing HTML note as a new <p> block, so TipTap re-parses it
+ * Appends OCR-recognized text to the existing HTML note as <p> blocks, so TipTap re-parses it
  * cleanly when the user switches back to keyboard mode. The recognized text is HTML-escaped so stray
  * angle brackets can never inject markup.
+ *
+ * One paragraph per recognized line: the recognizer separates the lines it segmented with newlines,
+ * and HTML collapses those into spaces — a single wrapping <p> turned a handwritten page into one
+ * run-on paragraph.
  */
 export function appendRecognizedTextToHtml(existingHtml: string, recognizedText: string): string {
-  const trimmed = recognizedText.trim();
-  if (trimmed.length === 0) return existingHtml;
+  const paragraphs = recognizedText
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => `<p>${escapeHtml(line)}</p>`)
+    .join('');
 
-  const paragraph = `<p>${escapeHtml(trimmed)}</p>`;
-  return existingHtml.trim().length > 0 ? `${existingHtml}${paragraph}` : paragraph;
+  if (paragraphs.length === 0) return existingHtml;
+  return existingHtml.trim().length > 0 ? `${existingHtml}${paragraphs}` : paragraphs;
 }
 
 function escapeHtml(text: string): string {

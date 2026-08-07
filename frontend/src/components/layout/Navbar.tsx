@@ -35,11 +35,11 @@ export function Navbar() {
         <div className="flex items-center gap-3 sm:gap-7 min-w-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-[30px] h-[30px] shrink-0 rounded-lg bg-petrol-600 text-white flex items-center justify-center font-serif font-bold text-[15px]">
-              N
+              K
             </div>
             {/* Brand word is hidden on the smallest screens to free horizontal space. */}
             <span className="hidden sm:inline font-serif font-semibold text-[17px] tracking-tight text-ink truncate">
-              NeuroPlatform
+              Kideo
             </span>
           </div>
 

@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Keyboard, Loader2, Pencil, PenLine, Plus, Sparkles, Trash2, WifiOff, X, Wrench } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Eraser, Keyboard, Loader2, Pencil, PenLine, Plus, Sparkles, Trash2, Undo2, WifiOff, X, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { LocalPatientSync, LocalSession } from '../../../core/offline/LocalDatabase';
 import { Button } from '../../../components/ui/Button';
@@ -28,6 +28,10 @@ export interface SessionWorkspaceProps {
   onStrokesUpdate: (strokes: Stroke[]) => void;
   /** Reports the writing surface's pixel dimensions, forwarded to the recognizer with the strokes. */
   onSurfaceResize: (width: number, height: number) => void;
+  /** Drops the most recently captured stroke. */
+  onUndoStroke: () => void;
+  /** Drops every captured stroke (confirmed by the container — the strokes are not recoverable). */
+  onClearStrokes: () => void;
   onConvertToText: () => void;
   isConverting: boolean;
   /** Failure (or "nothing recognized") message from the last conversion; null when there is none. */
@@ -49,6 +53,7 @@ export interface SessionWorkspaceProps {
 export function SessionWorkspace({
   session, backTo, backLabel, patientsById, editorText, onEditorTextChange, isSaving,
   inputMode, onInputModeChange, currentStrokes, onStrokesUpdate, onSurfaceResize,
+  onUndoStroke, onClearStrokes,
   onConvertToText, isConverting, conversionError, isOnline, canConvert,
   onEdit, onDelete, onOpenTools, onOpenAiReport,
   associatedTools, onUnlinkTool,
@@ -136,6 +141,34 @@ export function SessionWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Stroke corrections — stylus mode only, and inert while there is nothing captured.
+              Recognition consumes every stroke at once, so a mis-drawn one has to be removable
+              before conversion rather than after. */}
+          {inputMode === 'stylus' && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onUndoStroke}
+                disabled={currentStrokes.length === 0 || isConverting}
+                title="Annuler le dernier tracé"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                Annuler le tracé
+              </Button>
+              <Button
+                variant="dangerGhost"
+                size="sm"
+                onClick={onClearStrokes}
+                disabled={currentStrokes.length === 0 || isConverting}
+                title="Effacer tous les tracés"
+              >
+                <Eraser className="h-3.5 w-3.5" />
+                Tout effacer
+              </Button>
+            </>
+          )}
+
           {/* Convert to Text button — visible only in stylus mode */}
           {inputMode === 'stylus' && (
             <Button

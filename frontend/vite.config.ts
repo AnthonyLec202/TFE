@@ -25,8 +25,8 @@ export default defineConfig(({ mode }) => {
         // Static assets copied verbatim from `public/` and added to the precache manifest.
         includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable.svg'],
         manifest: {
-          name: 'NeuroPlatform',
-          short_name: 'NeuroPlatform',
+          name: 'Kideo',
+          short_name: 'Kideo',
           description: 'Local-first clinical platform for neuropsychological patient management.',
           theme_color: '#1F6F6B',
           background_color: '#F7F5F1',

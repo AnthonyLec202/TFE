@@ -83,7 +83,7 @@ public static class DbInitializer
                 Email = adminEmail,
                 EmailConfirmed = true,
                 FirstName = "Admin",
-                LastName = "NeuroPlatform"
+                LastName = "Kideo"
             };
 
             var result = await userManager.CreateAsync(admin, adminPassword);
