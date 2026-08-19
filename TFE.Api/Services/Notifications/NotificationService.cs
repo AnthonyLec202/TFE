@@ -13,6 +13,7 @@ public class NotificationService : INotificationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly INotificationRepository _notificationRepository;
     private readonly ICareTeamRepository _careTeamRepository;
+    private readonly IPostRepository _postRepository;
     private readonly ICommentRepository _commentRepository;
     private readonly IPatientRepository _patientRepository;
     private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _hubContext;
@@ -21,6 +22,7 @@ public class NotificationService : INotificationService
         IUnitOfWork unitOfWork,
         INotificationRepository notificationRepository,
         ICareTeamRepository careTeamRepository,
+        IPostRepository postRepository,
         ICommentRepository commentRepository,
         IPatientRepository patientRepository,
         IHubContext<CollaborativeWallHub, ICollaborativeWallClient> hubContext)
@@ -28,6 +30,7 @@ public class NotificationService : INotificationService
         _unitOfWork = unitOfWork;
         _notificationRepository = notificationRepository;
         _careTeamRepository = careTeamRepository;
+        _postRepository = postRepository;
         _commentRepository = commentRepository;
         _patientRepository = patientRepository;
         _hubContext = hubContext;
@@ -53,8 +56,13 @@ public class NotificationService : INotificationService
 
     public async Task NotifyNewPostAsync(Guid patientId, string authorUserId, Guid postId)
     {
+        var post = await _postRepository.GetByIdAsync(postId)
+            ?? throw new KeyNotFoundException($"Post {postId} not found.");
+
         var careTeam = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
-        var recipients = careTeam.Where(ct => ct.UserId != authorUserId).ToList();
+        var recipients = careTeam
+            .Where(ct => ct.UserId != authorUserId && CanReceive(ct, post.ExcludedRoles))
+            .ToList();
         if (recipients.Count == 0) return;
 
         // Actor user is in the care team load (GetByPatientIdWithUsersAsync includes .User).
@@ -92,7 +100,9 @@ public class NotificationService : INotificationService
         var patientId = comment.Post.PatientId;
 
         var careTeam = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
-        var recipients = careTeam.Where(ct => ct.UserId != authorUserId).ToList();
+        var recipients = careTeam
+            .Where(ct => ct.UserId != authorUserId && CanReceive(ct, comment.Post.ExcludedRoles))
+            .ToList();
         if (recipients.Count == 0) return;
 
         var actor = careTeam.FirstOrDefault(ct => ct.UserId == authorUserId)?.User;
@@ -119,6 +129,14 @@ public class NotificationService : INotificationService
         foreach (var notification in notifications)
             await _hubContext.Clients.Group(notification.UserId).ReceiveNotification(ToResponse(notification, actor, patient));
     }
+
+    // A notification must never out a publication its recipient is not allowed to read. The payload
+    // carries no content, but the bell alone would reveal that a hidden post exists, and its deep link
+    // would open a dossier view unable to show it. Same rule as the wall read and the SignalR fan-out:
+    // the managing psychologist always receives, every other member is filtered on the relationship
+    // role that ExcludedRoles is expressed in.
+    private static bool CanReceive(CareTeam careTeam, IReadOnlyCollection<string> excludedRoles)
+        => CareTeamRoleResolver.IsAdmin(careTeam) || !excludedRoles.Contains(careTeam.Role.ToString());
 
     // Used for REST GET responses where the repository has eagerly loaded Notification.Actor and
     // Notification.Patient. Used for SignalR broadcasts by passing the actor and patient resolved

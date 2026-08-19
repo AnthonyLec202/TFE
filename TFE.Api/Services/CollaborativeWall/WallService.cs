@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.SignalR;
 using TFE.Api.DTOs.CollaborativeWall;
 using TFE.Api.Exceptions;
+using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Interfaces;
 using TFE.Api.Interfaces.IRepositories;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
@@ -18,6 +20,7 @@ public class WallService : IWallService
     private readonly ICareTeamRepository _careTeamRepository;
     private readonly IPatientRepository _patientRepository;
     private readonly IFileStorageService _fileStorage;
+    private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _hubContext;
     private readonly ILogger<WallService> _logger;
     private readonly string _bucketName;
 
@@ -29,6 +32,7 @@ public class WallService : IWallService
         ICareTeamRepository careTeamRepository,
         IPatientRepository patientRepository,
         IFileStorageService fileStorage,
+        IHubContext<CollaborativeWallHub, ICollaborativeWallClient> hubContext,
         IConfiguration configuration,
         ILogger<WallService> logger)
     {
@@ -39,6 +43,7 @@ public class WallService : IWallService
         _careTeamRepository = careTeamRepository;
         _patientRepository = patientRepository;
         _fileStorage = fileStorage;
+        _hubContext = hubContext;
         _logger = logger;
         _bucketName = configuration["Supabase:AttachmentsBucket"]
             ?? throw new InvalidOperationException("Supabase:AttachmentsBucket is not configured.");
@@ -65,6 +70,67 @@ public class WallService : IWallService
     {
         var careTeams = await _careTeamRepository.GetByPatientIdWithUsersAsync(patientId);
         return careTeams.ToDictionary(ct => ct.UserId);
+    }
+
+    // ── Real-time fan-out ─────────────────────────────────────────────────────
+
+    public async Task<string?> ResolveWallGroupAsync(string userId, Guid patientId)
+    {
+        var careTeam = await GetCareTeamEntryAsync(userId, patientId);
+        return careTeam is null ? null : WallGroups.For(patientId, RoleSegmentFor(careTeam));
+    }
+
+    // The managing psychologist reads every post whatever its exclusion set (see GetWallAsync), so
+    // they hold a segment of their own. Everyone else is keyed by the relationship role, which is the
+    // exact value ExcludedRoles is compared against.
+    private static string RoleSegmentFor(CareTeam careTeam)
+        => CareTeamRoleResolver.IsAdmin(careTeam)
+            ? WallGroups.AdminSegment
+            : careTeam.Role.ToString();
+
+    // The groups entitled to an event about a post carrying this exclusion set. Mirrors
+    // PostRepository.GetWallForPatientAsync so the live channel and the HTTP read can never disagree.
+    // Enumerating the roles rather than loading the care team keeps the fan-out query-free.
+    private static IEnumerable<string> VisibleGroups(Guid patientId, IReadOnlyCollection<string> excludedRoles)
+    {
+        yield return WallGroups.For(patientId, WallGroups.AdminSegment);
+
+        foreach (var role in Enum.GetValues<RelationshipType>())
+        {
+            var roleName = role.ToString();
+            if (!excludedRoles.Contains(roleName))
+                yield return WallGroups.For(patientId, roleName);
+        }
+    }
+
+    private async Task BroadcastAsync(
+        Guid patientId,
+        IReadOnlyCollection<string> excludedRoles,
+        Func<ICollaborativeWallClient, Task> send)
+    {
+        foreach (var group in VisibleGroups(patientId, excludedRoles))
+            await send(_hubContext.Clients.Group(group));
+    }
+
+    // An edit may itself change who the post is visible to, so a single ReceiveUpdatedPost to the new
+    // audience is not enough. Members who lost access are told to drop it — they would otherwise keep
+    // rendering stale content until a reload — and members who gained access receive it as a new post,
+    // ReceiveUpdatedPost being a no-op on a client that never held it.
+    private async Task BroadcastPostVisibilityChangeAsync(
+        PostResponse post,
+        IReadOnlyCollection<string> previousExcludedRoles)
+    {
+        var previousAudience = VisibleGroups(post.PatientId, previousExcludedRoles).ToHashSet();
+        var currentAudience = VisibleGroups(post.PatientId, post.ExcludedRoles).ToHashSet();
+
+        foreach (var group in currentAudience.Intersect(previousAudience))
+            await _hubContext.Clients.Group(group).ReceiveUpdatedPost(post);
+
+        foreach (var group in currentAudience.Except(previousAudience))
+            await _hubContext.Clients.Group(group).ReceiveNewPost(post);
+
+        foreach (var group in previousAudience.Except(currentAudience))
+            await _hubContext.Clients.Group(group).ReceiveDeletedPost(post.Id);
     }
 
     // ── Wall (Posts + Comments) ───────────────────────────────────────────────
@@ -124,7 +190,10 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
         var signedUrls = await BuildSignedUrlMapAsync([post]);
-        return ToPostResponse(post, careTeamMap, signedUrls);
+
+        var response = ToPostResponse(post, careTeamMap, signedUrls);
+        await BroadcastAsync(patientId, response.ExcludedRoles, client => client.ReceiveNewPost(response));
+        return response;
     }
 
     public async Task<PostResponse> CreatePostWithAttachmentsAsync(
@@ -200,7 +269,10 @@ public class WallService : IWallService
 
         var careTeamMap = await GetPatientCareTeamMapAsync(patientId);
         var signedUrls = await BuildSignedUrlMapAsync([post]);
-        return ToPostResponse(post, careTeamMap, signedUrls);
+
+        var response = ToPostResponse(post, careTeamMap, signedUrls);
+        await BroadcastAsync(patientId, response.ExcludedRoles, client => client.ReceiveNewPost(response));
+        return response;
     }
 
     public async Task<PostResponse> UpdatePostAsync(Guid postId, UpdatePostRequest request, string currentUserId)
@@ -211,6 +283,11 @@ public class WallService : IWallService
         await ValidateModificationRightsAsync(post.CreatedById, post.CreatedAt, post.PatientId, currentUserId);
 
         var ct = await GetCareTeamEntryAsync(currentUserId, post.PatientId);
+
+        // Captured before the assignment below: an admin edit may widen or narrow the audience, and
+        // the fan-out needs both sets to tell a newly-included member from a newly-excluded one.
+        var previousExcludedRoles = post.ExcludedRoles;
+
         post.Content = request.Content;
         if (CareTeamRoleResolver.IsAdmin(ct))
             post.ExcludedRoles = request.ExcludedRoles;
@@ -220,7 +297,10 @@ public class WallService : IWallService
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         var signedUrls = await BuildSignedUrlMapAsync([post]);
-        return ToPostResponse(post, careTeamMap, signedUrls);
+
+        var response = ToPostResponse(post, careTeamMap, signedUrls);
+        await BroadcastPostVisibilityChangeAsync(response, previousExcludedRoles);
+        return response;
     }
 
     public async Task DeletePostAsync(Guid postId, string currentUserId)
@@ -234,8 +314,14 @@ public class WallService : IWallService
             .Concat(post.Comments.SelectMany(c => c.Attachments.Select(a => a.StoragePath)))
             .ToList();
 
+        // Captured before removal: the deletion event is addressed to the audience the post had.
+        var patientId = post.PatientId;
+        var excludedRoles = post.ExcludedRoles;
+
         _postRepository.Remove(post);
         await _unitOfWork.SaveChangesAsync();
+
+        await BroadcastAsync(patientId, excludedRoles, client => client.ReceiveDeletedPost(postId));
 
         foreach (var path in pathsToDelete)
         {
@@ -270,7 +356,10 @@ public class WallService : IWallService
         await _unitOfWork.SaveChangesAsync();
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         var signedUrls = await BuildSignedUrlMapAsync(comment);
-        return ToCommentResponse(comment, careTeamMap, signedUrls);
+
+        var response = ToCommentResponse(comment, careTeamMap, signedUrls);
+        await BroadcastAsync(post.PatientId, post.ExcludedRoles, client => client.ReceiveNewComment(response));
+        return response;
     }
 
     public async Task<CommentResponse> CreateCommentWithAttachmentsAsync(
@@ -340,7 +429,10 @@ public class WallService : IWallService
 
         var careTeamMap = await GetPatientCareTeamMapAsync(post.PatientId);
         var signedUrls = await BuildSignedUrlMapAsync(comment);
-        return ToCommentResponse(comment, careTeamMap, signedUrls);
+
+        var response = ToCommentResponse(comment, careTeamMap, signedUrls);
+        await BroadcastAsync(post.PatientId, post.ExcludedRoles, client => client.ReceiveNewComment(response));
+        return response;
     }
 
     public async Task<CommentResponse> UpdateCommentAsync(Guid commentId, UpdateCommentRequest request, string currentUserId)
@@ -355,7 +447,11 @@ public class WallService : IWallService
 
         var careTeamMap = await GetPatientCareTeamMapAsync(comment.Post.PatientId);
         var signedUrls = await BuildSignedUrlMapAsync(comment);
-        return ToCommentResponse(comment, careTeamMap, signedUrls);
+
+        var response = ToCommentResponse(comment, careTeamMap, signedUrls);
+        await BroadcastAsync(
+            comment.Post.PatientId, comment.Post.ExcludedRoles, client => client.ReceiveUpdatedComment(response));
+        return response;
     }
 
     public async Task DeleteCommentAsync(Guid commentId, string currentUserId)
@@ -367,8 +463,16 @@ public class WallService : IWallService
 
         var pathsToDelete = comment.Attachments.Select(a => a.StoragePath).ToList();
 
+        // Captured before removal: same audience rule as the parent post.
+        var postId = comment.PostId;
+        var patientId = comment.Post.PatientId;
+        var excludedRoles = comment.Post.ExcludedRoles;
+
         _commentRepository.Remove(comment);
         await _unitOfWork.SaveChangesAsync();
+
+        await BroadcastAsync(
+            patientId, excludedRoles, client => client.ReceiveDeletedComment(postId, commentId));
 
         foreach (var path in pathsToDelete)
         {

@@ -2,10 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.SignalR;
 using TFE.Api.DTOs.CollaborativeWall;
 using TFE.Api.Exceptions;
-using TFE.Api.Hubs.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.CollaborativeWall;
 using TFE.Api.Interfaces.IServices.Notifications;
 
@@ -18,16 +16,13 @@ public class WallController : ControllerBase
 {
     private readonly IWallService _wallService;
     private readonly INotificationService _notificationService;
-    private readonly IHubContext<CollaborativeWallHub, ICollaborativeWallClient> _wallHubContext;
 
     public WallController(
         IWallService wallService,
-        INotificationService notificationService,
-        IHubContext<CollaborativeWallHub, ICollaborativeWallClient> wallHubContext)
+        INotificationService notificationService)
     {
         _wallService = wallService;
         _notificationService = notificationService;
-        _wallHubContext = wallHubContext;
     }
 
     private string CurrentUserId =>
@@ -54,7 +49,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreatePostWithAttachmentsAsync(patientId, CurrentUserId, request, cancellationToken);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
             await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
@@ -69,7 +63,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreatePostAsync(patientId, request, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewPost(response);
             await _notificationService.NotifyNewPostAsync(patientId, CurrentUserId, response.Id);
             return Created($"/api/patients/{patientId}/wall/posts/{response.Id}", response);
         }
@@ -83,7 +76,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.UpdatePostAsync(postId, request, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedPost(response);
             return Ok(response);
         }
         catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
@@ -97,7 +89,6 @@ public class WallController : ControllerBase
         try
         {
             await _wallService.DeletePostAsync(postId, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedPost(postId);
             return NoContent();
         }
         catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
@@ -113,7 +104,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentWithAttachmentsAsync(patientId, postId, CurrentUserId, request, cancellationToken);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewComment(response);
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
@@ -129,7 +119,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.CreateCommentAsync(postId, request, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveNewComment(response);
             await _notificationService.NotifyNewCommentAsync(response.Id);
             return Created(string.Empty, response);
         }
@@ -145,7 +134,6 @@ public class WallController : ControllerBase
         try
         {
             var response = await _wallService.UpdateCommentAsync(commentId, request, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveUpdatedComment(response);
             return Ok(response);
         }
         catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
@@ -159,7 +147,6 @@ public class WallController : ControllerBase
         try
         {
             await _wallService.DeleteCommentAsync(commentId, CurrentUserId);
-            await _wallHubContext.Clients.Group(patientId.ToString()).ReceiveDeletedComment(postId, commentId);
             return NoContent();
         }
         catch (ArchivedPatientException ex) { return StatusCode(403, new { error = ex.Message }); }
