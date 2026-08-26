@@ -1,5 +1,6 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './features/auth';
+import { FullScreenLoader } from './components/ui/FullScreenLoader';
 import { WelcomePage } from './pages/auth/WelcomePage';
 import { EnrollmentPage } from './pages/auth/EnrollmentPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -16,8 +17,24 @@ import { ToolDetailPage } from './pages/clinicalTools/ToolDetailPage';
 import { MainLayout } from './components/layout/MainLayout';
 
 function ProtectedRoute({ allowedRoles }: { allowedRoles?: string[] } = {}) {
-  const { isAuthenticated, user } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const { isAuthenticated, isInitialized, user } = useAuth();
+  const location = useLocation();
+
+  // Wait for the session restore to settle. `isAuthenticated` is derived from the user record, which
+  // starts empty and is only filled once the identity has been established — so until then "not
+  // signed in" and "not known yet" are the same value. Deciding on the first render sent every
+  // refresh and every bookmarked link to the login screen, and the `replace` below made the
+  // requested URL unrecoverable before the answer even arrived.
+  if (!isInitialized) return <FullScreenLoader message="Chargement de votre espace…" />;
+
+  // Carry the requested location so signing in returns there rather than to the dashboard. Stored as
+  // a plain path: history state has to be serialisable, and a string is what the login screen
+  // validates before navigating to it.
+  if (!isAuthenticated) {
+    const requested = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to="/login" replace state={{ from: requested }} />;
+  }
+
   if (allowedRoles && !allowedRoles.some(r => user?.roles?.includes(r))) {
     return <Navigate to="/" replace />;
   }

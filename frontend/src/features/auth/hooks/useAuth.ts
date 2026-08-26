@@ -13,6 +13,12 @@ import {
   clearActiveEncryptionKey,
 } from '../../../core/offline/cryptoService';
 import { encryptLegacyRecordsAtRest } from '../../../core/offline/recordEncryption';
+import {
+  rememberConfirmedSession,
+  readOfflineSession,
+  updateRememberedUser,
+  forgetOfflineSession,
+} from '../services/offlineSessionService';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -37,19 +43,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // On mount, restore the session from the HttpOnly cookie via GET /api/auth/me. The token is never
-  // exposed to JS, so the server is the only source of the identity (userId/email/roles). A 401 just
-  // means no active session. isInitialized flips true only after key derivation completes, so guarded
-  // consumers wait for the key — preventing any note read from racing ahead of derivation.
+  // exposed to JS, so the server is the authoritative source of the identity (userId/email/roles).
+  // isInitialized flips true only after key derivation completes, so guarded consumers wait for the
+  // key — preventing any note read from racing ahead of derivation.
+  //
+  // Three outcomes, and the distinction between the last two is the point: a server that says no is
+  // not the same as a server that cannot be reached. Only the first ends the session.
   useEffect(() => {
     let ignore = false;
+
     getCurrentUser()
       .then(async restored => {
-        if (!ignore) await applySession(restored);
+        if (ignore) return;
+        // A server answer, so the offline window starts over here — and only here.
+        rememberConfirmedSession(restored);
+        await applySession(restored);
       })
-      .catch(err => {
-        if (!(err instanceof AuthError)) {
-          console.warn('[Auth] Session restore failed.', err);
+      .catch(async err => {
+        if (ignore) return;
+
+        if (err instanceof AuthError) {
+          // The server actively rejected the session. The local copy is void whatever its age.
+          forgetOfflineSession();
+          return;
         }
+
+        // The server could not be reached. Fall back to the last confirmed identity while it is
+        // still inside its window; past that the clinician signs in again, which needs the network
+        // back. Either way the local database is untouched and waits.
+        console.warn('[Auth] Session restore failed — trying the offline session.', err);
+        const offlineUser = readOfflineSession();
+        if (offlineUser) await applySession(offlineUser);
       })
       .finally(() => {
         if (!ignore) setIsInitialized(true);
@@ -60,11 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string): Promise<void> {
     const loggedIn = await apiLogin({ email, password });
+    rememberConfirmedSession(loggedIn);
     await applySession(loggedIn);
   }
 
   async function enroll(data: ConsumeTokenRequest): Promise<void> {
     const enrolled = await apiConsumeToken(data);
+    rememberConfirmedSession(enrolled);
     await applySession(enrolled);
   }
 
@@ -77,10 +103,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     clearActiveEncryptionKey(); // wipes the key from the WebCrypto subsystem
+    // Signing out is deliberate and must not leave a session the next reload could reopen offline.
+    forgetOfflineSession();
   }
 
   function patchUser(partial: Partial<AuthUser>): void {
     setUser(prev => (prev ? { ...prev, ...partial } : null));
+    // Keep the stored copy in step, so an offline restore does not resurrect stale fields — a
+    // consent version already accepted, for instance, prompting for it again. The validity window is
+    // left alone: this is a local edit, not a server confirmation.
+    updateRememberedUser(partial);
   }
 
   return createElement(

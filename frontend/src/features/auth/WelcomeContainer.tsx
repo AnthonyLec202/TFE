@@ -1,14 +1,29 @@
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { KeyRound, LogIn } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { LoginContainer } from './LoginContainer';
 import { ValidateCodeForm } from './components/ValidateCodeForm';
+import { FullScreenLoader } from '../../components/ui/FullScreenLoader';
 
 export function WelcomeContainer() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  // Where to land once signed in: the page that sent us here, or the dashboard. Validated rather
+  // than trusted — history state is caller-controlled, and only a same-site absolute path may be
+  // navigated to. "//host" is rejected explicitly: the browser reads it as a protocol-relative URL.
+  const requested = (location.state as { from?: unknown } | null)?.from;
+  const redirectTo =
+    typeof requested === 'string' && requested.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : '/';
+
+  // Same reason as the route guard: until the session restore settles, showing the login form to
+  // someone who is already signed in would flash it on every reload of this route.
+  if (!isInitialized) return <FullScreenLoader message="Chargement de votre espace…" />;
+
+  if (isAuthenticated) return <Navigate to={redirectTo} replace />;
 
   return (
     <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center p-4 sm:p-8">
@@ -57,7 +72,7 @@ export function WelcomeContainer() {
                 Accédez à votre espace Kideo.
               </p>
             </div>
-            <LoginContainer onSuccess={() => navigate('/')} />
+            <LoginContainer onSuccess={() => navigate(redirectTo, { replace: true })} />
           </div>
 
         </div>
