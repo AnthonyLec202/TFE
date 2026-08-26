@@ -17,19 +17,25 @@
  * The provider's judgement is geometric: it calls a break deliberate whenever room was left at the
  * end of the previous line. A clinician who habitually writes one or two words per line therefore
  * produces "deliberate" breaks throughout, and the transcription comes back as a column of
- * fragments. So a line the provider called deliberate is folded back anyway when the text itself
- * reads as a continuation — the previous line ends mid-sentence and this one does not start one.
- * Geometry and language have to agree before a deliberate break is overridden.
+ * fragments. So a line the provider called deliberate is folded back anyway unless the line above it
+ * ends on terminal punctuation. Geometry and punctuation have to agree before a break survives.
+ *
+ * THE CONTRACT
+ * Punctuation, and only punctuation, delimits. End a line with "." "!" "?" "…" or ":" and it stays
+ * its own paragraph; end it any other way and the next line joins it. That is a rule the writer can
+ * predict and control, which is the point — nothing else about how they happened to form the letters
+ * changes the outcome.
  *
  * THE BIAS
  * Missing data resolves towards keeping lines apart: an absent flag, an unknown bullet kind, an
- * unreadable annotation all read as "deliberate". Only a positive signal merges. Lists are never
- * overridden — their structure is explicit — and the geometry rule below can only ever split.
+ * unreadable annotation all read as "deliberate". Lists are never overridden — their structure is
+ * explicit — and the geometry rule below can only ever split.
  *
  * KNOWN COST
- * A bare heading followed by its content ("Anamnèse" then "difficultés scolaires") reads exactly like
- * a wrapped sentence and will be merged. Ending the heading with a colon is what separates the two
- * cases, which is why ":" counts as terminal punctuation here.
+ * A line the writer meant to stand alone but left unpunctuated is merged into the next: a bare
+ * heading ("Anamnèse" above "difficultés scolaires"), or two sentences neither of which was closed.
+ * Ending the line with punctuation is what separates the cases, which is why ":" — the mark a
+ * heading naturally takes — counts as terminal here.
  *
  * Pure: no React, no I/O, no DOM.
  */
@@ -41,14 +47,13 @@ export type RecognizedBlock =
   | { kind: 'list'; ordered: boolean; items: string[] };
 
 /**
- * How far below its predecessor a line must sit, relative to the median line height, before it is
- * treated as separated by deliberate blank space rather than merely wrapped.
+ * How much further apart than the writer's own tightest line pitch two lines must sit before the
+ * space between them reads as deliberate.
  *
- * Normal interline spacing leaves a gap of roughly 0.3–0.8 line heights between one line's descenders
- * and the next line's ascenders; skipping a line pushes that to about 1.6 and beyond. 1.2 sits
- * between the two populations.
+ * Expressed in multiples of the pitch, so skipping a line lands near 2.0 while ordinary variation in
+ * handwriting stays well under 1.5. 1.7 sits between the two populations.
  */
-const BLANK_LINE_GAP_RATIO = 1.2;
+const BLANK_LINE_PITCH_RATIO = 1.7;
 
 /**
  * Punctuation that closes a thought, optionally followed by a closing quote or bracket.
@@ -57,9 +62,6 @@ const BLANK_LINE_GAP_RATIO = 1.2;
  * own line ("Anamnèse :") from a sentence that merely ran on ("Bonjour,").
  */
 const SENTENCE_END_PATTERN = /[.!?…:][")\]»']*$/;
-
-/** An uppercase letter opening a line — accents included — reads as the start of a new sentence. */
-const SENTENCE_START_PATTERN = /^\p{Lu}/u;
 
 /** One logical line: a visual line plus every wrapped continuation folded into it. */
 interface LineUnit {
@@ -77,7 +79,7 @@ export function reflowRecognizedLines(lines: RecognizedLine[]): RecognizedBlock[
   );
   if (contentLines.length === 0) return [];
 
-  const medianHeight = medianLineHeight(contentLines);
+  const pitch = lineRhythm(contentLines);
   const units: LineUnit[] = [];
 
   contentLines.forEach((line, index) => {
@@ -89,7 +91,7 @@ export function reflowRecognizedLines(lines: RecognizedLine[]): RecognizedBlock[
     // separates the two. The first line has no open unit to fold into and always starts one.
     const isWrap =
       openUnit !== undefined &&
-      !isSeparatedByBlankSpace(contentLines[index - 1], line, medianHeight) &&
+      !isSeparatedByBlankSpace(contentLines[index - 1], line, pitch) &&
       (line.isExplicitBreak === false || continuesOpenUnit(openUnit, line));
 
     if (!isWrap) {
@@ -112,6 +114,13 @@ export function reflowRecognizedLines(lines: RecognizedLine[]): RecognizedBlock[
  * Whether a line reads as the continuation of the text already accumulated above it, despite the
  * recognizer having called the break deliberate.
  *
+ * Punctuation alone decides. An earlier version also refused to merge into a line that opened with a
+ * capital, on the reasoning that a capital starts a sentence — but handwriting capitalises for many
+ * reasons the transcription cannot tell apart, and a writer who begins "Ça" with a capital out of
+ * habit was silently denied the merge with nothing on screen to explain why. Punctuation is a mark
+ * the writer places deliberately, so the rule it drives is one they can predict and control: end a
+ * sentence with one and the next line stays separate.
+ *
  * Tested against the open unit rather than the previous raw line, because earlier lines may already
  * have been folded into it — what matters is how the text now ends, not how one of its fragments did.
  *
@@ -122,7 +131,7 @@ function continuesOpenUnit(openUnit: LineUnit, line: RecognizedLine): boolean {
   if (openUnit.kind === 'listItem' || line.kind === 'listItem') return false;
   if (openUnit.text.length === 0) return false;
 
-  return !SENTENCE_END_PATTERN.test(openUnit.text) && !SENTENCE_START_PATTERN.test(line.text.trim());
+  return !SENTENCE_END_PATTERN.test(openUnit.text);
 }
 
 /**
@@ -136,30 +145,43 @@ function continuesOpenUnit(openUnit: LineUnit, line: RecognizedLine): boolean {
 function isSeparatedByBlankSpace(
   previous: RecognizedLine | undefined,
   line: RecognizedLine,
-  medianHeight: number | null,
+  pitch: number | null,
 ): boolean {
-  if (!previous || medianHeight === null) return false;
-  if (typeof previous.bottom !== 'number' || typeof line.top !== 'number') return false;
-  return line.top - previous.bottom > medianHeight * BLANK_LINE_GAP_RATIO;
+  if (!previous || pitch === null) return false;
+  if (typeof previous.top !== 'number' || typeof line.top !== 'number') return false;
+  // Top to top, so the measurement is a line advance and does not vary with how tall the ink on
+  // either line happens to be.
+  return line.top - previous.top > pitch * BLANK_LINE_PITCH_RATIO;
 }
 
-/** Median ink height across the lines that reported geometry; null when none did. */
-function medianLineHeight(lines: RecognizedLine[]): number | null {
-  const heights = lines
-    .map(line =>
-      typeof line.top === 'number' && typeof line.bottom === 'number'
-        ? line.bottom - line.top
-        : null,
-    )
-    .filter((height): height is number => height !== null && height > 0)
-    .sort((a, b) => a - b);
+/**
+ * The writer's own line pitch: the tightest top-to-top advance between consecutive lines. Null when
+ * fewer than two lines reported a position.
+ *
+ * Derived from line positions rather than from ink heights, which is what this replaces. A line
+ * carrying one short lowercase word has an ink extent a fraction of the space it occupies — "va" is
+ * an x-height, "Bonjour," is an ascender plus a descender — so a figure built from ink heights
+ * collapses on exactly the notes this rule most needs to read correctly: the ones written a word at a
+ * time. It then declares ordinary line spacing to be a deliberate blank line and blocks the merge.
+ *
+ * The tightest advance is taken rather than the median because a note may hold only two or three
+ * lines, too few for a median to describe anything, and because the tightest advance is the one that
+ * cannot itself have a skipped line hidden inside it.
+ */
+function lineRhythm(lines: RecognizedLine[]): number | null {
+  let tightest: number | null = null;
 
-  if (heights.length === 0) return null;
+  for (let index = 1; index < lines.length; index++) {
+    const previousTop = lines[index - 1].top;
+    const top = lines[index].top;
+    if (typeof previousTop !== 'number' || typeof top !== 'number') continue;
 
-  const middle = Math.floor(heights.length / 2);
-  return heights.length % 2 === 0
-    ? (heights[middle - 1] + heights[middle]) / 2
-    : heights[middle];
+    const advance = top - previousTop;
+    if (advance <= 0) continue;
+    if (tightest === null || advance < tightest) tightest = advance;
+  }
+
+  return tightest;
 }
 
 /** Numbered and lettered bullets are ordered lists; bullets and checkboxes are not. */

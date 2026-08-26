@@ -60,14 +60,15 @@ describe('reflowRecognizedLines', () => {
 
     it('treats a missing isExplicitBreak flag as deliberate', () => {
       // An older API build, or a provider response we could not annotate. Splitting is recoverable;
-      // merging two clinical notes is not.
+      // merging two clinical notes is not. The closing full stop is what the rule reads — the flag
+      // being absent is what this test is about.
       const blocks = reflowRecognizedLines([
-        line('Première note'),
+        line('Première note.'),
         { text: 'Seconde note', kind: 'text' } as RecognizedLine,
       ]);
 
       expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'Première note' },
+        { kind: 'paragraph', text: 'Première note.' },
         { kind: 'paragraph', text: 'Seconde note' },
       ]);
     });
@@ -91,21 +92,30 @@ describe('reflowRecognizedLines', () => {
       ]);
     });
 
-    it('does not merge when the next line opens a sentence', () => {
-      const blocks = reflowRecognizedLines([line('Anamnèse'), line('Difficultés scolaires')]);
+    it('merges regardless of how the next line is capitalised', () => {
+      // A writer forming "Ça" and "Va" with capitals out of habit used to be denied the merge, with
+      // nothing on screen to explain why the same sentence behaved differently from one note to the
+      // next. Capitalisation carries no weight: only punctuation delimits.
+      const blocks = reflowRecognizedLines([line('Bonjour,'), line('Ça'), line('Va')]);
 
-      expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'Anamnèse' },
-        { kind: 'paragraph', text: 'Difficultés scolaires' },
-      ]);
+      expect(blocks).toEqual([{ kind: 'paragraph', text: 'Bonjour, Ça Va' }]);
     });
 
-    it('recognises an accented capital as a sentence opening', () => {
+    it('preserves the recognized casing verbatim when merging', () => {
       const blocks = reflowRecognizedLines([line('bilan'), line('École primaire')]);
 
+      expect(blocks).toEqual([{ kind: 'paragraph', text: 'bilan École primaire' }]);
+    });
+
+    it('merges two unpunctuated sentences — the cost of delimiting on punctuation alone', () => {
+      // Encoded deliberately. Closing the first line would keep them apart.
+      const blocks = reflowRecognizedLines([
+        line('Le patient est calme'),
+        line('Il a bien dormi'),
+      ]);
+
       expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'bilan' },
-        { kind: 'paragraph', text: 'École primaire' },
+        { kind: 'paragraph', text: 'Le patient est calme Il a bien dormi' },
       ]);
     });
 
@@ -173,23 +183,50 @@ describe('reflowRecognizedLines', () => {
     });
 
     it('is overruled by deliberate blank space', () => {
-      // Geometry and language must agree; a skipped line vetoes the merge.
+      // Geometry and language must agree. The first two lines set the writer's pitch at 13; the third
+      // sits 37 below its predecessor, so the space before it reads as deliberate.
       const blocks = reflowRecognizedLines([
         line('Bonjour,', { top: 0, bottom: 10 }),
-        line('ça va', { top: 38, bottom: 48 }),
+        line('ça', { top: 13, bottom: 23 }),
+        line('va', { top: 50, bottom: 60 }),
       ]);
 
       expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'Bonjour,' },
-        { kind: 'paragraph', text: 'ça va' },
+        { kind: 'paragraph', text: 'Bonjour, ça' },
+        { kind: 'paragraph', text: 'va' },
       ]);
+    });
+
+    it('merges short stacked words that ordinary line spacing separates', () => {
+      // The regression this rule was rewritten for. Ink heights here are 10, 6 and 5 — a lowercase
+      // word occupies a fraction of the line it sits on — while the pitch is a steady 16. Measuring
+      // the gap against ink height declared every one of these lines deliberately separated.
+      const blocks = reflowRecognizedLines([
+        line('Bonjour,', { top: 0, bottom: 10 }),
+        line('ça', { top: 16, bottom: 22 }),
+        line('va', { top: 32, bottom: 37 }),
+      ]);
+
+      expect(blocks).toEqual([{ kind: 'paragraph', text: 'Bonjour, ça va' }]);
+    });
+
+    it('does not veto on geometry when only two lines are available', () => {
+      // One advance cannot establish a rhythm — it can never exceed a multiple of itself — so the
+      // flag and the text decide alone. Documented rather than worked around: inventing a pitch from
+      // a single measurement would veto merges arbitrarily.
+      const blocks = reflowRecognizedLines([
+        line('Bonjour,', { top: 0, bottom: 10 }),
+        line('ça va', { top: 200, bottom: 210 }),
+      ]);
+
+      expect(blocks).toEqual([{ kind: 'paragraph', text: 'Bonjour, ça va' }]);
     });
   });
 
   describe('blank-space geometry rule', () => {
-    it('splits a wrapped line that sits a full line height below its predecessor', () => {
-      // Line heights of 10; the third line starts 15 below the second's ink — the writer skipped a
-      // line, which a wrap never does.
+    it('splits a wrapped line that sits a full line below its predecessor', () => {
+      // The first two lines establish a pitch of 13; the third advances 25, close to double — the
+      // writer skipped a line, which a wrap never does.
       const blocks = reflowRecognizedLines([
         line('Antécédents', { top: 0, bottom: 10 }),
         wrapped('familiaux', { top: 13, bottom: 23 }),
@@ -218,12 +255,12 @@ describe('reflowRecognizedLines', () => {
       // Geometry may only split, never merge. These two lines sit close together and are still kept
       // apart, because nothing in the text asks for them to be joined.
       const blocks = reflowRecognizedLines([
-        line('Note A', { top: 0, bottom: 10 }),
+        line('Note A.', { top: 0, bottom: 10 }),
         line('Note B', { top: 11, bottom: 21 }),
       ]);
 
       expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'Note A' },
+        { kind: 'paragraph', text: 'Note A.' },
         { kind: 'paragraph', text: 'Note B' },
       ]);
     });
@@ -360,7 +397,7 @@ describe('reflowRecognizedLines', () => {
 
     it('skips entries that carry no usable text without throwing', () => {
       const blocks = reflowRecognizedLines([
-        line('Bonjour'),
+        line('Bonjour.'),
         null as unknown as RecognizedLine,
         { kind: 'text', isExplicitBreak: true } as unknown as RecognizedLine,
         { text: 42, isExplicitBreak: true, kind: 'text' } as unknown as RecognizedLine,
@@ -368,7 +405,7 @@ describe('reflowRecognizedLines', () => {
       ]);
 
       expect(blocks).toEqual([
-        { kind: 'paragraph', text: 'Bonjour' },
+        { kind: 'paragraph', text: 'Bonjour.' },
         { kind: 'paragraph', text: 'Au revoir' },
       ]);
     });
