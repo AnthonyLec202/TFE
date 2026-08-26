@@ -1,21 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Full-bleed background (no rounded corners): the launcher applies its own adaptive mask, so the
-       artwork must reach every edge to avoid transparent corners showing under a rounded-square mask.
-       The "N" mark stays within the central ~80% safe zone so no brand content is ever cropped. -->
-  <rect width="512" height="512" fill="#F7F5F1"/>
-
-  <g stroke="#1F6F6B" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M 160 380 L 160 140" />
-    <path d="M 160 140 L 352 380" />
-    <path d="M 352 380 L 352 140" />
-  </g>
-
-  <g fill="#1F6F6B">
-    <circle cx="160" cy="140" r="22" stroke="#F7F5F1" stroke-width="8" />
-    <circle cx="160" cy="380" r="16" />
-    <circle cx="352" cy="140" r="16" />
-    <circle cx="352" cy="380" r="22" stroke="#F7F5F1" stroke-width="8" />
-  </g>
-
-  <circle cx="256" cy="260" r="18" fill="#D97706" stroke="#F7F5F1" stroke-width="6" />
+       artwork must reach every edge or transparent corners show under a rounded-square mask. The K is
+       held well inside the central 80% safe zone, so no brand content is ever cropped — which is why
+       it is drawn smaller here than on the "any" icons. Same Source Serif 4 Bold outline. -->
+  <rect width="512" height="512" fill="#1F6F6B"/>
+  <path fill="#FFFFFF" d="M247.05 361L144.13 361L144.13 340.22L169.70 338.95Q169.70 333.83 170.02 329.04Q170.02 313.05 170.02 296.75L170.02 214.93Q170.02 198.95 170.02 182.64Q169.70 177.85 169.70 173.05L144.13 171.46L144.13 151L250.25 151L250.25 171.46L225.32 173.05Q225.32 177.85 225.32 182.64Q225 198.63 225 214.61L225 265.11L239.38 246.57L301.39 173.37L276.78 171.46L276.78 151L358.28 151L358.28 171.46L328.88 173.37L281.25 224.52L347.42 338.95L367.87 340.22L367.87 361L267.83 361L267.83 340.22L285.73 339.26L244.81 263.51L225 284.93L225 297.39Q225 313.05 225.32 328.72Q225.32 333.83 225.32 338.95L247.05 340.22"/>
 </svg>

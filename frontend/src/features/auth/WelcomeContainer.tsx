@@ -28,11 +28,7 @@ export function WelcomeContainer() {
   return (
     <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center p-4 sm:p-8">
 
-      {/* Logo — the site brand mark, at the dimensions of the tile it replaces. The asset carries its
-          own rounded tile and background, so it needs no wrapper styling of its own. Decorative:
-          the heading below already names the product. */}
       <div className="mb-8 text-center">
-        <img src="/logo.svg" alt="" className="inline-block w-12 h-12 mb-4" />
         <h1 className="font-serif text-[clamp(1.5rem,4vw,1.75rem)] font-semibold tracking-[-0.015em] text-ink">Kideo</h1>
         <p className="mt-1 text-sm text-taupe-500">Plateforme collaborative de suivi psychologique</p>
       </div>
