@@ -20,10 +20,41 @@ const STROKE_WIDTH = 2;
 const INITIAL_CANVAS_HEIGHT = 900;
 const GROWTH_THRESHOLD = 250; // px from the bottom that triggers a height increase
 const GROWTH_INCREMENT = 600; // px appended each time the writer nears the bottom
-// Ceiling on the growth. The bitmap is allocated at this height times the device pixel ratio, and
-// browsers cap both a canvas dimension and its total area — past the cap the canvas stops painting
-// entirely rather than failing loudly. A note this long is meant to be converted, not extended.
-const MAX_CANVAS_HEIGHT = 12000;
+
+// Ceiling on the growth, derived rather than fixed — see computeMaxCanvasHeight.
+//
+// Browsers cap a canvas by total bitmap area as well as by either dimension, and past the cap the
+// canvas stops painting entirely rather than failing loudly. The bitmap is allocated at the CSS size
+// times the device pixel ratio, so a constant expressed in CSS pixels silently means four times as
+// much bitmap on a 200 %-scaled tablet and nine times on a 300 % one: the 12000 this replaces
+// allocated a 36000 px-tall bitmap at DPR 3, well past every engine's per-dimension ceiling.
+/** WebKit on iPadOS is the tightest of the three engines, at roughly 16.7 M device pixels. */
+const MAX_BITMAP_AREA = 16_000_000;
+/** Firefox's per-dimension ceiling, the lowest of the three. */
+const MAX_BITMAP_DIMENSION = 32767;
+/**
+ * Floor on the derived ceiling: a surface too short to write on is worse than a large bitmap.
+ *
+ * On a very wide surface the floor wins over the area budget, which is intentional — a width that
+ * pushes the budget below this only occurs on a desktop display, and the desktop engines' real
+ * ceiling is an order of magnitude above the WebKit figure the budget is calibrated on.
+ */
+const MIN_GROWTH_CEILING = 2000;
+
+/**
+ * Largest CSS height the surface may grow to before the bitmap it implies breaks a browser limit.
+ *
+ * The bitmap measures `cssWidth × ratio` by `cssHeight × ratio` device pixels, so the area budget
+ * bounds the CSS height at `budget / (cssWidth × ratio²)`. On a 930 px-wide fullscreen surface at
+ * DPR 2 — a Surface Pro held in portrait — that is about 4300 CSS pixels, on the order of a hundred
+ * handwritten lines. Widening the surface lowers the ceiling, which is exactly the trade the area
+ * budget expresses.
+ */
+function computeMaxCanvasHeight(cssWidth: number, ratio: number): number {
+  const areaBound = MAX_BITMAP_AREA / (cssWidth * ratio * ratio);
+  const dimensionBound = MAX_BITMAP_DIMENSION / ratio;
+  return Math.max(MIN_GROWTH_CEILING, Math.floor(Math.min(areaBound, dimensionBound)));
+}
 
 /**
  * `PointerEvent.buttons` for "the primary tip is in contact and nothing else is pressed".
@@ -38,10 +69,21 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
   const currentPointsRef = useRef<StrokePoint[]>([]);
   const isDrawingRef = useRef(false);
   const strokesRef = useRef(strokes);
+  // Raised when this component's own pen-up hands a stroke up to the parent, so the repaint effect
+  // below can tell that commit apart from a stroke set arriving from anywhere else.
+  const hasJustCommittedRef = useRef(false);
   // Scale factor between the CSS-pixel coordinate space and the device-pixel bitmap, refreshed on
   // every resize. Held in a ref because `redraw` needs it outside the render cycle.
   const pixelRatioRef = useRef(1);
   const [canvasHeight, setCanvasHeight] = useState(INITIAL_CANVAS_HEIGHT);
+  // Growth ceiling for the current width and pixel ratio, recomputed on every resize. A ref rather
+  // than state: it is read from a pointer handler, and writing state from the ResizeObserver's
+  // synchronous first call would add a render pass for a value no render depends on.
+  const maxCanvasHeightRef = useRef(MIN_GROWTH_CEILING);
+  // Whether the surface has refused to grow any further. Surfaced in the hint below, because a
+  // writer who reaches the bottom and finds the sheet no longer extending has no other way to know
+  // that converting is what frees the space.
+  const [hasReachedMaxHeight, setHasReachedMaxHeight] = useState(false);
   // Whether a pen is currently over the surface, which decides `touch-action` — see the JSX below.
   const [isPenPresent, setIsPenPresent] = useState(false);
   // Ref-stabilised so the ResizeObserver effect below never re-subscribes on a parent re-render.
@@ -102,6 +144,16 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
       canvas.width = Math.round(cssWidth * ratio);
       canvas.height = Math.round(cssHeight * ratio);
 
+      // Recomputed here rather than once at mount: entering fullscreen, rotating the tablet or
+      // moving the window to a display of another density all change the width or the ratio, and
+      // each of them moves the ceiling.
+      //
+      // A surface that widens lowers its ceiling below the height already reached — rotating to
+      // landscape mid-note, for instance. The height is deliberately left alone in that case: the
+      // ceiling governs further growth, and shrinking the canvas would drop every stroke below the
+      // new bottom out of the painted area.
+      maxCanvasHeightRef.current = computeMaxCanvasHeight(cssWidth, ratio);
+
       // Stroke coordinates are CSS pixels, so the recognizer is told the CSS-pixel surface — not the
       // bitmap, which is twice as large on a high-density display — including after each growth step.
       onSurfaceResizeRef.current(cssWidth, cssHeight);
@@ -121,14 +173,33 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
   const [renderedStrokeCount, setRenderedStrokeCount] = useState(strokes.length);
   if (renderedStrokeCount !== strokes.length) {
     setRenderedStrokeCount(strokes.length);
-    if (strokes.length === 0) setCanvasHeight(INITIAL_CANVAS_HEIGHT);
+    if (strokes.length === 0) {
+      setCanvasHeight(INITIAL_CANVAS_HEIGHT);
+      setHasReachedMaxHeight(false);
+    }
   }
 
-  // Repaint when the persisted stroke set changes (new stroke committed, undone, or cleared
-  // after conversion). The strokes ref backs `redraw` so the ResizeObserver always
-  // sees the latest set without re-subscribing.
+  // Repaint when the stroke set changes — undone, cleared after conversion, or loaded from a
+  // persisted payload. The strokes ref backs `redraw` so the ResizeObserver always sees the latest
+  // set without re-subscribing.
+  //
+  // A stroke this component just committed is the one case that needs no repaint: its segments were
+  // inked as the pen moved, so the bitmap already holds it. Repainting anyway meant redrawing every
+  // stroke in the note on every pen-up — work that grows with the length of the note, on a surface
+  // whose bitmap is now several thousand pixels tall.
   useEffect(() => {
+    const previous = strokesRef.current;
     strokesRef.current = strokes;
+
+    // Gated on the flag as well as the shape: going from no strokes to a loaded payload also looks
+    // like an append, and that ink has never been painted.
+    const isOwnCommit =
+      hasJustCommittedRef.current &&
+      strokes.length === previous.length + 1 &&
+      previous.every((stroke, index) => stroke === strokes[index]);
+    hasJustCommittedRef.current = false;
+
+    if (isOwnCommit) return;
     redraw();
   }, [strokes]);
 
@@ -140,16 +211,30 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
     return {
       x: clientX - rect.left - canvas.clientLeft,
       y: clientY - rect.top - canvas.clientTop,
-      t: timeStamp,
+      // Shifted onto the epoch clock rather than stored as the page-relative value the event carries.
+      // Strokes outlive the page: they are persisted and written back to across reloads, and
+      // `performance.timeOrigin` restarts with each one — so page-relative stamps from two sessions
+      // of the same note are timed against different clocks, and the recognizer reads the spacing
+      // between them as writing speed and pen lifts.
+      t: performance.timeOrigin + timeStamp,
     };
   }
 
   // Extend the writing surface when a point lands near the current bottom edge.
+  //
+  // Reads `canvasHeight` directly rather than through an updater: one pointermove carries several
+  // coalesced samples, and every call in that batch should measure against the height the surface had
+  // when the batch began. The deepest sample then wins, which is the intended outcome.
   function growIfNearBottom(y: number): void {
-    setCanvasHeight(prev => {
-      if (y <= prev - GROWTH_THRESHOLD || prev >= MAX_CANVAS_HEIGHT) return prev;
-      return Math.min(MAX_CANVAS_HEIGHT, Math.ceil(y) + GROWTH_INCREMENT);
-    });
+    if (y <= canvasHeight - GROWTH_THRESHOLD) return;
+
+    const maxHeight = maxCanvasHeightRef.current;
+    if (canvasHeight >= maxHeight) {
+      if (!hasReachedMaxHeight) setHasReachedMaxHeight(true);
+      return;
+    }
+
+    setCanvasHeight(Math.min(maxHeight, Math.ceil(y) + GROWTH_INCREMENT));
   }
 
   // One segment, one path. The previous implementation kept a single path open for the whole stroke
@@ -189,7 +274,12 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
 
     const points = currentPointsRef.current;
     currentPointsRef.current = [];
-    if (points.length > 0) onStrokesUpdate([...strokes, points]);
+    if (points.length === 0) return;
+
+    // Raised before handing the stroke up: the parent may apply it synchronously, and the repaint
+    // effect must already know this ink is on the bitmap.
+    hasJustCommittedRef.current = true;
+    onStrokesUpdate([...strokes, points]);
   }
 
   // `touch-action` is switched on hover rather than on contact, because the browser decides at
@@ -261,6 +351,14 @@ export function HandwritingCanvas({ strokes, onStrokesUpdate, onSurfaceResize }:
           <> {' · '}{strokes.length} tracé{strokes.length !== 1 ? 's' : ''} capturé{strokes.length !== 1 ? 's' : ''}.</>
         )}
       </p>
+      {/* The surface has stopped extending. Without this the writer just finds the sheet no longer
+          growing under the pen, with nothing to explain why or what to do about it. */}
+      {hasReachedMaxHeight && (
+        <p role="status" aria-live="polite" className="text-xs text-amber-700">
+          La feuille a atteint sa taille maximale. Convertissez vos tracés en texte pour repartir sur
+          une feuille vierge.
+        </p>
+      )}
       <canvas
         ref={canvasRef}
         onPointerEnter={handlePointerEnter}

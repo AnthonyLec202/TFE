@@ -26,3 +26,10 @@ publish/
 *.user
 .DS_Store
 Thumbs.db
+
+# ── Rédaction du TFE ─────────────────────────────────────────────────────────
+# Sources du rapport écrit et ses diagrammes. Hors périmètre du dépôt applicatif : rien ici ne sert
+# à construire ou déployer l'application, et ces fichiers suivent leur propre cycle de révision.
+# Ancrés à la racine pour ne pas masquer un éventuel dossier docs/ d'un sous-projet.
+/docs/
+/rapport.md

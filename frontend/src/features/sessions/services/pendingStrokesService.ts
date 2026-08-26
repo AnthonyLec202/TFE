@@ -86,18 +86,15 @@ export async function getNotesWithPendingStrokes(): Promise<PendingStrokeNote[]>
 /**
  * Recognizes a note's pending strokes and folds the text into its content.
  *
- * @param sessionId       Session owning the note.
- * @param baseContentOverride
- *   Content to append to, when the caller holds a fresher copy than the database — the workspace
- *   editor debounces its saves by a second, so the stored content can lag what is on screen.
- *   Omitted, the persisted content is used.
+ * The transcription is appended to whatever the note holds when the round-trip returns, not to a
+ * snapshot taken before it — so text saved while recognition was in flight survives. Callers holding
+ * an unsaved copy of the content should persist it before calling.
+ *
+ * @param sessionId Session owning the note.
  *
  * @throws {HandwritingRecognitionError} with a message already written for the clinician.
  */
-export async function convertPendingStrokes(
-  sessionId: string,
-  baseContentOverride?: string,
-): Promise<ConversionOutcome> {
+export async function convertPendingStrokes(sessionId: string): Promise<ConversionOutcome> {
   const note = await getNoteForSession(sessionId);
   if (!note) return { status: 'none' };
 
@@ -110,24 +107,31 @@ export async function convertPendingStrokes(
     const pending = parsePendingStrokes(note.unprocessedStrokes);
     if (pending.strokes.length === 0) return { status: 'none' };
 
-    // Snapshot taken before the network round-trip; the write-back below verifies it still holds.
-    const snapshotModifiedAt = note.lastModifiedAt;
+    // Snapshot of exactly what this conversion consumes; the write-back below verifies it still holds.
+    const snapshotStrokes = note.unprocessedStrokes;
 
     const recognized = await recognizeBatch(pending.strokes, pending.width, pending.height);
-    if (recognized.trim().length === 0) return { status: 'empty' };
+    if (recognized.text.trim().length === 0) return { status: 'empty' };
 
     // Re-read: recognition takes seconds, during which a sync pull or another tab may have rewritten
     // the row. Abandoning is the safe outcome — the strokes survive and the clinician can retry —
     // whereas writing would clobber whatever landed in between.
     const current = await getNoteForSession(sessionId);
     if (!current || current.id !== note.id) return { status: 'none' };
-    if (current.lastModifiedAt !== snapshotModifiedAt) {
+
+    // Guarded on the strokes, not on the row's timestamp. The timestamp also moves when the
+    // clinician's own debounced text save lands mid-recognition, which used to abort a round-trip
+    // that had already been billed — over an edit that conflicts with nothing, since the
+    // transcription is appended to the content read below rather than to a snapshot. What does
+    // conflict is the canvas changing underneath: the recognized text would no longer describe the
+    // strokes the note still holds, and clearing them would destroy handwriting nobody transcribed.
+    if (current.unprocessedStrokes !== snapshotStrokes) {
       throw new HandwritingRecognitionError(
-        'La note a été modifiée pendant la conversion. Vos tracés sont conservés : réessayez.',
+        'Les tracés ont changé pendant la conversion. Vos tracés sont conservés : réessayez.',
       );
     }
 
-    const content = appendRecognizedTextToHtml(baseContentOverride ?? current.content, recognized);
+    const content = appendRecognizedTextToHtml(current.content, recognized);
 
     await saveNoteLocally({
       ...current,

@@ -58,10 +58,19 @@ export function SessionWorkspaceContainer() {
   const [editorText, setEditorText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>('keyboard');
+  // Whether the writing surface covers the viewport. Held here rather than in SessionWorkspace so the
+  // presentational component stays props-driven and the two side effects it implies — the Escape
+  // binding and the body scroll lock — live with the rest of the container's effects.
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentStrokes, setCurrentStrokes] = useState<Stroke[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const [conversionError, setConversionError] = useState<string | null>(null);
   const autoCreateAttemptedRef = useRef(false);
+  // The debounced text save still queued, if any: its timer plus the write it would perform.
+  const pendingEditorSaveRef = useRef<{
+    timer: ReturnType<typeof setTimeout>;
+    write: () => Promise<void>;
+  } | null>(null);
   // Live pixel dimensions of the writing surface, reported by the canvas. Sent with the strokes so
   // the recognizer is told the real capture area rather than a fixed constant.
   const surfaceSizeRef = useRef({ width: 0, height: 0 });
@@ -154,13 +163,18 @@ export function SessionWorkspaceContainer() {
   }, [note?.id]);
 
   // Debounced autosave: persist text content to IndexedDB 1 s after the user stops typing.
+  //
+  // The queued write is kept in a ref alongside its timer so a conversion can run it early rather
+  // than race it — see flushPendingEditorSave.
   useEffect(() => {
     if (!note || editorText === (note.content ?? '')) {
       setIsSaving(false);
       return;
     }
     setIsSaving(true);
-    const timer = setTimeout(async () => {
+
+    const write = async () => {
+      pendingEditorSaveRef.current = null;
       // Re-read before writing. `note` was captured when this effect ran; a stroke committed since
       // then has already been persisted, and spreading the stale record would erase it. useLiveQuery
       // does refresh `note`, but asynchronously — the timer can fire first.
@@ -174,9 +188,32 @@ export function SessionWorkspaceContainer() {
       await saveNoteLocally(updated);
       setIsSaving(false);
       runSyncCycle(); // fire-and-forget: attempt immediate sync if online
-    }, 1000);
-    return () => clearTimeout(timer);
+    };
+
+    const timer = setTimeout(() => void write(), 1000);
+    pendingEditorSaveRef.current = { timer, write };
+
+    return () => {
+      clearTimeout(timer);
+      if (pendingEditorSaveRef.current?.timer === timer) pendingEditorSaveRef.current = null;
+    };
   }, [editorText, note, sessionId]);
+
+  /**
+   * Runs the queued text save now instead of waiting out its debounce.
+   *
+   * Called before a conversion. Recognition takes seconds, and a save landing in the middle of it
+   * moved the note's timestamp, which the conversion's conflict check read as somebody else having
+   * rewritten the row — aborting a round-trip the clinician had already paid for, over their own
+   * last keystrokes.
+   */
+  async function flushPendingEditorSave(): Promise<void> {
+    const pending = pendingEditorSaveRef.current;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingEditorSaveRef.current = null;
+    await pending.write();
+  }
 
   // Persist new strokes to Dexie so they survive a page reload before conversion.
   async function handleStrokesUpdate(newStrokes: Stroke[]): Promise<void> {
@@ -200,6 +237,31 @@ export function SessionWorkspaceContainer() {
     surfaceSizeRef.current = { width, height };
   }
 
+  // Escape leaves the fullscreen surface — but only when it is the topmost layer. The tools drawer
+  // and every dialog render above it and bind Escape themselves, so without this guard one keypress
+  // would dismiss both the dialog and the fullscreen surface underneath it.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const isDialogOpen = isToolDrawerOpen || isEditOpen || isConfirmClearOpen || isConfirmDeleteOpen;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isDialogOpen) setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, isToolDrawerOpen, isEditOpen, isConfirmClearOpen, isConfirmDeleteOpen]);
+
+  // The fullscreen surface is fixed-positioned, so the page behind it keeps its own scrollbar and a
+  // finger landing outside the canvas would scroll a document the writer cannot see.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
+
   // Stroke corrections. Both route through handleStrokesUpdate so the shortened set is persisted the
   // same way a new stroke is — otherwise a reload would resurrect what the clinician just removed.
   function handleUndoStroke(): void {
@@ -217,11 +279,14 @@ export function SessionWorkspaceContainer() {
     setIsConverting(true);
     setConversionError(null);
     try {
+      // Land the queued text save before the round-trip starts. The service appends to whatever the
+      // note holds at write-back time, so what matters is that the stored content is current before
+      // recognition begins rather than a second behind the screen.
+      await flushPendingEditorSave();
+
       // Same service the dashboard retry uses, so there is one conversion path rather than two that
-      // can drift. `editorText` is passed as the base because the editor debounces its saves by a
-      // second: the stored content can lag what is on screen, and appending to the stored copy would
-      // silently drop the last keystrokes.
-      const outcome = await convertPendingStrokes(sessionId!, editorText);
+      // can drift.
+      const outcome = await convertPendingStrokes(sessionId!);
 
       // Nothing legible: keep the strokes so the clinician can retry or rewrite, rather than clearing
       // the canvas and appending an empty paragraph.
@@ -333,6 +398,8 @@ export function SessionWorkspaceContainer() {
         conversionError={conversionError}
         isOnline={isOnline}
         canConvert={canConvert}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={() => setIsFullscreen(current => !current)}
         onEdit={handleEditOpen}
         onDelete={() => setIsConfirmDeleteOpen(true)}
         onOpenTools={() => setIsToolDrawerOpen(true)}

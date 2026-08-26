@@ -1,8 +1,11 @@
 import { apiClient, HttpError, NetworkError } from '../../../services/apiClient';
-import type { Stroke } from '../types/handwriting';
+import type { RecognitionResult, RecognizedLine, Stroke } from '../types/handwriting';
+import { normalizeStrokeTimings } from '../utils/strokeTimings';
 
 interface RecognizeHandwritingResponse {
   text: string;
+  /** Absent when talking to an API build that predates per-line layout annotation. */
+  lines?: RecognizedLine[];
 }
 
 /**
@@ -32,20 +35,30 @@ export async function recognizeBatch(
   strokes: Stroke[],
   width: number,
   height: number,
-): Promise<string> {
-  if (strokes.length === 0) return '';
+): Promise<RecognitionResult> {
+  if (strokes.length === 0) return EMPTY_RECOGNITION;
 
   try {
     const response = await apiClient.post<RecognizeHandwritingResponse>(
       '/api/handwriting/recognize',
-      { strokes, width, height },
+      // Timestamps are reconciled at this boundary rather than at capture: a batch persisted across
+      // a page reload can carry two different clocks, and this is the last point where the whole
+      // batch is visible at once. See normalizeStrokeTimings.
+      { strokes: normalizeStrokeTimings(strokes), width, height },
     );
-    // A missing field would otherwise surface far downstream as `undefined.trim()`.
-    return typeof response?.text === 'string' ? response.text : '';
+    // Both fields are normalised here rather than downstream: a missing one would otherwise surface
+    // far away as `undefined.trim()`, and an absent `lines` is the expected shape when this client
+    // runs against an API build that predates the layout annotation.
+    return {
+      text: typeof response?.text === 'string' ? response.text : '',
+      lines: Array.isArray(response?.lines) ? response.lines : [],
+    };
   } catch (error) {
     throw new HandwritingRecognitionError(toClinicianMessage(error), { cause: error });
   }
 }
+
+const EMPTY_RECOGNITION: RecognitionResult = { text: '', lines: [] };
 
 function toClinicianMessage(error: unknown): string {
   if (error instanceof NetworkError) {
