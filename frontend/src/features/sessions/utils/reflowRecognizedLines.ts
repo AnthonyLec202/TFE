@@ -13,11 +13,23 @@
  * they simply ran out of room. An implicit break is a wrap and folds back; an explicit one is a
  * decision and is preserved, as are list items and their bullet flavour.
  *
+ * THE SECOND SIGNAL
+ * The provider's judgement is geometric: it calls a break deliberate whenever room was left at the
+ * end of the previous line. A clinician who habitually writes one or two words per line therefore
+ * produces "deliberate" breaks throughout, and the transcription comes back as a column of
+ * fragments. So a line the provider called deliberate is folded back anyway when the text itself
+ * reads as a continuation — the previous line ends mid-sentence and this one does not start one.
+ * Geometry and language have to agree before a deliberate break is overridden.
+ *
  * THE BIAS
- * Every ambiguity resolves towards keeping lines apart. A missing flag, an unknown bullet kind, an
- * absent annotation — all read as "deliberate". Wrongly splitting a sentence is a cosmetic defect the
- * clinician fixes with one keystroke; wrongly merging two notes destroys the distinction between them
- * in a clinical record. The geometry rule below follows the same bias: it can only ever split.
+ * Missing data resolves towards keeping lines apart: an absent flag, an unknown bullet kind, an
+ * unreadable annotation all read as "deliberate". Only a positive signal merges. Lists are never
+ * overridden — their structure is explicit — and the geometry rule below can only ever split.
+ *
+ * KNOWN COST
+ * A bare heading followed by its content ("Anamnèse" then "difficultés scolaires") reads exactly like
+ * a wrapped sentence and will be merged. Ending the heading with a colon is what separates the two
+ * cases, which is why ":" counts as terminal punctuation here.
  *
  * Pure: no React, no I/O, no DOM.
  */
@@ -37,6 +49,17 @@ export type RecognizedBlock =
  * between the two populations.
  */
 const BLANK_LINE_GAP_RATIO = 1.2;
+
+/**
+ * Punctuation that closes a thought, optionally followed by a closing quote or bracket.
+ *
+ * The colon is deliberately in the set: it is what distinguishes a heading the writer wants on its
+ * own line ("Anamnèse :") from a sentence that merely ran on ("Bonjour,").
+ */
+const SENTENCE_END_PATTERN = /[.!?…:][")\]»']*$/;
+
+/** An uppercase letter opening a line — accents included — reads as the start of a new sentence. */
+const SENTENCE_START_PATTERN = /^\p{Lu}/u;
 
 /** One logical line: a visual line plus every wrapped continuation folded into it. */
 interface LineUnit {
@@ -59,13 +82,15 @@ export function reflowRecognizedLines(lines: RecognizedLine[]): RecognizedBlock[
 
   contentLines.forEach((line, index) => {
     const text = line.text.trim();
+    const openUnit = units[units.length - 1];
 
-    // Only an explicit `false` licenses folding this line into its predecessor. Note the first line
-    // always opens a unit regardless of what it claims: it has nothing to be folded into.
+    // Folded into the line above when the provider reported a wrap, or when the provider called it
+    // deliberate but the text reads as a continuation — and, either way, only if no blank space
+    // separates the two. The first line has no open unit to fold into and always starts one.
     const isWrap =
-      units.length > 0 &&
-      line.isExplicitBreak === false &&
-      !isSeparatedByBlankSpace(contentLines[index - 1], line, medianHeight);
+      openUnit !== undefined &&
+      !isSeparatedByBlankSpace(contentLines[index - 1], line, medianHeight) &&
+      (line.isExplicitBreak === false || continuesOpenUnit(openUnit, line));
 
     if (!isWrap) {
       units.push({
@@ -81,6 +106,23 @@ export function reflowRecognizedLines(lines: RecognizedLine[]): RecognizedBlock[
   });
 
   return groupUnitsIntoBlocks(units);
+}
+
+/**
+ * Whether a line reads as the continuation of the text already accumulated above it, despite the
+ * recognizer having called the break deliberate.
+ *
+ * Tested against the open unit rather than the previous raw line, because earlier lines may already
+ * have been folded into it — what matters is how the text now ends, not how one of its fragments did.
+ *
+ * List structure is never overridden: an item that genuinely wrapped is already reported as implicit,
+ * so anything still marked deliberate here is a new item.
+ */
+function continuesOpenUnit(openUnit: LineUnit, line: RecognizedLine): boolean {
+  if (openUnit.kind === 'listItem' || line.kind === 'listItem') return false;
+  if (openUnit.text.length === 0) return false;
+
+  return !SENTENCE_END_PATTERN.test(openUnit.text) && !SENTENCE_START_PATTERN.test(line.text.trim());
 }
 
 /**
