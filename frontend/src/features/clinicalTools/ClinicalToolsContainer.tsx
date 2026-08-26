@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import type { CreateTherapeuticToolPayload } from '../../types/therapeuticTool';
@@ -12,6 +12,7 @@ import { getUniqueToolTypes, getUniqueToolThemes } from './services/localTherape
 import { ToolFilters } from './components/ToolFilters';
 import { ToolLibrary } from './components/ToolLibrary';
 import { ToolCreationForm } from './components/ToolCreationForm';
+import { sortAssociatedFirst } from './utils/toolOrdering';
 
 /**
  * Optional association context, injected by a consumer that owns a session (e.g. the session
@@ -134,6 +135,14 @@ export function ClinicalToolsContainer({
     }
   }
 
+  // The tools already attached to the session sit at the top of the drawer, so what this séance is
+  // working with is visible without scrolling the whole catalog. A no-op outside a session context,
+  // where no association is supplied.
+  const orderedResults = useMemo(
+    () => sortAssociatedFirst(results ?? [], association?.associatedToolIds),
+    [results, association?.associatedToolIds],
+  );
+
   const filters = (
     <ToolFilters
       search={state.search}
@@ -154,7 +163,7 @@ export function ClinicalToolsContainer({
       <div className="flex flex-col gap-5">
         {filters}
         <ToolLibrary
-          tools={results ?? []}
+          tools={orderedResults}
           isLoading={isLoading}
           associatedToolIds={association?.associatedToolIds}
           pendingToolIds={association?.pendingToolIds}
