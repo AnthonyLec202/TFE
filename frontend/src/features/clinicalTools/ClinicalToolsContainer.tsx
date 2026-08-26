@@ -40,8 +40,10 @@ export interface ClinicalToolsContainerProps {
    */
   isCompactView?: boolean;
   /**
-   * Navigation callback for the master list (main page only): invoked with a tool id when an item is
-   * clicked, so the host page can route to the tool's detail page. Omitted in the compact drawer.
+   * Navigation callback: invoked with a tool id when an item is opened, so the host routes to the
+   * tool's detail page. Drives the whole row on the main page and the title alone in the compact
+   * drawer. A session-owning host passes one that carries the session id in router state, which is
+   * what lets the detail page offer a return path to the séance.
    */
   onSelectTool?: (toolId: string) => void;
 }
@@ -157,6 +159,7 @@ export function ClinicalToolsContainer({
           associatedToolIds={association?.associatedToolIds}
           pendingToolIds={association?.pendingToolIds}
           onToggleAssociation={association?.onToggle}
+          onSelectTool={onSelectTool ? tool => onSelectTool(tool.id) : undefined}
           isCompactView
         />
       </div>

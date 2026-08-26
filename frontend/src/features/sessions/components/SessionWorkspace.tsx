@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Eraser, Keyboard, Loader2, Maximize2, Minimize2, Pencil, PenLine, Sparkles, Trash2, Undo2, WifiOff, X, Wrench } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Eraser, Keyboard, Loader2, Maximize2, Minimize2, Pencil, PenLine, Sparkles, Trash2, Undo2, WifiOff, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { LocalPatientSync, LocalSession } from '../../../core/offline/LocalDatabase';
 import { Button } from '../../../components/ui/Button';
@@ -48,10 +48,8 @@ export interface SessionWorkspaceProps {
   onOpenTools: () => void;
   /** Navigates to the dedicated AI clinical-report split-screen route for this session. */
   onOpenAiReport: () => void;
-  /** Tools currently associated with this session, listed under the note. */
-  associatedTools: { id: string; title: string; isPending: boolean }[];
-  /** Removes a tool from the active session directly from the workspace (no drawer round-trip). */
-  onUnlinkTool: (toolId: string) => void;
+  /** How many tools are attached to this session, shown as a badge on the Outils control. */
+  associatedToolCount: number;
 }
 
 export function SessionWorkspace({
@@ -61,7 +59,7 @@ export function SessionWorkspace({
   onConvertToText, isConverting, conversionError, isOnline, canConvert,
   isFullscreen, onToggleFullscreen,
   onEdit, onDelete, onOpenTools, onOpenAiReport,
-  associatedTools, onUnlinkTool,
+  associatedToolCount,
 }: SessionWorkspaceProps) {
   const convertButtonDisabled = !canConvert;
 
@@ -290,13 +288,14 @@ export function SessionWorkspace({
             <Sparkles className="h-3.5 w-3.5" />
             Compte Rendu IA
           </Button>
-          {/* The catalog's entry point now that the tools no longer occupy a lateral column. */}
+          {/* The catalog's only entry point from the workspace: browsing, attaching and detaching
+              all happen in the drawer, and each tool's title there opens its own page. */}
           <Button variant="ghost" size="sm" onClick={onOpenTools}>
             <Wrench className="h-3.5 w-3.5" />
             Outils
-            {associatedTools.length > 0 && (
+            {associatedToolCount > 0 && (
               <span className="rounded-full bg-sand-200 px-1.5 text-[11px] font-semibold text-ink">
-                {associatedTools.length}
+                {associatedToolCount}
               </span>
             )}
           </Button>
@@ -316,10 +315,9 @@ export function SessionWorkspace({
         </div>
       </div>
 
-      {/* Note editor, full width. The associated tools sit underneath rather than in a lateral
-          column: at the widths these tablets report in portrait the column was already suppressed,
-          and on wider viewports it was taking 300 px away from the writing surface for a list that
-          is consulted, not used, while writing. */}
+      {/* Note editor, full width. The session's tools are reached through the Outils control above,
+          which opens the catalog in a side drawer: attaching, detaching and opening a tool's own page
+          all happen there, so nothing competes with the writing surface for room on this page. */}
       <Card className="overflow-hidden">
         {inputMode === 'keyboard' ? (
           surfaceContent
@@ -329,60 +327,6 @@ export function SessionWorkspace({
             {surfaceContent}
           </div>
         )}
-      </Card>
-
-      {/* Tools associated with this session. */}
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between border-b border-sand-200 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-3.5 w-3.5 text-petrol-600" strokeWidth={1.85} />
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-taupe-500">
-              Outils de la séance
-            </h2>
-          </div>
-          <Button variant="secondary" size="sm" onClick={onOpenTools}>
-            Associer un outil
-          </Button>
-        </div>
-        <div className="p-3">
-          {associatedTools.length === 0 ? (
-            <p className="px-1 py-2 text-sm text-taupe-400">
-              Aucun outil associé à cette séance.
-            </p>
-          ) : (
-            <ul className="flex flex-wrap gap-2">
-              {associatedTools.map(tool => (
-                <li
-                  key={tool.id}
-                  className="flex items-center gap-2 rounded-lg border border-sand-200 bg-sand-50 px-3 py-2"
-                >
-                  {/* Open the tool's detail view, carrying the originating session id in router
-                      state so the detail view can offer a "back to session" return path. */}
-                  <Link
-                    to={`/clinical-tools/${tool.id}`}
-                    state={{ fromSessionId: session.id }}
-                    className="min-w-0 max-w-[18rem] truncate text-sm font-medium text-ink transition-colors hover:text-petrol-600 hover:underline"
-                  >
-                    {tool.title}
-                  </Link>
-                  {/* Direct, on-page unlink — no need to open the drawer to deselect. */}
-                  <button
-                    type="button"
-                    onClick={() => onUnlinkTool(tool.id)}
-                    disabled={tool.isPending}
-                    aria-label={`Retirer ${tool.title} de la séance`}
-                    title="Retirer de la séance"
-                    className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-taupe-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {tool.isPending
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <X className="h-3.5 w-3.5" />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </Card>
     </div>
   );

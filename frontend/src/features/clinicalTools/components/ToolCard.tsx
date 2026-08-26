@@ -22,8 +22,9 @@ export interface ToolCardProps {
    */
   isCompactView?: boolean;
   /**
-   * Master-list mode (main page): the whole card becomes a clickable item that navigates to the
-   * tool's detail page. The clinical content (description, grading strategies) lives on that page.
+   * Navigates to the tool's detail page, where the clinical content (description, grading strategies)
+   * lives. Drives the whole card in master-list mode, and the title alone in compact mode, where the
+   * rest of the row belongs to the association toggle.
    */
   onSelect?: (tool: LocalTherapeuticTool) => void;
 }
@@ -46,7 +47,9 @@ export function ToolCard({
   );
 
   // ── Master-list mode: a clickable item navigating to the detail page ──
-  if (onSelect) {
+  // Compact rows opt out: there the row carries the association toggle, so making the whole card a
+  // button would nest an interactive element inside another one.
+  if (onSelect && !isCompactView) {
     return (
       <div
         role="button"
@@ -91,7 +94,22 @@ export function ToolCard({
   return (
     <Card className="flex flex-col gap-0 p-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{tool.title}</h3>
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+          {onSelect ? (
+            // The title opens the tool's own page. A clinician who pulls the drawer open mid-session
+            // is often there to read a tool's content, not only to attach it to the note.
+            <button
+              type="button"
+              onClick={() => onSelect(tool)}
+              title={`Ouvrir « ${tool.title} »`}
+              className="block w-full truncate text-left transition-colors hover:text-petrol-600 hover:underline"
+            >
+              {tool.title}
+            </button>
+          ) : (
+            tool.title
+          )}
+        </h3>
         <div className="flex shrink-0 items-center gap-1.5">
           {association && (
             <AssociationToggle

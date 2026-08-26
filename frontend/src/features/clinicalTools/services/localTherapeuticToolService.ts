@@ -78,13 +78,6 @@ export async function getUniqueToolThemes(): Promise<string[]> {
   return (keys as string[]).filter(value => value.trim() !== '');
 }
 
-export async function getToolsByIds(ids: string[]): Promise<LocalTherapeuticTool[]> {
-  if (ids.length === 0) return [];
-  return db.therapeuticTools.bulkGet(ids).then(tools =>
-    tools.filter((tool): tool is LocalTherapeuticTool => tool !== undefined),
-  );
-}
-
 /**
  * Writes a single tool into the local mirror (e.g. immediately after an admin create), so the
  * reactive catalog reflects it without waiting for the next full hydration. Local-first.

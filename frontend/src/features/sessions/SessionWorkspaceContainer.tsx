@@ -8,7 +8,7 @@ import {
   updateSessionLocally, deleteSessionLocally,
   associateToolToSession, dissociateToolFromSession,
 } from './services/localSessionService';
-import { ClinicalToolsContainer, getToolsByIds } from '../clinicalTools';
+import { ClinicalToolsContainer } from '../clinicalTools';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import { useNetworkStatus } from '../../core/offline/hooks/useNetworkStatus';
@@ -97,13 +97,6 @@ export function SessionWorkspaceContainer() {
   );
   const [pendingToolIds, setPendingToolIds] = useState<Set<string>>(new Set());
 
-  // Resolve the associated tool ids into records (live) so the persistent workspace sidebar can list
-  // their titles. Re-runs when the session's toolIds change or the catalog mirror is (re)hydrated.
-  const associatedTools = useLiveQuery(
-    () => getToolsByIds(session?.toolIds ?? []),
-    [session?.toolIds],
-  );
-
   // The "Mes Outils" catalog is presented on-demand in a side drawer rather than stacked under the
   // note editor, keeping the clinical writing surface uncluttered.
   const [isToolDrawerOpen, setIsToolDrawerOpen] = useState(false);
@@ -125,13 +118,6 @@ export function SessionWorkspaceContainer() {
         return next;
       });
     }
-  }
-
-  // Direct unlink from the workspace sidebar. Reuses handleToggleTool (the tool is currently
-  // associated, so the toggle dissociates it) by resolving the full record from the live list.
-  function handleUnlinkTool(toolId: string): void {
-    const tool = (associatedTools ?? []).find(t => t.id === toolId);
-    if (tool) void handleToggleTool(tool);
   }
 
   // Auto-create the note record when the session is loaded and no note exists yet.
@@ -404,12 +390,7 @@ export function SessionWorkspaceContainer() {
         onDelete={() => setIsConfirmDeleteOpen(true)}
         onOpenTools={() => setIsToolDrawerOpen(true)}
         onOpenAiReport={() => navigate(`/sessions/${session.id}/report`)}
-        associatedTools={(associatedTools ?? []).map(tool => ({
-          id: tool.id,
-          title: tool.title,
-          isPending: pendingToolIds.has(tool.id),
-        }))}
-        onUnlinkTool={handleUnlinkTool}
+        associatedToolCount={associatedToolIds.size}
       />
 
       {/* "Mes Outils" scoped to this session, presented on-demand in a side drawer. The catalog
@@ -428,6 +409,12 @@ export function SessionWorkspaceContainer() {
             pendingToolIds,
             onToggle: handleToggleTool,
           }}
+          // Opening a tool from here carries this session's id in router state, which is what lets
+          // the tool's page offer a return path to the séance rather than dropping the clinician back
+          // into the catalog mid-consultation.
+          onSelectTool={toolId =>
+            navigate(`/clinical-tools/${toolId}`, { state: { fromSessionId: session.id } })
+          }
         />
       </Drawer>
 
