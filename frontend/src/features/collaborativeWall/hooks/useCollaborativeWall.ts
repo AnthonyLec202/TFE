@@ -19,10 +19,17 @@ export function useCollaborativeWall(patientId: string): UseCollaborativeWallRes
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    let ignore = false;
+  // The request key is held in state so the switch back to "loading" happens during the render that
+  // changes patientId, instead of after a commit that would briefly show the previous wall.
+  const [requestedPatientId, setRequestedPatientId] = useState(patientId);
+  if (requestedPatientId !== patientId) {
+    setRequestedPatientId(patientId);
     setLoading(true);
     setError('');
+  }
+
+  useEffect(() => {
+    let ignore = false;
     getWall(patientId)
       .then(data => { if (!ignore) setPosts(data); })
       .catch(() => { if (!ignore) setError('Impossible de charger le mur collaboratif.'); })

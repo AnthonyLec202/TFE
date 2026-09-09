@@ -108,7 +108,13 @@ export function DatePicker({
   // The text input is the source of truth while typing; it is re-synced whenever `value` changes
   // externally (e.g. a calendar pick), but stays untouched during partial/in-progress entry.
   const [text, setText] = useState(() => isoToDisplay(value));
-  useEffect(() => setText(isoToDisplay(value)), [value]);
+  // Re-synced during render rather than from an effect: an effect would commit the stale text first,
+  // then immediately re-render with the new one — a visible flicker on every external change.
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (syncedValue !== value) {
+    setSyncedValue(value);
+    setText(isoToDisplay(value));
+  }
 
   // Close on outside click or Escape, mirroring a Popover primitive.
   useEffect(() => {

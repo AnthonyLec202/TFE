@@ -67,7 +67,8 @@ export function SessionCard({ session, patientsById, onCompleteSession }: Sessio
       const next = nextStatus(previous[patientId]);
       if (next === undefined) {
         // Remove the key entirely so the undefined-check in allPatientsRated stays clean.
-        const { [patientId]: _removed, ...rest } = previous;
+        const rest = { ...previous };
+        delete rest[patientId];
         return rest;
       }
       return { ...previous, [patientId]: next };

@@ -56,7 +56,6 @@ export function SessionWorkspaceContainer() {
   }, [patients]);
 
   const [editorText, setEditorText] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const [inputMode, setInputMode] = useState<InputMode>('keyboard');
   // Whether the writing surface covers the viewport. Held here rather than in SessionWorkspace so the
   // presentational component stays props-driven and the two side effects it implies — the Escape
@@ -139,25 +138,31 @@ export function SessionWorkspaceContainer() {
     saveNoteLocally(newNote);
   }, [session, note, sessionId]);
 
-  // Reset all editor state when navigating to a different session.
-  // Keyed on note identity to avoid overwriting in-progress edits on the same session.
-  useEffect(() => {
+  // Reset all editor state when navigating to a different session. Keyed on note identity to avoid
+  // overwriting in-progress edits on the same session, and performed during render so the incoming
+  // session never paints with the previous one's text for a frame.
+  const [loadedNoteId, setLoadedNoteId] = useState<string | null>(null);
+  if ((note?.id ?? null) !== loadedNoteId) {
+    setLoadedNoteId(note?.id ?? null);
     setEditorText(note?.content ?? '');
     setCurrentStrokes(parsePendingStrokes(note?.unprocessedStrokes).strokes);
-    setIsSaving(false);
+  }
+
+  // The auto-create guard is a ref, which may not be written from render — it is re-armed here.
+  useEffect(() => {
     autoCreateAttemptedRef.current = false;
   }, [note?.id]);
+
+  // "Saving" is derived, not held: it is exactly the condition of the editor text differing from what
+  // the note holds. A separate flag could only drift from the state it was meant to report.
+  const isSaving = !!note && editorText !== (note.content ?? '');
 
   // Debounced autosave: persist text content to IndexedDB 1 s after the user stops typing.
   //
   // The queued write is kept in a ref alongside its timer so a conversion can run it early rather
   // than race it — see flushPendingEditorSave.
   useEffect(() => {
-    if (!note || editorText === (note.content ?? '')) {
-      setIsSaving(false);
-      return;
-    }
-    setIsSaving(true);
+    if (!note || editorText === (note.content ?? '')) return;
 
     const write = async () => {
       pendingEditorSaveRef.current = null;
@@ -172,7 +177,6 @@ export function SessionWorkspaceContainer() {
         lastModifiedAt: new Date().toISOString(),
       };
       await saveNoteLocally(updated);
-      setIsSaving(false);
       runSyncCycle(); // fire-and-forget: attempt immediate sync if online
     };
 

@@ -18,12 +18,19 @@ export function CareTeamContainer({ patientId, isAdmin, isOpen, onClose }: Props
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   // Fetch the care team each time the modal opens, so the list reflects any recent changes.
+  const [requested, setRequested] = useState({ isOpen, patientId });
+  if (requested.isOpen !== isOpen || requested.patientId !== patientId) {
+    setRequested({ isOpen, patientId });
+    if (isOpen) {
+      setLoading(true);
+      setError('');
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return;
 
     let ignore = false;
-    setLoading(true);
-    setError('');
     getCareTeam(patientId)
       .then(data => { if (!ignore) setMembers(data); })
       .catch(() => { if (!ignore) setError('Impossible de charger l\'équipe.'); })

@@ -22,7 +22,11 @@ export function useCollaborativeWallSocket(
   // Ref-stabilised callbacks prevent the connection from being torn down and rebuilt
   // whenever the parent renders a new function instance.
   const callbacksRef = useRef(callbacks);
-  callbacksRef.current = callbacks;
+  // Refreshed after commit rather than during render: the handlers below only read this ref from
+  // SignalR events, which never fire during a render pass.
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  });
 
   useEffect(() => {
     if (!isInitialized || !isAuthenticated) return;

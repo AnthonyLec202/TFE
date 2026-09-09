@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Download, FileText, MessageSquare, Paperclip, Pencil, Send, Trash2, X } from 'lucide-react';
 import type { PostResponse } from '../../../types/wall';
 import { Button } from '../../../components/ui/Button';
@@ -75,12 +75,15 @@ export function PostCard({
   }
 
   // Re-sync visibility state when the post is replaced externally (e.g. parent mutation),
-  // but only while the edit form is closed to avoid discarding in-progress edits.
-  useEffect(() => {
+  // but only while the edit form is closed to avoid discarding in-progress edits. Tracked as a pair
+  // so leaving edit mode re-syncs too, exactly as the previous effect's dependency list did.
+  const [syncedVisibility, setSyncedVisibility] = useState({ excludedRoles: post.excludedRoles, editing });
+  if (syncedVisibility.excludedRoles !== post.excludedRoles || syncedVisibility.editing !== editing) {
+    setSyncedVisibility({ excludedRoles: post.excludedRoles, editing });
     if (!editing) {
       setVisibleToRoles(blacklistToWhitelist(post.excludedRoles));
     }
-  }, [post.excludedRoles, editing]);
+  }
 
   function enterEdit() {
     setEditContent(post.content);

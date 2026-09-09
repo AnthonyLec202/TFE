@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import type { LocalTherapeuticTool } from '../../core/offline/LocalDatabase';
 import type { CreateTherapeuticToolPayload } from '../../types/therapeuticTool';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { useAuth } from '../auth';
 import { useTherapeuticToolSearch } from './hooks/useTherapeuticToolSearch';
 import { syncTherapeuticToolsFromServer } from './services/therapeuticToolSyncService';

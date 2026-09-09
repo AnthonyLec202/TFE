@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createComment, createCommentWithAttachments, deletePost, updatePost } from '../../services/wallService';
 import type { CommentResponse, PostResponse } from '../../types/wall';
 import type { PatientUserRole } from '../../types/patient';
@@ -28,9 +28,12 @@ export function PostCardContainer({
 
   // Re-sync local comments when the post prop is replaced by the parent (e.g. after a sibling mutation
   // triggers updatePostState and the server returns a new post object with updated comment data).
-  useEffect(() => {
+  // Performed during render: an effect would show the previous comment list for one commit first.
+  const [syncedComments, setSyncedComments] = useState(post.comments);
+  if (syncedComments !== post.comments) {
+    setSyncedComments(post.comments);
     setComments(post.comments);
-  }, [post.comments]);
+  }
 
   const isPurged = post.content === PURGED_CONTENT;
   const isAdmin = userRole === 'Admin';

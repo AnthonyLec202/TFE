@@ -20,11 +20,15 @@ export function Drawer({ open, onClose, title, children, widthClass = 'max-w-xl'
   // the right rather than appearing instantly.
   const [entered, setEntered] = useState(false);
 
+  // Collapsed during render on close, so the transition class is already off for the next paint.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) setEntered(false);
+  }
+
   useEffect(() => {
-    if (!open) {
-      setEntered(false);
-      return;
-    }
+    if (!open) return;
     const frame = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(frame);
   }, [open]);

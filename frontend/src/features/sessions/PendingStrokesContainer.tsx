@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { runSyncCycle } from '../../core/offline/syncEngine';
 import {
   getNotesWithPendingStrokes,

@@ -20,18 +20,26 @@ export function useGlobalNotifications(): UseGlobalNotificationsResult {
   const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Same reasoning as the wall: the loading flag is raised during the render that opens the session,
+  // not from the effect that performs the fetch.
+  const canFetch = isInitialized && isAuthenticated;
+  const [fetchingFor, setFetchingFor] = useState(canFetch);
+  if (fetchingFor !== canFetch) {
+    setFetchingFor(canFetch);
+    if (canFetch) setLoading(true);
+  }
+
   useEffect(() => {
-    if (!isInitialized || !isAuthenticated) return;
+    if (!canFetch) return;
 
     let ignore = false;
-    setLoading(true);
     getUnreadNotifications()
       .then(data => { if (!ignore) setNotifications(data); })
       .catch(() => { /* the bell simply stays empty if the initial fetch fails */ })
       .finally(() => { if (!ignore) setLoading(false); });
 
     return () => { ignore = true; };
-  }, [isInitialized, isAuthenticated]);
+  }, [canFetch]);
 
   useEffect(() => {
     if (!isInitialized || !isAuthenticated) return;

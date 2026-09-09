@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   getApiReachabilitySnapshot,
   subscribeApiReachability,
@@ -6,13 +6,12 @@ import {
   reportApiUnreachable,
 } from './apiReachability';
 import { pingApi } from '../../services/healthService';
+import { NetworkStateContext } from './networkStateContext';
 
 // How often the background poll re-checks the backend. Short enough that recovery/outage is noticed
 // quickly, long enough not to spam the server.
 const POLL_INTERVAL_MS = 15_000;
 
-// `null` distinguishes "no provider mounted" from a real boolean value.
-const NetworkStateContext = createContext<boolean | null>(null);
 
 /**
  * Single, hoisted source of truth for backend reachability. Mounted ABOVE the Router so its state
@@ -68,17 +67,4 @@ export function NetworkStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return <NetworkStateContext.Provider value={isOnline}>{children}</NetworkStateContext.Provider>;
-}
-
-/**
- * Reads the global reachability state synchronously. `true` while the backend is believed reachable,
- * `false` when the browser is offline or the backend is unreachable. Must be called within a
- * NetworkStateProvider. Pages consume this instead of pinging on their own.
- */
-export function useGlobalNetworkState(): boolean {
-  const value = useContext(NetworkStateContext);
-  if (value === null) {
-    throw new Error('useGlobalNetworkState must be used within a NetworkStateProvider');
-  }
-  return value;
 }

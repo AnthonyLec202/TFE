@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { getToolById } from './services/localTherapeuticToolService';
 import { updateTool } from './services/therapeuticToolCommandService';
 import { ToolDetailEditor, type ToolSaveState } from './components/ToolDetailEditor';
@@ -38,29 +38,31 @@ export function ToolDetailContainer({ toolId, onBack, backLabel }: ToolDetailCon
   const [upGradingStrategy, setUpGradingStrategy] = useState('');
   const [saveState, setSaveState] = useState<ToolSaveState>('idle');
 
-  // True once the user has actually edited a field since this tool loaded. Gates the debounce effect
-  // so simply populating the fields on mount never fires a redundant PUT.
-  const hasEditedRef = useRef(false);
+  // Which tool currently populates the fields, and whether the user has edited them since it loaded.
+  // `hasEdited` gates the debounce effect so simply populating the fields never fires a redundant
+  // PUT. Both live in one state rather than a ref because the re-hydration below runs during render,
+  // where a ref may not be written.
+  const [hydration, setHydration] = useState<{ toolId: string | null; hasEdited: boolean }>({
+    toolId: null,
+    hasEdited: false,
+  });
 
   // (Re)hydrate the editable fields whenever a *different* tool is loaded — keyed on id only, so our
   // own auto-save (which rewrites this very Dexie row) does not re-run this and clobber live edits.
-  useEffect(() => {
-    if (!tool) return;
+  if (tool && hydration.toolId !== tool.id) {
+    setHydration({ toolId: tool.id, hasEdited: false });
     setDescription(tool.description);
     setDownGradingStrategy(tool.downGradingStrategy);
     setUpGradingStrategy(tool.upGradingStrategy);
-    hasEditedRef.current = false;
     setSaveState('idle');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool?.id]);
+  }
 
   // Debounced auto-save: every keystroke re-arms a 1s timer; when typing pauses, persist locally
   // (optimistic) and push the PUT. Mirrors the session-note editor's effect.
   useEffect(() => {
     // Skip while offline: inputs are disabled in that mode, and a PUT would only fail. If the network
     // drops mid-debounce, the isOnline change re-runs this effect and the cleanup clears the timer.
-    if (!tool || !hasEditedRef.current || !isOnline) return;
-    setSaveState('saving');
+    if (!tool || !hydration.hasEdited || !isOnline) return;
     const timer = setTimeout(async () => {
       try {
         await updateTool(tool.id, {
@@ -82,8 +84,11 @@ export function ToolDetailContainer({ toolId, onBack, backLabel }: ToolDetailCon
   }, [description, downGradingStrategy, upGradingStrategy, isOnline]);
 
   // Wrap each setter so editing flips the dirty flag that arms the auto-save.
+  // The keystroke both arms the auto-save and announces it. Announcing it here rather than from the
+  // debounce effect keeps the state change in the event that caused it.
   const edit = (setter: (value: string) => void) => (value: string) => {
-    hasEditedRef.current = true;
+    setHydration(previous => (previous.hasEdited ? previous : { ...previous, hasEdited: true }));
+    if (isOnline) setSaveState('saving');
     setter(value);
   };
 

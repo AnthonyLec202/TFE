@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { LoginForm } from './components/LoginForm';
 
 interface Props {

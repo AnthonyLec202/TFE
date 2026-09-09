@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { getAllSessions, getAllLocalPatients, closeSessionLocally } from './services/localSessionService';
 import type { LocalPatientSync, LocalSessionAttendance } from '../../core/offline/LocalDatabase';
 import { runSyncCycle } from '../../core/offline/syncEngine';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { OfflinePill } from '../../components/ui/OfflinePill';
 import {
   groupSessionsByWeek, groupSessionsByMonth,

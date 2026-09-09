@@ -14,7 +14,7 @@ import { createPatientWithOfflineFallback } from './services/offlinePatientQueue
 import { upsertLocalPatient, togglePatientArchiveStatus } from './services/localPatientService';
 import { getPatientTerminology } from './utils/patientTerminology';
 import { runSyncCycle } from '../../core/offline/syncEngine';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 
 // The id is generated at submission, so the editable form state omits it.
 type PatientFormState = Omit<CreatePatientPayload, 'id'>;
@@ -117,30 +117,46 @@ export function DashboardContainer({ onSelectPatient, onJoinPatient, mode = 'act
   // A single runSyncCycle() pushes all pending mutations and then, in its post-sync phase, pulls the
   // authoritative patient list back into db.patients — one cycle, one GET. MainLayout stays mounted
   // across navigation, so this remount is the trigger that refreshes the cache on return.
-  const reconnectAndLoad = useCallback(async () => {
-    // Read the global state first: if we already know the backend is unreachable, do NOT attempt the
-    // request. The offline UI is driven by isOnline, not by a doomed fetch's failure.
-    if (!isOnline) return;
-    setSyncing(true);
+  // Runs one cycle and lowers the badge when it settles. Raising the badge is left to the caller, so
+  // the automatic path below can raise it during render rather than from inside an effect.
+  const runSync = useCallback(async () => {
     try {
       await runSyncCycle(); // never throws; offline status is owned by the global state, not its result
     } finally {
       setSyncing(false);
     }
-  }, [isOnline]);
+  }, []);
+
+  // Manual retry from the error panel — an event handler, so it raises the badge itself. Reads the
+  // global state first: if we already know the backend is unreachable, do NOT attempt the request.
+  // The offline UI is driven by isOnline, not by a doomed fetch's failure.
+  const reconnectAndLoad = useCallback(() => {
+    if (!isOnline) return;
+    setSyncing(true);
+    void runSync();
+  }, [isOnline, runSync]);
 
   // Wait for auth to be initialized (token restored AND applied to the API client) before syncing,
   // otherwise the request races ahead of the token on a fresh page load and 401s. Re-runs when
   // connectivity returns (isOnline → true), so the cache refreshes automatically on reconnect.
+  const shouldSync = isInitialized && isOnline;
+  const [syncGate, setSyncGate] = useState(false);
+  if (syncGate !== shouldSync) {
+    setSyncGate(shouldSync);
+    if (shouldSync) setSyncing(true);
+  }
+
   useEffect(() => {
-    if (!isInitialized || !isOnline) return;
-    reconnectAndLoad();
-  }, [isInitialized, isOnline, reconnectAndLoad]);
+    if (!shouldSync) return;
+    void runSync();
+  }, [shouldSync, runSync]);
 
   // Once connectivity returns the dossier is reachable again, so retract the offline access notice.
-  useEffect(() => {
+  const [noticeOnline, setNoticeOnline] = useState(isOnline);
+  if (noticeOnline !== isOnline) {
+    setNoticeOnline(isOnline);
     if (isOnline) setAccessNotice('');
-  }, [isOnline]);
+  }
 
   // Connectivity guard for the Archives view. Offline, an archived dossier cannot be decrypted, so we
   // refuse the navigation and surface the reason instead of routing to a screen that would only error.

@@ -114,6 +114,27 @@ export interface QueuedPatientCreation {
  * transaction, which cannot survive an await on a native promise. See the header of
  * `recordEncryption.ts` for the full rationale.
  */
+/**
+ * Row shapes handled by the schema upgrades below. A migration reads columns that the current
+ * `LocalSession` no longer declares, so each version gets a minimal type describing exactly the
+ * fields it touches — narrower and safer than `any`, which would silence every typo.
+ */
+interface LegacySessionV5 {
+  isCompleted?: boolean;
+  status?: SessionStatus;
+}
+
+interface LegacySessionV6 {
+  status?: SessionStatus;
+  patientIds?: string[];
+  isClosed?: boolean;
+  attendances?: LocalSessionAttendance[];
+}
+
+interface LegacySessionV7 {
+  toolIds?: string[];
+}
+
 class ClinicalAppDatabase extends Dexie {
   sessions!: Table<LocalSession, string>;
   notes!: Table<LocalNote, string>;
@@ -156,7 +177,7 @@ class ClinicalAppDatabase extends Dexie {
       patients: 'id, searchableName',
       offlinePatientQueue: 'id, queuedAt',
     }).upgrade(async tx => {
-      await tx.table('sessions').toCollection().modify((session: any) => {
+      await tx.table('sessions').toCollection().modify((session: LegacySessionV5) => {
         session.status = session.isCompleted ? SessionStatus.Completed : SessionStatus.Scheduled;
         delete session.isCompleted;
       });
@@ -171,7 +192,7 @@ class ClinicalAppDatabase extends Dexie {
       patients: 'id, searchableName',
       offlinePatientQueue: 'id, queuedAt',
     }).upgrade(async tx => {
-      await tx.table('sessions').toCollection().modify((session: any) => {
+      await tx.table('sessions').toCollection().modify((session: LegacySessionV6) => {
         const previousStatus: SessionStatus = session.status ?? SessionStatus.Scheduled;
         const isClosed = previousStatus !== SessionStatus.Scheduled;
         const primaryPatientId: string | undefined = Array.isArray(session.patientIds) ? session.patientIds[0] : undefined;
@@ -194,7 +215,7 @@ class ClinicalAppDatabase extends Dexie {
       offlinePatientQueue: 'id, queuedAt',
       therapeuticTools: 'id, type, theme',
     }).upgrade(async tx => {
-      await tx.table('sessions').toCollection().modify((session: any) => {
+      await tx.table('sessions').toCollection().modify((session: LegacySessionV7) => {
         if (!Array.isArray(session.toolIds)) session.toolIds = [];
       });
     });

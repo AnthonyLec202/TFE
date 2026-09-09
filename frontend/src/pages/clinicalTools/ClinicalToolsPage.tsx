@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ClinicalToolsContainer } from '../../features/clinicalTools';
-import { useGlobalNetworkState } from '../../core/offline/NetworkStateProvider';
+import { useGlobalNetworkState } from '../../core/offline/hooks/useGlobalNetworkState';
 import { OfflinePill } from '../../components/ui/OfflinePill';
 
 export function ClinicalToolsPage() {
