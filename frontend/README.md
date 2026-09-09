@@ -1,73 +1,36 @@
-# React + TypeScript + Vite
+# Kideo — client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Application React de la plateforme Kideo : interface progressive (PWA), miroir local chiffré et
+synchronisation différée. **La documentation du projet — présentation, prérequis, démarrage des deux
+tiers, variables de configuration, conventions d'architecture — se trouve dans le
+[README à la racine du dépôt](../README.md).**
 
-Currently, two official plugins are available:
+## Démarrage rapide
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+L'API doit tourner au préalable (voir le README racine).
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env
+npm install
+npm run dev            # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Commandes
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Commande | Effet |
+|---|---|
+| `npm run dev` | Serveur de développement, avec proxy de `/api`, `/hubs` et `/health` |
+| `npm run build` | `tsc -b` en mode strict puis build de production |
+| `npm run test` | Suite unitaire Vitest |
+| `npm run lint` | ESLint |
+| `npm run preview` | Sert le bundle de production |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Repères
+
+- `src/features/<domaine>/` — code groupé par domaine, scission conteneur / présentation
+- `src/core/offline/` — base locale Dexie, moteur de synchronisation, chiffrement au repos
+- `src/services/` — clients HTTP bruts partagés
+- `src/pages/` — coquilles de route, sans logique
+
+`VITE_API_URL` doit rester **vide** : le client vise sa propre origine, qui relaie l'API. Une URL
+absolue rétablit un appel inter-site et la session est alors perdue sur les navigateurs mobiles.
