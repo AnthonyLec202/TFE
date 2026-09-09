@@ -207,7 +207,7 @@ public class PatientService : IPatientService
         // The patient's administrator (the neuropsychologist) anchors the record and must not be
         // removed — doing so would orphan the patient.
         if (CareTeamRoleResolver.IsAdmin(membership))
-            throw new InvalidOperationException("The patient's administrator cannot be removed from the care team.");
+            throw new InvalidOperationException("L'administrateur du patient ne peut pas être retiré de l'équipe de soin.");
 
         _careTeamRepository.Remove(membership);
         await _unitOfWork.SaveChangesAsync();
@@ -219,7 +219,7 @@ public class PatientService : IPatientService
             ?? throw new KeyNotFoundException($"Care-team member {userId} not found for patient {patientId}.");
 
         if (CareTeamRoleResolver.IsAdmin(membership))
-            throw new InvalidOperationException("The patient's administrator cannot leave the care team.");
+            throw new InvalidOperationException("L'administrateur du patient ne peut pas quitter l'équipe de soin.");
 
         _careTeamRepository.Remove(membership);
         await _unitOfWork.SaveChangesAsync();

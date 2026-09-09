@@ -28,16 +28,16 @@ public class InvitationService : IInvitationService
         var tokenHash = HashToken(secretCode.Trim());
 
         var token = await _tokenRepository.FindByHashAsync(tokenHash)
-            ?? throw new InvalidOperationException("Invalid or already used invitation code.");
+            ?? throw new InvalidOperationException("Code d'invitation invalide ou déjà utilisé.");
 
         if (token.IsUsed)
-            throw new InvalidOperationException("This invitation code has already been used.");
+            throw new InvalidOperationException("Ce code d'invitation a déjà été utilisé.");
 
         if (token.ExpiresAt < DateTime.UtcNow)
-            throw new InvalidOperationException("This invitation code has expired.");
+            throw new InvalidOperationException("Ce code d'invitation a expiré.");
 
         if (await _careTeamRepository.IsUserInCareTeamAsync(userId, token.PatientId))
-            throw new InvalidOperationException("You are already a member of this patient's care team.");
+            throw new InvalidOperationException("Vous faites déjà partie de l'équipe de soin de ce patient.");
 
         var careTeam = new CareTeam
         {

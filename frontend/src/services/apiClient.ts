@@ -13,8 +13,8 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * without depending on fetch's native failure types (TypeError / DOMException).
  */
 export class NetworkError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'NetworkError';
   }
 }
@@ -53,15 +53,15 @@ class ApiClient {
     try {
       return await fetch(`${API_BASE}${path}`, { ...init, credentials: 'include' });
     } catch (err) {
-      throw new NetworkError(err instanceof Error ? err.message : 'Network request failed');
+      throw new NetworkError('La connexion au serveur a échoué.', { cause: err });
     }
   }
 
   // Single place where a non-ok HTTP response is classified into a typed error, so every request
   // method surfaces 401 as AuthError and all other statuses as HttpError carrying the status code.
   private async raiseForStatus(response: Response): Promise<never> {
-    const body = await response.json().catch(() => ({ message: 'Request failed' }));
-    const message = body.message ?? 'Request failed';
+    const body = await response.json().catch(() => ({ message: 'La requête a échoué.' }));
+    const message = body.message ?? 'La requête a échoué.';
     if (response.status === 401) throw new AuthError(message);
     throw new HttpError(response.status, message);
   }

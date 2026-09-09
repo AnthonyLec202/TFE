@@ -75,7 +75,7 @@ public class AuthService : IAuthService
     public async Task ResetPasswordAsync(ResetPasswordRequest request)
     {
         var user = await _userRepository.FindByEmailAsync(request.Email)
-                   ?? throw new InvalidOperationException("Invalid password reset request.");
+                   ?? throw new InvalidOperationException("Demande de réinitialisation de mot de passe invalide.");
 
         var rawToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(request.Token));
 
@@ -83,7 +83,7 @@ public class AuthService : IAuthService
         if (!result.Succeeded)
         {
             var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-            throw new InvalidOperationException($"Password reset failed: {errors}");
+            throw new InvalidOperationException($"La réinitialisation du mot de passe a échoué : {errors}");
         }
 
         // Intentionally does NOT establish a session: the user re-authenticates from their original
@@ -93,13 +93,13 @@ public class AuthService : IAuthService
     public async Task ChangePasswordAsync(string userId, ChangePasswordRequest request)
     {
         var user = await _userRepository.FindByIdAsync(userId)
-                   ?? throw new KeyNotFoundException("User not found.");
+                   ?? throw new KeyNotFoundException("Utilisateur introuvable.");
 
         var result = await _userRepository.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (!result.Succeeded)
         {
             var errors = string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-            throw new InvalidOperationException($"Password change failed: {errors}");
+            throw new InvalidOperationException($"La modification du mot de passe a échoué : {errors}");
         }
     }
 

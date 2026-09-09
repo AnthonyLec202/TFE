@@ -41,7 +41,7 @@ public class UserService : IUserService
     public async Task DeleteUserAsync(string userId)
     {
         var user = await _userManager.FindByIdAsync(userId)
-            ?? throw new KeyNotFoundException($"User {userId} not found.");
+            ?? throw new KeyNotFoundException("Utilisateur introuvable.");
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync();
         try

@@ -45,14 +45,14 @@ public class EnrollmentService : IEnrollmentService
             var enrollmentToken = await _tokenRepository.FindByHashAsync(tokenHash);
 
             if (enrollmentToken is null)
-                throw new InvalidOperationException("Invalid or already used invitation code.");
+                throw new InvalidOperationException("Code d'invitation invalide ou déjà utilisé.");
 
             // Step 2: validate expiry and usage
             if (enrollmentToken.IsUsed)
-                throw new InvalidOperationException("This invitation code has already been used.");
+                throw new InvalidOperationException("Ce code d'invitation a déjà été utilisé.");
 
             if (enrollmentToken.ExpiresAt < DateTime.UtcNow)
-                throw new InvalidOperationException("This invitation code has expired.");
+                throw new InvalidOperationException("Ce code d'invitation a expiré.");
 
             // Step 3: create the ApplicationUser via Identity, recording the GDPR consent timestamp
             var user = new ApplicationUser
@@ -70,7 +70,7 @@ public class EnrollmentService : IEnrollmentService
             if (!identityResult.Succeeded)
             {
                 var errors = string.Join(", ", identityResult.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Account creation failed: {errors}");
+                throw new InvalidOperationException($"La création du compte a échoué : {errors}");
             }
 
             // Step 4: add user to the patient's CareTeam with the role defined on the token
@@ -123,7 +123,7 @@ public class EnrollmentService : IEnrollmentService
                 "Only the patient's administrator or a parent can issue an invitation.");
 
         if (!Enum.TryParse<RelationshipType>(roleTarget, ignoreCase: true, out var role))
-            throw new ArgumentException($"Invalid role target: '{roleTarget}'.");
+            throw new ArgumentException($"Rôle cible invalide : '{roleTarget}'.");
 
         var secretCode = GenerateSecretCode();
 

@@ -28,7 +28,7 @@ public class AuthController : ControllerBase
     {
         var response = await _authService.LoginAsync(request);
         if (response is null)
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Unauthorized(new { message = "E-mail ou mot de passe incorrect." });
 
         // Issue the JWT as an HttpOnly cookie; never expose the token to JavaScript (F-02).
         Response.AppendAuthCookie(response.Token, response.ExpiresAt);
