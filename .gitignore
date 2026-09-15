@@ -19,6 +19,8 @@ appsettings.Local.json
 
 # Local publish output — the CI pipeline builds its own from source
 publish/
+# Locally produced deployment archive; the pipeline builds its own from source
+TFE.Api/deploy.zip
 
 # ── IDE / OS ─────────────────────────────────────────────────────────────────
 .vs/

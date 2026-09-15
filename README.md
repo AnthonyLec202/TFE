@@ -5,51 +5,14 @@ mur collaboratif d'équipe de soin, séances avec prise de notes au stylet, et g
 comptes rendus par un modèle de langage exécuté sur le poste de la praticienne.
 
 L'application fonctionne **sans connexion** : la patientèle, les séances et les notes sont miroitées
-dans le navigateur et synchronisées au retour du réseau. Aucune donnée clinique ne quitte
-l'infrastructure du cabinet pour un service d'inférence tiers.
+dans le navigateur et synchronisées au retour du réseau.
 
----
-
-## Sommaire
-
-- [Architecture](#architecture)
-- [Pile technique](#pile-technique)
-- [Prérequis](#prérequis)
-- [Démarrage local](#démarrage-local)
-- [Variables de configuration](#variables-de-configuration)
-- [Commandes](#commandes)
-- [Carte des répertoires](#carte-des-répertoires)
-- [Conventions d'architecture](#conventions-darchitecture)
-- [Tests et vérifications](#tests-et-vérifications)
-- [Déploiement](#déploiement)
-- [Notes de sécurité](#notes-de-sécurité)
-- [Utilisation de l'intelligence artificielle](#utilisation-de-lintelligence-artificielle)
-
----
-
-## Architecture
-
-Deux tiers déployés séparément, réunis derrière une **origine unique** :
-
-```
-Navigateur (PWA React)                       Poste de la praticienne
-  ├── IndexedDB (miroir local chiffré)         └── Ollama — inférence locale
-  ├── Service Worker (coquille hors ligne)          (aucune sortie réseau)
-  └── /api, /hubs, /health  ─────┐
-                                 │  réécriture same-origin (Vercel en production,
-                                 │  proxy du serveur de développement en local)
-                                 ▼
-                        API ASP.NET Core ─── PostgreSQL
-                                 ├── SignalR (mur temps réel)
-                                 ├── Supabase Storage (pièces jointes)
-                                 └── MyScript (reconnaissance d'écriture, mandatée)
-```
-
-Le point structurant est la **réécriture same-origin**. Le frontend n'appelle jamais l'API par une
-URL absolue : il vise son propre domaine, qui relaie `/api`, `/hubs` et `/health` vers le service
-applicatif. C'est ce qui rend le cookie de session *first-party* — condition sans laquelle
-l'authentification échoue sur tous les navigateurs mobiles, qui bloquent les cookies inter-sites par
-défaut.
+Deux tiers : une API ASP.NET Core adossée à PostgreSQL, et un client React installable (PWA). Le
+client n'appelle jamais l'API par une URL absolue — il vise sa propre origine, qui relaie `/api`,
+`/hubs` et `/health` (proxy du serveur Vite en local, réécritures Vercel en production). C'est ce qui
+rend le cookie de session *first-party*, condition sans laquelle l'authentification échoue sur les
+navigateurs mobiles. Les conventions d'architecture des deux tiers sont décrites dans
+[`CLAUDE.md`](CLAUDE.md).
 
 ## Pile technique
 
@@ -58,60 +21,90 @@ défaut.
 | **API** | .NET 9, ASP.NET Core, EF Core 9 + Npgsql, ASP.NET Identity, JWT en cookie `HttpOnly`, SignalR, Scalar/OpenAPI, MailKit |
 | **Client** | React 19, TypeScript 6, Vite 8, Tailwind 4, React Router 7, Dexie 4 (IndexedDB), TipTap 3, `vite-plugin-pwa` |
 | **Base de données** | PostgreSQL (24 migrations, appliquées au démarrage de l'API) |
-| **Services externes** | Supabase Storage (pièces jointes), MyScript (reconnaissance manuscrite), Brevo (SMTP) |
+| **Services externes** | Supabase (PostgreSQL managé en production + Storage des pièces jointes), MyScript (reconnaissance manuscrite), Brevo (SMTP) |
 | **Inférence** | Ollama en local, modèle `qwen2.5:7b` |
 | **Qualité** | Vitest 4 (86 tests), ESLint 10, `tsc` en mode strict |
+
+---
 
 ## Prérequis
 
 - **SDK .NET 9**
-- **Node.js 20** ou supérieur
-- **PostgreSQL** accessible localement
-- **Ollama** *(facultatif)* — nécessaire uniquement pour la génération de comptes rendus :
-  `ollama pull qwen2.5:7b`
+- **Node.js `^20.19` ou `>=22.12`** — exigence de Vite 8 ; Node 20.9 ou 22.0 échouent au build. La
+  contrainte est déclarée dans `package.json` et `npm install` la refuse (`engine-strict`).
+- **PostgreSQL 14 ou supérieur**, accessible localement. Aucune extension n'est requise.
+- **Ollama** *(facultatif)* — uniquement pour la génération de comptes rendus. Le modèle pèse environ
+  5 Go et demande à peu près autant de mémoire : `ollama pull qwen2.5:7b`
 
 ## Démarrage local
 
 ### 1. Base de données
 
-Créer une base vide ; le schéma est appliqué automatiquement au démarrage de l'API
-(`Database.MigrateAsync()`), aucune commande `dotnet ef` n'est requise.
+Créer une base vide. Le schéma est appliqué automatiquement au démarrage de l'API
+(`Database.MigrateAsync()`) ; aucune commande `dotnet ef` n'est requise.
 
 ```bash
-createdb tfe
+psql -U postgres -c "CREATE DATABASE tfe;"
 ```
 
 ### 2. Secrets de l'API
 
-`appsettings.json` est versionné avec **tous ses secrets vides**, par conception. Renseignez-les via
-le gestionnaire de secrets utilisateur ; l'API refuse de démarrer si `Cors:AllowedOrigins` est vide.
+Les secrets ne sont jamais versionnés : `appsettings.json` les porte à vide, et
+`appsettings.Development.json` **remet à vide la chaîne de connexion et la clé de chiffrement**.
+Renseigner `appsettings.json` est donc sans effet en développement — il faut passer par le
+gestionnaire de secrets utilisateur.
+
+Générer d'abord les deux clés. `Encryption:PiiKey` doit être une chaîne **Base64 valide décodant vers
+au moins 16 octets** (32 recommandés) : une phrase de passe arbitraire fait échouer le service de
+chiffrement. `Jwt:Key` doit faire au moins 32 caractères ; la même commande convient.
+
+```powershell
+# PowerShell
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+```bash
+# bash
+openssl rand -base64 32
+```
+
+Puis :
 
 ```bash
 cd TFE.Api
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=tfe;Username=postgres;Password=postgres"
-dotnet user-secrets set "Cors:AllowedOrigins:0" "http://localhost:5173"
-dotnet user-secrets set "Jwt:Key"                "<chaîne aléatoire d'au moins 32 caractères>"
-dotnet user-secrets set "Encryption:PiiKey"      "<clé de chiffrement des colonnes>"
+dotnet user-secrets set "Jwt:Key"                "<clé générée ci-dessus>"
+dotnet user-secrets set "Encryption:PiiKey"      "<autre clé générée ci-dessus>"
 dotnet user-secrets set "Admin:Email"            "admin@exemple.be"
-dotnet user-secrets set "Admin:InitialPassword"  "<mot de passe du compte initial>"
+dotnet user-secrets set "Admin:InitialPassword"  "<mot de passe initial, 6 caractères minimum>"
 ```
 
-Deux fonctionnalités restent inertes sans leurs clés, sans empêcher le démarrage :
-
-| Secret absent | Conséquence |
-|---|---|
-| `Handwriting:ApplicationKey` + `Handwriting:HmacKey` | La conversion manuscrite répond `503`. Les tracés sont conservés localement en attendant. |
-| `Supabase:ServiceRoleKey` | Le dépôt de pièces jointes échoue. |
+> `Cors:AllowedOrigins` n'a pas à être configuré en local : `appsettings.Development.json` autorise
+> déjà `http://localhost:5173` et `http://localhost:4173`. Hors développement, l'API **refuse de
+> démarrer** si la liste est vide.
 
 ### 3. Lancer l'API
 
 ```bash
-dotnet run --project TFE.Api --urls http://localhost:5043
+dotnet run --project TFE.Api      # http://localhost:5043
 ```
 
-> **Ports.** Le profil de lancement (`Properties/launchSettings.json`) écoute sur **5050**, tandis
-> que `VITE_DEV_API_TARGET` et le repli d'`apiClient` visent **5043**. Les deux doivent concorder :
-> soit vous forcez `--urls` comme ci-dessus, soit vous alignez `VITE_DEV_API_TARGET` sur 5050.
+**Vérifier la sortie.** L'amorçage de la base est isolé dans un `try/catch` : une chaîne de connexion
+erronée ou une `PiiKey` mal formée n'empêche pas l'API de démarrer — elle produit une ligne d'erreur,
+puis tous les endpoints échouent ensuite. Le démarrage n'est réussi que si ces deux lignes
+apparaissent :
+
+```
+[Seed] Running database migrations...
+[Seed] Migrations OK.
+```
+
+> **Port.** L'API écoute sur **5043**, valeur que visent aussi `VITE_DEV_API_TARGET` et le repli
+> d'`apiClient`. Les deux doivent concorder : changer l'un (`--urls`, profil de lancement) impose de
+> changer l'autre. Le lancement par F5 depuis Visual Studio suit `Properties/launchSettings.json`,
+> aligné sur le même port.
 
 En développement, la référence interactive de l'API est servie par Scalar sur `/scalar/v1`.
 
@@ -128,28 +121,50 @@ Le serveur de développement relaie `/api`, `/hubs` et `/health` vers `VITE_DEV_
 que la topologie à origine unique — et donc le comportement du cookie — soit identique à la
 production.
 
-### 5. Inférence locale *(facultatif)*
+### 5. Première connexion
+
+L'inscription libre n'existe pas : l'enrôlement se fait **sur invitation**. Au premier démarrage,
+l'API crée un compte administrateur à partir de `Admin:Email` et `Admin:InitialPassword` ; c'est le
+seul point d'entrée.
+
+1. Ouvrir `http://localhost:5173/login` et se connecter avec ces identifiants.
+2. Créer un patient, puis générer un code d'invitation depuis sa fiche.
+3. Le code est **affiché en clair dans l'application** — aucun envoi de courriel n'est nécessaire.
+   Le saisir sur `/enroll` pour créer un second compte (praticien, parent, enseignant…).
+
+Le compte administrateur n'est réamorcé que si la base ne contient **aucun** administrateur :
+renommer ce compte ne le fait pas réapparaître au redémarrage suivant.
+
+### 6. Inférence locale *(facultatif)*
 
 Ollama doit autoriser explicitement l'origine de l'application, sans quoi le navigateur écarte la
 réponse :
 
+```powershell
+# PowerShell
+$env:OLLAMA_ORIGINS = "http://localhost:5173"; ollama serve
+```
+
 ```bash
+# bash
 OLLAMA_ORIGINS=http://localhost:5173 ollama serve
 ```
 
-## Variables de configuration
+---
+
+## Configuration
 
 ### API — section de configuration → variable d'environnement
 
-Le séparateur `__` (double tiret bas) traduit le `:` de la configuration .NET. Sur Azure, ces clés
-se règlent dans les paramètres applicatifs du service.
+Le séparateur `__` (double tiret bas) traduit le `:` de la configuration .NET. Sur Azure, ces clés se
+règlent dans les paramètres applicatifs du service.
 
 | Clé | Rôle | Secret |
 |---|---|---|
 | `ConnectionStrings:DefaultConnection` | Chaîne de connexion PostgreSQL | oui |
-| `Jwt:Key` | Clé de signature du jeton de session | **oui** |
+| `Jwt:Key` | Clé de signature du jeton de session (≥ 32 caractères) | **oui** |
 | `Jwt:Issuer` / `Jwt:Audience` / `Jwt:ExpiresInMinutes` | Émetteur, audience et durée de vie du jeton | non |
-| `Encryption:PiiKey` | Clé de chiffrement des colonnes nominatives | **oui** |
+| `Encryption:PiiKey` | Clé de chiffrement des colonnes nominatives (**Base64, ≥ 16 octets décodés**) | **oui** |
 | `Cors:AllowedOrigins` | Origines autorisées (tableau). **Vide ⇒ l'API refuse de démarrer** | non |
 | `Cors:AllowedOriginPatterns` | Motifs d'origine, à laisser vides en production | non |
 | `App:FrontendBaseUrl` | Base des liens envoyés par courriel | non |
@@ -160,6 +175,17 @@ se règlent dans les paramètres applicatifs du service.
 | `Handwriting:ApplicationKey` / `Handwriting:HmacKey` | Accès au prestataire de reconnaissance | **oui** |
 | `Handwriting:BatchUrl` / `Language` / `MaxPoints` | Point d'entrée, langue, plafond de points par requête | non |
 
+### Fonctionnalités inertes sans leur clé
+
+Aucune de ces absences n'empêche l'API de démarrer ; le reste de l'application reste utilisable.
+
+| Secret absent | Conséquence |
+|---|---|
+| `Handwriting:ApplicationKey` + `Handwriting:HmacKey` | La conversion manuscrite répond `503`. Les tracés sont conservés localement en attendant. |
+| `Supabase:ServiceRoleKey` | Le dépôt de pièces jointes échoue. |
+| `Email:SmtpPassword` | Aucun courriel n'est envoyé : la réinitialisation de mot de passe est inopérante. L'enrôlement, lui, n'en dépend pas — le code d'invitation est affiché dans l'application. |
+| `App:FrontendBaseUrl` mal réglé | Les liens contenus dans les courriels pointent vers la mauvaise origine. |
+
 ### Client — `frontend/.env`
 
 Tout ce qui est préfixé `VITE_` est **inliné dans le bundle et donc public**. Aucune clé secrète ne
@@ -167,7 +193,7 @@ doit y figurer : c'est la raison pour laquelle la reconnaissance manuscrite est 
 
 | Clé | Valeur attendue |
 |---|---|
-| `VITE_API_URL` | **Vide.** Vide signifie « même origine » ; une URL absolue rétablit un appel inter-site et casse la session sur mobile. |
+| `VITE_API_URL` | **Vide.** Vide signifie « même origine » ; une URL absolue rétablit un appel inter-site et casse la session sur mobile. Ne pas supprimer la clé : absente, `apiClient` se rabat sur `http://localhost:5043`. |
 | `VITE_DEV_API_TARGET` | Cible du proxy de développement (`http://localhost:5043` par défaut). |
 | `VITE_OLLAMA_URL` | `http://127.0.0.1:11434` — en IPv4 explicite, `localhost` pouvant résoudre en `::1`. |
 | `VITE_OLLAMA_MODEL` | `qwen2.5:7b` |
@@ -183,94 +209,47 @@ doit y figurer : c'est la raison pour laquelle la reconnaissance manuscrite est 
 | `npm run test` | Suite unitaire Vitest (86 tests) |
 | `npm run test:watch` | Idem, en mode surveillance |
 | `npm run lint` | ESLint sur l'ensemble du projet |
-| `npm run preview` | Sert le bundle de production localement |
+| `npm run preview` | Sert le bundle de production sur `:4173`, avec le même proxy |
 
 ### API (`TFE.Api/`)
 
 | Commande | Effet |
 |---|---|
-| `dotnet run --urls http://localhost:5043` | Démarre l'API, applique les migrations et amorce le compte administrateur |
+| `dotnet run` | Démarre l'API, applique les migrations et amorce le compte administrateur |
 | `dotnet build` | Compilation seule |
 | `dotnet ef migrations add <Nom>` | Nouvelle migration (l'application se fait au démarrage) |
 
-## Carte des répertoires
+Vérifications attendues avant de livrer : `npm run test` → 86 / 86, `npm run build` → 0 erreur,
+`npm run lint` → 0 avertissement.
+
+## Dépannage
+
+| Symptôme | Cause habituelle |
+|---|---|
+| L'API démarre mais toutes les requêtes échouent | `[Seed] Migrations OK.` n'est pas apparu : chaîne de connexion invalide, ou `Encryption:PiiKey` qui n'est pas du Base64 d'au moins 16 octets. L'échec d'amorçage est journalisé, pas fatal. |
+| `404` sur `/api/...` en développement | L'API n'est pas lancée, ou n'écoute pas sur le port visé par `VITE_DEV_API_TARGET` (5043 par défaut). |
+| Connexion acceptée puis perdue au rechargement | `VITE_API_URL` n'est pas vide : l'appel redevient inter-site et le cookie `SameSite=Lax` est écarté. |
+| L'API refuse de démarrer | `Cors:AllowedOrigins` est vide pour l'environnement courant. |
+| Génération de compte rendu indisponible | Ollama n'est pas lancé, ou `OLLAMA_ORIGINS` n'autorise pas l'origine de l'application. |
+| Conversion manuscrite en `503` | Clés MyScript absentes de la configuration de l'API. |
+
+## Structure du projet
 
 ```
-TFE.Api/                    API ASP.NET Core — patron N-tiers
-  Controllers/                points d'entrée HTTP, sans logique métier
-  Services/                   règles métier, cartographie Modèle → DTO
-  Repositories/               accès aux données + UnitOfWork (transactions)
-  Interfaces/                 contrats des services et des dépôts (injection)
-  Models/                     entités persistées
-  DTOs/                       contrats d'API, découplés du schéma
-  Data/                       DbContext, migrations, amorçage
-  Hubs/                       temps réel SignalR (mur collaboratif)
-  Options/                    classes d'options liées à la configuration
-  Extensions/                 enregistrement des services, cookie de session
+TFE.Api/        API ASP.NET Core — patron N-tiers
+                Controllers / Services / Repositories + UnitOfWork / Interfaces /
+                Models / DTOs / Data (contexte, migrations, amorçage) / Hubs (SignalR)
 
-frontend/src/
-  features/<domaine>/         code groupé par domaine métier
-    *Container.tsx              données, état, effets de bord
-    components/                 présentation, pilotée par les props
-    hooks/  services/  utils/  types/
-    index.ts                    façade publique de la fonctionnalité
-  components/ui/              primitives génériques (Button, Card, Input…)
-  components/layout/          coquille applicative (Navbar, MainLayout)
-  core/offline/               base locale, moteur de synchronisation, chiffrement au repos
-  services/                   clients HTTP bruts partagés
-  pages/                      coquilles de route, sans logique
-  types/                      types partagés par au moins deux fonctionnalités
+frontend/src/   Client React — découpage par fonctionnalité
+                features/<domaine>/ (conteneurs, composants, hooks, services, types) /
+                components/ui + layout / core/offline (base locale, synchronisation) /
+                services (clients HTTP bruts) / pages (coquilles de route)
 ```
 
-## Conventions d'architecture
-
-Ces règles font autorité en cas de doute sur l'emplacement d'un fichier.
-
-### API — patron N-tiers
-
-1. Les couches communiquent **uniquement par interfaces injectées** : contrôleur → `IService`,
-   service → `IRepository`.
-2. Un `Model` n'est **jamais** renvoyé tel quel par un contrôleur ; le service le projette en `DTO`.
-3. **Contrôleurs maigres, services gras** : un point d'entrée tient en une à trois lignes.
-4. Un service n'injecte **jamais** `ApplicationDbContext`. La persistance et les transactions passent
-   par `IUnitOfWork`.
-5. Les méthodes mutantes d'un dépôt ne font que préparer les changements ; **seul le service valide**
-   via `IUnitOfWork`.
-
-### Client — découpage par fonctionnalité
-
-1. **Scission conteneur / présentation obligatoire.** Les `*Container.tsx` détiennent les données et
-   les effets ; les composants de `components/` ne reçoivent que des props.
-2. **Isolation par `index.ts`.** Une fonctionnalité n'importe d'une autre que par sa façade publique,
-   jamais par un chemin interne.
-3. **Les pages sont des coquilles** : elles montent un conteneur, rien de plus.
-4. **Aucun code mort après refactorisation** : un fichier déplacé est supprimé, pas laissé en
-   réexportation.
-
-### Langue et commentaires
-
-Les identifiants et les commentaires du code sont en **anglais** ; les messages destinés à
-l'utilisateur sont en **français**. La convention de commentaire est qu'il n'explique pas *ce que*
-fait le code — cela se lit — mais **pourquoi il est écrit ainsi**, en particulier lorsqu'une
-formulation plus naturelle a été essayée et a échoué. Plusieurs de ces commentaires décrivent des
-régressions déjà survenues : ils valent avertissement.
-
-## Tests et vérifications
-
-| Vérification | Commande | État attendu |
-|---|---|---|
-| Socle unitaire | `npm run test` | 86 / 86, aucun test ignoré |
-| Types | `npm run build` (ou `npx tsc --noEmit`) | 0 erreur |
-| Analyse statique | `npm run lint` | 0 erreur, 0 avertissement |
-
-Le socle unitaire couvre cinq modules purs et volontairement ciblés : reflux des lignes reconnues,
-fenêtre de validité de session hors ligne, insertion du texte reconnu dans le contenu enrichi,
-normalisation des horodatages de tracés, et ordonnancement du catalogue d'outils. Ce sont les unités
-dont la défaillance est **silencieuse** — elle ne produit aucun message et ne se détecte que par
-assertion.
-
-Les règles de cloisonnement, l'effacement de compte et le chiffrement au repos ne sont pas couverts
-par des tests automatisés : ils relèvent de procédures d'acceptation manuelles.
+Les règles qui régissent ce découpage — couches de l'API, scission conteneur / présentation,
+isolation des fonctionnalités par leur `index.ts` — font autorité dans [`CLAUDE.md`](CLAUDE.md). Les
+identifiants et commentaires du code sont en **anglais**, les messages destinés à l'utilisateur en
+**français**.
 
 ## Déploiement
 
@@ -279,26 +258,29 @@ par des tests automatisés : ils relèvent de procédures d'acceptation manuelle
 | Client | Vercel | à chaque poussée ; `vercel.json` porte les réécritures `/api`, `/hubs`, `/health` |
 | API | Azure App Service (Belgique) | GitHub Actions, filtré sur les chemins de l'API |
 
-Le workflow ne se contente pas de publier : il **sonde** ensuite un point d'entrée protégé jusqu'à
-douze fois, à quinze secondes d'intervalle. Un `401` ou un `429` vaut succès — la route existe et
-applique son autorisation. Un `404` signale une route absente du build, un `5xx` que l'application
-n'a pas démarré. Cette sonde existe parce qu'une étape de publication réussie ne dit rien du
-démarrage effectif : l'API échoue volontairement si sa liste d'origines est vide.
+Après publication, le workflow sonde un point d'entrée protégé jusqu'à douze fois, à quinze secondes
+d'intervalle : un `401` ou un `429` vaut succès, un `404` signale une route absente du build, un `5xx`
+que l'application n'a pas démarré. Une étape de publication réussie ne dit rien du démarrage
+effectif — l'API échoue volontairement si sa liste d'origines est vide.
+
+Sur une base hébergée chez Supabase, exécuter une fois
+[`TFE.Api/Data/Scripts/EnableRowLevelSecurity.sql`](TFE.Api/Data/Scripts/EnableRowLevelSecurity.sql) :
+le script active RLS sans aucune politique sur toutes les tables, ce qui ferme l'API REST
+auto-générée de Supabase. Le rôle utilisé par la chaîne de connexion contourne RLS, donc EF Core
+n'est pas affecté. Étape manuelle et idempotente, sans objet sur une instance PostgreSQL locale.
 
 ## Notes de sécurité
 
-- **Le jeton de session ne transite jamais par JavaScript.** Il est délivré dans un cookie
-  `HttpOnly`, `Secure`, `SameSite=Lax`, sans attribut `Domain` — donc restreint à l'hôte émetteur.
-- **Chiffrement au repos du miroir local.** Les colonnes sensibles d'IndexedDB (contenu des notes,
-  tracés non convertis, comptes rendus) sont chiffrées en AES-GCM par une clé dérivée par PBKDF2 de
-  l'identifiant utilisateur et d'un sel propre au terminal. La clé est non extractible et n'est
-  jamais sérialisée.
-- **Aucune donnée clinique n'atteint un service d'inférence tiers.** La génération de comptes rendus
+- **Le jeton de session ne transite jamais par JavaScript** : cookie `HttpOnly`, `Secure`,
+  `SameSite=Lax`, sans attribut `Domain` — donc restreint à l'hôte émetteur.
+- **Chiffrement au repos du miroir local** : les colonnes sensibles d'IndexedDB (contenu des notes,
+  tracés non convertis, comptes rendus) sont chiffrées en AES-GCM par une clé dérivée par PBKDF2,
+  non extractible et jamais sérialisée.
+- **Aucune donnée clinique n'atteint un service d'inférence tiers** : la génération de comptes rendus
   s'exécute sur le poste de la praticienne.
-- **`appsettings.json` est versionné sans aucun secret.** Les valeurs réelles viennent des secrets
-  utilisateur en local et des paramètres applicatifs en production.
-- **Enrôlement sur invitation uniquement.** Aucun parcours d'inscription libre n'existe ; un code est
-  nominatif, à usage unique et horodate le consentement RGPD.
+- **Aucun secret versionné** : secrets utilisateur en local, paramètres applicatifs en production.
+- **Enrôlement sur invitation uniquement** : un code est nominatif, à usage unique, et horodate le
+  consentement RGPD.
 
 ---
 
