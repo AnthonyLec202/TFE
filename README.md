@@ -23,6 +23,7 @@ l'infrastructure du cabinet pour un service d'inférence tiers.
 - [Tests et vérifications](#tests-et-vérifications)
 - [Déploiement](#déploiement)
 - [Notes de sécurité](#notes-de-sécurité)
+- [Utilisation de l'intelligence artificielle](#utilisation-de-lintelligence-artificielle)
 
 ---
 
@@ -298,3 +299,62 @@ démarrage effectif : l'API échoue volontairement si sa liste d'origines est vi
   utilisateur en local et des paramètres applicatifs en production.
 - **Enrôlement sur invitation uniquement.** Aucun parcours d'inscription libre n'existe ; un code est
   nominatif, à usage unique et horodate le consentement RGPD.
+
+---
+
+## Utilisation de l'intelligence artificielle
+
+Une partie du code de ce dépôt a été produite avec l'assistance d'un outil d'intelligence
+artificielle. Cette section en rend compte, conformément aux exigences de transparence applicables
+au travail de fin d'études dont ce projet est le support.
+
+### Outil employé
+
+**Claude** (Anthropic), utilisé via **Claude Code**, l'interface en ligne de commande du même
+éditeur. https://claude.ai — https://claude.com/claude-code
+
+### Méthode de travail
+
+L'assistance n'a pas été employée de manière ponctuelle, prompt par prompt, mais encadrée par un
+document d'instructions permanent.
+
+**1. Cadrage préalable par `CLAUDE.md`.** Le fichier [`CLAUDE.md`](CLAUDE.md), versionné à la racine
+du dépôt, a été rédigé en premier. Il présente l'application et surtout **l'architecture attendue** :
+conventions de nommage, paradigme imposé à chaque tiers, découpage en couches côté serveur avec les
+interdictions propres à chacune — un contrôleur ne porte pas de règle métier, un service n'injecte
+jamais le `DbContext`, un dépôt ne valide jamais la transaction — et, côté client, l'organisation par
+fonctionnalité assortie de la séparation conteneur / présentation. Ce fichier est lu à chaque session
+et constitue le cadre auquel toute production est tenue.
+
+**2. Développement dirigé par prompts.** Chaque fonctionnalité a fait l'objet d'instructions décrivant
+le comportement attendu, les règles de gestion et les cas limites, à charge pour l'outil de produire
+une implémentation **conforme aux contraintes architecturales déjà posées**. La conception — modèle de
+données, découpage des responsabilités, décisions de sécurité — précède les prompts et n'en découle
+pas.
+
+**3. Relecture et refactorisation systématiques.** Aucune production n'a été intégrée en l'état. Le
+code généré a été relu puis retravaillé, avec trois objectifs constants : la lisibilité, la capacité
+à évoluer, et l'élimination des duplications. Plusieurs des composants transverses du projet — le
+résolveur de rôles d'équipe de soin, le service de chiffrement, le moteur de synchronisation — sont
+le résultat de cette étape : ils consolident en un point unique des logiques que les premières
+implémentations avaient dispersées.
+
+### Portée de l'intervention
+
+| Registre | Nature de l'assistance |
+|---|---|
+| Composants d'interface répétitifs | Génération d'une première version, systématiquement retravaillée. |
+| Logique métier serveur | Implémentation sous contrainte des règles définies au préalable. |
+| Diagnostic d'anomalies | Analyse de traces et d'erreurs, propositions de piste. |
+| Structures alternatives | Propositions discutées, retenues ou écartées selon les contraintes du projet. |
+| Décisions d'architecture | **Aucune.** Elles sont antérieures et consignées dans `CLAUDE.md`. |
+
+Plusieurs propositions ont été écartées parce qu'elles contredisaient une contrainte du projet : le
+chiffrement du miroir local par les crochets de table Dexie, qui écrit le texte clair sans lever
+d'erreur, et diverses variantes de génération de comptes rendus par un service distant,
+incompatibles avec l'exigence de non-transfert des notes cliniques.
+
+### Responsabilité
+
+La responsabilité du code remis est entière et personnelle. Chaque production a été vérifiée, testée
+et adaptée au contexte du projet avant intégration.
