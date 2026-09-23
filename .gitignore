@@ -35,3 +35,11 @@ Thumbs.db
 # Ancrés à la racine pour ne pas masquer un éventuel dossier docs/ d'un sous-projet.
 /docs/
 /rapport.md
+
+# Projet de tests serveur, écrit après la remise. Hors périmètre du dépôt applicatif : il ne sert
+# ni à construire ni à déployer l'application, et il n'est pas référencé par TFE.sln.
+/TFE.Api.Tests/
+
+# Supports de la défense orale (diaporama, PDF, scripts). Aucun rôle dans l'application.
+/presentation/
+
